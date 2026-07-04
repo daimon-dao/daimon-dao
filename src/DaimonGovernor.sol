@@ -58,6 +58,10 @@ contract DaimonGovernor {
         bytes data;
         string description;
         uint256 snapshotTimestamp; // i votanti devono aver acquisito voting power prima di questo momento concettuale (qui semplificato: blocco di creazione)
+        // totalVotingPower al momento della creazione: il quorum si calcola
+        // su questo snapshot, non sul valore live, cosi' stake/unstake
+        // successivi alla proposta non possono alterare la soglia.
+        uint256 snapshotTotalVotingPower;
         uint256 voteStart;
         uint256 voteEnd;
         uint256 forVotes;
@@ -65,6 +69,7 @@ contract DaimonGovernor {
         uint256 abstainVotes;
         bool canceled;
         bool executed;
+        bool queued;
         bytes32 timelockSalt;
     }
 
@@ -86,6 +91,7 @@ contract DaimonGovernor {
     error VotingNotEnded();
     error AlreadyVoted();
     error ProposalNotSucceeded();
+    error ProposalNotQueued();
     error NotGuardian();
     error AlreadyExecuted();
 
@@ -114,6 +120,7 @@ contract DaimonGovernor {
         p.data = data;
         p.description = description;
         p.snapshotTimestamp = block.timestamp;
+        p.snapshotTotalVotingPower = staking.totalVotingPower();
         p.voteStart = block.timestamp + VOTING_DELAY;
         p.voteEnd = p.voteStart + VOTING_PERIOD;
         p.timelockSalt = keccak256(abi.encode(id, block.timestamp));
@@ -147,7 +154,7 @@ contract DaimonGovernor {
         if (block.timestamp <= p.voteEnd) return ProposalState.Active;
 
         uint256 totalVotes = p.forVotes + p.againstVotes + p.abstainVotes;
-        uint256 quorumNeeded = (staking.totalVotingPower() * quorumBps) / 10000;
+        uint256 quorumNeeded = (p.snapshotTotalVotingPower * quorumBps) / 10000;
 
         if (totalVotes < quorumNeeded || p.forVotes <= p.againstVotes) {
             return ProposalState.Defeated;
@@ -159,6 +166,7 @@ contract DaimonGovernor {
         if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
         Proposal storage p = proposals[id];
 
+        p.queued = true;
         timelock.schedule(p.target, p.value, p.data, bytes32(0), p.timelockSalt, timelock.getMinDelay());
 
         emit ProposalQueued(id, block.timestamp + timelock.getMinDelay());
@@ -168,6 +176,10 @@ contract DaimonGovernor {
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();
         if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
+        // execute() deve passare dal percorso queue() -> delay del Timelock:
+        // senza questo check una proposta mai schedulata arriverebbe a
+        // timelock.execute() saltando la finestra pubblica di reazione.
+        if (!p.queued) revert ProposalNotQueued();
 
         p.executed = true;
         timelock.execute{value: msg.value}(p.target, p.value, p.data, bytes32(0), p.timelockSalt);

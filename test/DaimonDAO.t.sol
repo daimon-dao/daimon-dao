@@ -374,6 +374,78 @@ contract DaimonDAOTest is Test {
         assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Defeated));
     }
 
+    function test_QuorumUsesSnapshotNotLiveVotingPower() public {
+        _deployFullStack();
+
+        _giveAliceSomeNewTokens(500_000 * 1e18);
+        vm.prank(alice);
+        token.transfer(bob, 200_000 * 1e18); // fee 5%: bob riceve ~190k
+
+        // Snapshot: al momento della proposta l'unico voting power e' quello
+        // di alice (5000e18). Lei vota con il 100% dello snapshot: quorum
+        // ampiamente raggiunto rispetto allo snapshot.
+        vm.startPrank(alice);
+        token.approve(address(staking), 5000 * 1e18);
+        staking.stake(5000 * 1e18, 0);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot quorum");
+
+        vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
+        vm.prank(alice);
+        governor.castVote(proposalId, 1);
+
+        vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
+        assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
+
+        // DOPO la fine del voto bob stake-a una quantita' enorme: il
+        // totalVotingPower live sale a ~185_000e18, il cui 10% (18_500e18)
+        // sarebbe sopra i 5000e18 votati. Se il quorum usasse il valore
+        // live la proposta diventerebbe retroattivamente Defeated; con lo
+        // snapshot resta Succeeded.
+        vm.startPrank(bob);
+        token.approve(address(staking), 180_000 * 1e18);
+        staking.stake(180_000 * 1e18, 0);
+        vm.stopPrank();
+
+        assertGt(staking.totalVotingPower(), 100_000 * 1e18); // il live e' davvero cresciuto
+        assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
+    }
+
+    function test_ExecuteRevertsIfNotQueued() public {
+        _deployFullStack();
+
+        _giveAliceSomeNewTokens(2_000_000 * 1e18);
+        vm.startPrank(alice);
+        token.approve(address(staking), 2_000_000 * 1e18);
+        staking.stake(2_000_000 * 1e18, 3);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 proposalId = governor.propose(address(token), 0, data, "Skip the queue");
+
+        vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
+        vm.prank(alice);
+        governor.castVote(proposalId, 1);
+
+        vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
+        assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
+
+        // Proposta approvata ma MAI schedulata sul Timelock: execute() deve
+        // rifiutarla, altrimenti salterebbe il delay pubblico di 7 giorni.
+        vm.expectRevert(DaimonGovernor.ProposalNotQueued.selector);
+        governor.execute(proposalId);
+
+        // Percorso corretto: queue -> attesa del delay -> execute.
+        governor.queue(proposalId);
+        vm.warp(block.timestamp + timelock.getMinDelay() + 1);
+        governor.execute(proposalId);
+        assertEq(token.taxFee(), 10);
+    }
+
     // ============================================================
     // Test 5: floor di burn mai violato
     // ============================================================
