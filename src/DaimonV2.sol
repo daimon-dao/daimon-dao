@@ -59,6 +59,7 @@ interface IUniswapV2Router02 {
         address to,
         uint deadline
     ) external payable;
+    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
 }
 
 interface IDaimonStakingNotifier {
@@ -119,6 +120,11 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     uint256 public minimumTokensBeforeSwap;
     uint256 public buyBackUpperLimit;
 
+    // Slippage massimo tollerato (bps su 10000) per gli swap automatici di
+    // fee e buyback: l'amountOutMin e' derivato da getAmountsOut meno questa
+    // tolleranza, per limitare l'estrazione MEV sugli swap del contratto.
+    uint256 public maxSwapSlippageBps;
+
     address public marketingWallet;
     address public stakingContract;
     address public constant deadAddress = 0x000000000000000000000000000000000000dEaD;
@@ -145,6 +151,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event ParamsUpdated(string param, uint256 value);
     event PausedSet(bool paused);
     event StakingContractSet(address staking);
+    event MarketingWalletSet(address indexed wallet);
+    event ExcludedFromFeeSet(address indexed account, bool excluded);
+    event SwapAndLiquifyEnabledSet(bool enabled);
+    event BuyBackEnabledSet(bool enabled);
 
     error BelowMinSupply();
     error ZeroAddress();
@@ -215,6 +225,7 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         maxTxAmount = _tTotal / 200;           // 0.5% supply iniziale
         minimumTokensBeforeSwap = _tTotal / 5000; // 0.02% supply iniziale
         buyBackUpperLimit = 50 ether;
+        maxSwapSlippageBps = 500; // 5% di slippage massimo sugli swap automatici
 
         swapAndLiquifyEnabled = true;
         buyBackEnabled = true;
@@ -234,6 +245,12 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         _rOwned[_migrationContract] = _rTotal;
         isExcludedFromFee[_migrationContract] = true;
         isExcludedFromFee[address(this)] = true;
+
+        // Il dead address e' escluso dalle reflection: cosi' il suo balance
+        // riflette SOLO i token realmente inviati (buyback), non reflection
+        // maturate, e burnDeadBalanceToFloor() brucia supply netta e reale.
+        _isExcludedFromReward[deadAddress] = true;
+        _excluded.push(deadAddress);
 
         uniswapV2Router = IUniswapV2Router02(_router);
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
@@ -471,10 +488,23 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
 
+        // amountOutMin dal quote corrente meno la tolleranza governata.
+        // NOTA: il quote e' letto nello stesso blocco dello swap, quindi
+        // limita l'impatto di manipolazioni intra-blocco fino alla
+        // tolleranza, non le elimina (per quello servirebbe un TWAP).
+        // Il contratto e' escluso dalla fee, quindi il quote non va
+        // corretto per la transfer fee.
+        uint256[] memory quote = uniswapV2Router.getAmountsOut(tokenAmount, path);
+        uint256 minOut = (quote[1] * (10000 - maxSwapSlippageBps)) / 10000;
+
         _approve(address(this), address(uniswapV2Router), tokenAmount);
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            tokenAmount, 0, path, address(this), block.timestamp
-        );
+        // try/catch: se lo slippage supera la tolleranza lo swap fallisce,
+        // ma NON deve far revertire la transfer dell'utente che lo ha
+        // innescato (sarebbe un vettore di DoS sui sell: basta spingere il
+        // prezzo oltre tolleranza). I token restano per il prossimo round.
+        try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokenAmount, minOut, path, address(this), block.timestamp
+        ) {} catch {}
     }
 
     function _buyBackAndBurn(uint256 ethAmount) private lockSwap nonReentrant {
@@ -485,6 +515,16 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         path[0] = uniswapV2Router.WETH();
         path[1] = address(this);
 
+        // amountOutMin: quote corrente, corretto per la transfer fee del
+        // token (il dead address non e' escluso dalla fee: riceve il netto),
+        // meno la tolleranza di slippage governata.
+        uint256 expectedAfterFee = 0;
+        {
+            uint256[] memory quote = uniswapV2Router.getAmountsOut(ethAmount, path);
+            expectedAfterFee = (quote[1] * (1000 - taxFee - liquidityFee)) / 1000;
+        }
+        uint256 minOut = (expectedAfterFee * (10000 - maxSwapSlippageBps)) / 10000;
+
         uint256 balanceBefore = balanceOf(deadAddress);
 
         // Acquista token e li invia DIRETTAMENTE al dead address: e' un burn
@@ -494,9 +534,14 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         // deflazione reale sulla supply enforciamo il floor separatamente
         // tramite burnToFloor(), vedi sotto: e' quella funzione che brucia
         // davvero supply, mentre questo buyback sostiene il prezzo.
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
-            0, path, deadAddress, block.timestamp + 300
-        );
+        // try/catch: un buyback oltre tolleranza viene saltato (l'ETH resta
+        // per il prossimo tentativo), senza far revertire la transfer che
+        // lo ha innescato.
+        try uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
+            minOut, path, deadAddress, block.timestamp + 300
+        ) {} catch {
+            return;
+        }
 
         uint256 balanceAfter = balanceOf(deadAddress);
         emit BuyBackAndBurn(ethAmount, balanceAfter - balanceBefore);
@@ -553,6 +598,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     }
 
     function setMinimumTokensBeforeSwap(uint256 amount) external onlyRole(GOVERNANCE_ROLE) {
+        // Floor: min 0.0001% della supply. Un valore ~0 renderebbe overMin
+        // sempre vero, innescando uno swap a ogni transfer verso la pair
+        // (gas-DoS di fatto sui sell).
+        require(amount >= _tTotal / 1_000_000, "DaimonV2: swap threshold too low");
         minimumTokensBeforeSwap = amount;
         emit ParamsUpdated("minimumTokensBeforeSwap", amount);
     }
@@ -562,9 +611,18 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         emit ParamsUpdated("buyBackUpperLimit", amount);
     }
 
+    function setMaxSwapSlippageBps(uint256 bps) external onlyRole(GOVERNANCE_ROLE) {
+        // 0.5% - 30%: mai 0 (bloccherebbe ogni swap) ne' valori che
+        // riaprono di fatto la porta al MEV illimitato.
+        require(bps >= 50 && bps <= 3000, "DaimonV2: slippage out of range");
+        maxSwapSlippageBps = bps;
+        emit ParamsUpdated("maxSwapSlippageBps", bps);
+    }
+
     function setMarketingWallet(address wallet) external onlyRole(GOVERNANCE_ROLE) {
         if (wallet == address(0)) revert ZeroAddress();
         marketingWallet = wallet;
+        emit MarketingWalletSet(wallet);
     }
 
     function setStakingContract(address staking) external onlyRole(GOVERNANCE_ROLE) {
@@ -576,14 +634,17 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
 
     function setExcludedFromFee(address account, bool excluded) external onlyRole(GOVERNANCE_ROLE) {
         isExcludedFromFee[account] = excluded;
+        emit ExcludedFromFeeSet(account, excluded);
     }
 
     function setSwapAndLiquifyEnabled(bool enabled) external onlyRole(GOVERNANCE_ROLE) {
         swapAndLiquifyEnabled = enabled;
+        emit SwapAndLiquifyEnabledSet(enabled);
     }
 
     function setBuyBackEnabled(bool enabled) external onlyRole(GOVERNANCE_ROLE) {
         buyBackEnabled = enabled;
+        emit BuyBackEnabledSet(enabled);
     }
 
     // ---- Guardian: SOLO pausa di emergenza, nessun potere economico ----
@@ -592,7 +653,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // da nessuno, nemmeno dalla DAO. E' una garanzia di decentralizzazione
     // definitiva, verificabile on-chain da chiunque leggendo guardianExpiry.
     function setPaused(bool _paused) external onlyRole(GUARDIAN_ROLE) {
-        if (block.timestamp >= guardianExpiry) revert GuardianExpired();
+        // Solo METTERE in pausa scade con il guardian: togliere la pausa
+        // resta sempre possibile, altrimenti un contratto in pausa al
+        // momento della scadenza resterebbe congelato per sempre.
+        if (_paused && block.timestamp >= guardianExpiry) revert GuardianExpired();
         paused = _paused;
         emit PausedSet(_paused);
     }

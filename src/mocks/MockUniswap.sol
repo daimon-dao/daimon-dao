@@ -48,10 +48,22 @@ contract MockUniswapV2Router02 {
         ethPerTokenRate = _rate;
     }
 
+    // Quote al rate corrente, coerente con i due swap qui sotto. Permette
+    // al token di derivare amountOutMin come farebbe col router reale.
+    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts) {
+        amounts = new uint[](path.length);
+        amounts[0] = amountIn;
+        if (path[0] == WETH) {
+            amounts[1] = (amountIn * 1e18) / ethPerTokenRate; // ETH -> token
+        } else {
+            amounts[1] = (amountIn * ethPerTokenRate) / 1e18; // token -> ETH
+        }
+    }
+
     // Simula: prende tokenAmount di token dal caller, manda ETH equivalente a `to`.
     function swapExactTokensForETHSupportingFeeOnTransferTokens(
         uint amountIn,
-        uint /*amountOutMin*/,
+        uint amountOutMin,
         address[] calldata path,
         address to,
         uint /*deadline*/
@@ -61,22 +73,29 @@ contract MockUniswapV2Router02 {
         require(ok, "MockRouter: transferFrom failed");
 
         uint256 ethOut = (amountIn * ethPerTokenRate) / 1e18;
+        require(ethOut >= amountOutMin, "MockRouter: INSUFFICIENT_OUTPUT_AMOUNT");
         require(address(this).balance >= ethOut, "MockRouter: insufficient ETH liquidity");
         (bool sent, ) = to.call{value: ethOut}("");
         require(sent, "MockRouter: ETH send failed");
     }
 
     // Simula: prende ETH dal caller (msg.value), manda token equivalente a `to`.
+    // Come il router reale (variante SupportingFeeOnTransfer), amountOutMin
+    // e' verificato sul RICEVUTO effettivo dal destinatario, dopo la
+    // eventuale transfer fee del token.
     function swapExactETHForTokensSupportingFeeOnTransferTokens(
-        uint /*amountOutMin*/,
+        uint amountOutMin,
         address[] calldata path,
         address to,
         uint /*deadline*/
     ) external payable {
         address token = path[1];
         uint256 tokenOut = (msg.value * 1e18) / ethPerTokenRate;
+        uint256 balBefore = IERC20Mock(token).balanceOf(to);
         bool ok = IERC20Mock(token).transfer(to, tokenOut);
         require(ok, "MockRouter: token send failed (fund the router with tokens first)");
+        uint256 received = IERC20Mock(token).balanceOf(to) - balBefore;
+        require(received >= amountOutMin, "MockRouter: INSUFFICIENT_OUTPUT_AMOUNT");
     }
 
     receive() external payable {}

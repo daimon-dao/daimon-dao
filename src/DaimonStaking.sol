@@ -69,6 +69,10 @@ contract DaimonStaking is ReentrancyGuard {
         uint256 start;
         uint256 unlockTime;
         uint256 multiplierX1000;
+        // Voting power accreditato allo stake: withdraw sottrae ESATTAMENTE
+        // questo valore, mai un ricalcolo (se la formula del vp cambiasse in
+        // un upgrade, un ricalcolo divergerebbe e corromperebbe i totali).
+        uint256 votingPowerGranted;
         bool withdrawn;
     }
 
@@ -81,8 +85,27 @@ contract DaimonStaking is ReentrancyGuard {
     uint256 public totalVotingPower;
     uint256 public totalStakedAmount;
 
+    // ---- Checkpoint del voting power (stile OZ Votes) ----
+    // Ad ogni stake/withdraw viene registrato (timestamp, votingPower):
+    // il Governor legge il voting power allo snapshot della proposta via
+    // votingPowerAt(), cosi' token stakati DOPO la creazione di una
+    // proposta non possono votarla.
+    struct Checkpoint {
+        uint256 timestamp;
+        uint256 votingPower;
+    }
+
+    mapping(address => Checkpoint[]) private _vpCheckpoints;
+
     // ---- Reward pool (finanziato in BNB dalla marketing fee del token) ----
-    uint256 public rewardPerVotingPowerStored; // accumulatore stile MasterChef, scalato per 1e18
+    // Scala 1e27: con voting power fino a ~4e30 (4x su supply da 1e12 token
+    // a 18 decimali) la scala 1e18 troncherebbe a zero i notify piccoli.
+    uint256 private constant REWARD_PRECISION = 1e27;
+
+    uint256 public rewardPerVotingPowerStored; // accumulatore stile MasterChef, scalato per REWARD_PRECISION
+    // BNB ricevuti quando totalVotingPower == 0: vengono accodati e
+    // distribuiti al primo notify con staker presenti.
+    uint256 public undistributedRewards;
     mapping(address => uint256) private _userRewardDebt;
     mapping(address => uint256) private _userPendingReward;
 
@@ -133,6 +156,7 @@ contract DaimonStaking is ReentrancyGuard {
             start: block.timestamp,
             unlockTime: block.timestamp + opt.duration,
             multiplierX1000: opt.multiplierX1000,
+            votingPowerGranted: vp,
             withdrawn: false
         });
 
@@ -141,7 +165,9 @@ contract DaimonStaking is ReentrancyGuard {
         totalVotingPower += vp;
         totalStakedAmount += amount;
 
-        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / 1e18;
+        _writeCheckpoint(msg.sender);
+
+        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
 
         emit Staked(msg.sender, lockId, amount, opt.duration, vp);
     }
@@ -155,7 +181,7 @@ contract DaimonStaking is ReentrancyGuard {
         _settleReward(msg.sender);
 
         uint256 amount = lockData.amount;
-        uint256 vp = (amount * lockData.multiplierX1000) / 1000;
+        uint256 vp = lockData.votingPowerGranted;
 
         lockData.withdrawn = true;
         votingPower[msg.sender] -= vp;
@@ -163,12 +189,52 @@ contract DaimonStaking is ReentrancyGuard {
         totalVotingPower -= vp;
         totalStakedAmount -= amount;
 
-        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / 1e18;
+        _writeCheckpoint(msg.sender);
+
+        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
 
         bool ok = daimonToken.transfer(msg.sender, amount);
         require(ok, "DaimonStaking: transfer failed");
 
         emit Withdrawn(msg.sender, lockId, amount);
+    }
+
+    // ============================================================
+    // Checkpoint del voting power
+    // ============================================================
+    function _writeCheckpoint(address account) private {
+        uint256 vp = votingPower[account];
+        Checkpoint[] storage cps = _vpCheckpoints[account];
+        uint256 len = cps.length;
+        if (len > 0 && cps[len - 1].timestamp == block.timestamp) {
+            cps[len - 1].votingPower = vp;
+        } else {
+            cps.push(Checkpoint({timestamp: block.timestamp, votingPower: vp}));
+        }
+    }
+
+    /// @notice Voting power di `account` all'istante `timestamp` (ultimo
+    /// checkpoint con timestamp <= richiesto; 0 se nessuno). Ricerca binaria:
+    /// O(log n) anche con molti stake/withdraw.
+    function votingPowerAt(address account, uint256 timestamp) external view returns (uint256) {
+        Checkpoint[] storage cps = _vpCheckpoints[account];
+        uint256 len = cps.length;
+        if (len == 0 || cps[0].timestamp > timestamp) return 0;
+        uint256 lo = 0;
+        uint256 hi = len - 1;
+        while (lo < hi) {
+            uint256 mid = (lo + hi + 1) / 2;
+            if (cps[mid].timestamp <= timestamp) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return cps[lo].votingPower;
+    }
+
+    function checkpointCount(address account) external view returns (uint256) {
+        return _vpCheckpoints[account].length;
     }
 
     // ============================================================
@@ -180,30 +246,34 @@ contract DaimonStaking is ReentrancyGuard {
         // ricevuto, non l'argomento amount (evita mismatch/manipolazione).
         require(msg.value == amount, "DaimonStaking: value mismatch");
         if (totalVotingPower == 0) {
-            // Nessuno stakato: i fondi restano nel contratto, ridistribuiti
-            // al prossimo notify quando ci sara' voting power > 0.
+            // Nessuno stakato: i fondi vengono accodati e distribuiti al
+            // primo notify con voting power > 0 (senza questo accumulo
+            // resterebbero per sempre non attribuiti nel contratto).
+            undistributedRewards += amount;
             emit RewardNotified(amount);
             return;
         }
-        rewardPerVotingPowerStored += (amount * 1e18) / totalVotingPower;
-        emit RewardNotified(amount);
+        uint256 toDistribute = amount + undistributedRewards;
+        undistributedRewards = 0;
+        rewardPerVotingPowerStored += (toDistribute * REWARD_PRECISION) / totalVotingPower;
+        emit RewardNotified(toDistribute);
     }
 
     function _settleReward(address user) private {
         uint256 vp = votingPower[user];
         if (vp > 0) {
-            uint256 accumulated = (vp * rewardPerVotingPowerStored) / 1e18;
+            uint256 accumulated = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
             uint256 pending = accumulated - _userRewardDebt[user];
             if (pending > 0) {
                 _userPendingReward[user] += pending;
             }
         }
-        _userRewardDebt[user] = (vp * rewardPerVotingPowerStored) / 1e18;
+        _userRewardDebt[user] = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
     }
 
     function pendingReward(address user) external view returns (uint256) {
         uint256 vp = votingPower[user];
-        uint256 accumulated = (vp * rewardPerVotingPowerStored) / 1e18;
+        uint256 accumulated = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
         uint256 newlyAccrued = accumulated >= _userRewardDebt[user] ? accumulated - _userRewardDebt[user] : 0;
         return _userPendingReward[user] + newlyAccrued;
     }

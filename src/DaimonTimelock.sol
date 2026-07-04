@@ -57,6 +57,14 @@ contract DaimonTimelock is AccessControl {
         _grantRole(PROPOSER_ROLE, proposer);
         _grantRole(EXECUTOR_ROLE, executor);
         _grantRole(CANCELLER_ROLE, canceller);
+        // Il timelock amministra se stesso: le rotazioni di ruolo passano
+        // da una proposta di governance che target-a il timelock stesso
+        // (msg.sender = timelock in execute()).
+        _grantRole(ADMIN_ROLE, address(this));
+        // Bootstrap TEMPORANEO per il wiring iniziale: l'admin di deploy
+        // DEVE chiamare renounceRole(ADMIN_ROLE) a fine setup, altrimenti
+        // resta un owner nascosto in grado di auto-assegnarsi
+        // PROPOSER/EXECUTOR e bypassare la governance. Verificato nei test.
         _grantRole(ADMIN_ROLE, admin);
     }
 

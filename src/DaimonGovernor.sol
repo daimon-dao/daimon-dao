@@ -9,12 +9,15 @@ pragma solidity 0.8.26;
  * della proposta (non il valore live, per evitare manipolazioni "vota e poi
  * unstake/restake" nello stesso blocco o flash-loan-style).
  *
- * Lo snapshot e' realizzato leggendo votingPower() al blocco di proposta:
- * essendo il voting power legato a LOCK (con scadenza nel futuro), non e'
- * manipolabile in un singolo blocco come lo sarebbe un balance ERC20Votes
- * spostabile liberamente — e' gia' di per se' resistente a flash-loan
- * governance attack, perche' per avere voting power devi aver bloccato i
- * token PRIMA che la proposta esistesse (snapshotBlock < proposalBlock).
+ * Lo snapshot e' realizzato con i CHECKPOINT del DaimonStaking (stile OZ
+ * Votes): alla creazione della proposta vengono salvati snapshotTimestamp
+ * e snapshotTotalVotingPower; castVote() legge il voting power del votante
+ * a quell'istante via staking.votingPowerAt(voter, snapshotTimestamp), e
+ * il quorum in state() usa il totale allo snapshot. Ne segue che per
+ * votare una proposta devi aver bloccato i token PRIMA (o nello stesso
+ * blocco) della sua creazione: stake successivi non contano, ne' per i
+ * voti ne' per il quorum — resistente sia a flash-loan sia ad acquisti
+ * tardivi mirati a una proposta gia' visibile.
  *
  * Flusso: propose -> vote (durante votingPeriod) -> queue (su Timelock) ->
  * execute (dopo il delay del Timelock).
@@ -27,6 +30,7 @@ pragma solidity 0.8.26;
 
 interface IDaimonStakingVotes {
     function votingPower(address account) external view returns (uint256);
+    function votingPowerAt(address account, uint256 timestamp) external view returns (uint256);
     function totalVotingPower() external view returns (uint256);
 }
 
@@ -94,6 +98,7 @@ contract DaimonGovernor {
     error ProposalNotQueued();
     error NotGuardian();
     error AlreadyExecuted();
+    error InvalidSupport();
 
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
@@ -130,11 +135,14 @@ contract DaimonGovernor {
 
     /// @param support 0 = against, 1 = for, 2 = abstain
     function castVote(uint256 id, uint8 support) external {
+        if (support > 2) revert InvalidSupport();
         Proposal storage p = proposals[id];
         if (block.timestamp < p.voteStart || block.timestamp > p.voteEnd) revert VotingClosed();
         if (hasVoted[id][msg.sender]) revert AlreadyVoted();
 
-        uint256 weight = staking.votingPower(msg.sender);
+        // Peso allo SNAPSHOT della proposta, non live: chi staka dopo la
+        // creazione non puo' votare questa proposta.
+        uint256 weight = staking.votingPowerAt(msg.sender, p.snapshotTimestamp);
         if (weight == 0) revert InsufficientVotingPower();
 
         hasVoted[id][msg.sender] = true;

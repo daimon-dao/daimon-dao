@@ -108,8 +108,15 @@ contract DaimonMigration is ReentrancyGuard {
         migratedAmount[msg.sender] += actuallyReceived;
         totalMigrated += actuallyReceived;
 
+        // Stesso controllo balance-before/after anche sul NUOVO token: se
+        // questo contratto non fosse escluso dalle fee di DaimonV2 (errore
+        // di wiring al deploy), l'utente riceverebbe silenziosamente meno
+        // del rapporto 1:1 promesso. Meglio revertire e correggere il setup.
+        uint256 userNewBalanceBefore = newDaimon.balanceOf(msg.sender);
         bool ok2 = newDaimon.transfer(msg.sender, actuallyReceived);
         require(ok2, "DaimonMigration: new token transfer failed");
+        uint256 newReceived = newDaimon.balanceOf(msg.sender) - userNewBalanceBefore;
+        if (newReceived != actuallyReceived) revert AmountMismatch();
 
         emit Claimed(msg.sender, actuallyReceived);
     }

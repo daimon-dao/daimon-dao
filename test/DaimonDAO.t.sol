@@ -172,6 +172,11 @@ contract DaimonDAOTest is Test {
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
 
+        // 8. Il deployer rinuncia all'ADMIN_ROLE bootstrap del Timelock:
+        // da qui in poi il timelock amministra solo se stesso (le rotazioni
+        // di ruolo passano da proposte di governance).
+        timelock.renounceRole(timelock.ADMIN_ROLE(), deployer);
+
         vm.stopPrank();
     }
 
@@ -528,6 +533,318 @@ contract DaimonDAOTest is Test {
         vm.prank(address(timelock));
         vm.expectRevert(DaimonV2.FeeTooHigh.selector);
         token.setFees(50, 30, 30); // 11% totale, sopra il cap del 10%
+    }
+
+    // ============================================================
+    // Test 7: fix della security review
+    // ============================================================
+
+    // --- A1: castVote usa lo snapshot, non il voting power live ---
+    function test_CastVoteUsesSnapshotVotingPower() public {
+        _deployFullStack();
+        _giveAliceSomeNewTokens(200_000 * 1e18);
+
+        // alice staka PRIMA della proposta e passa token a bob
+        vm.startPrank(alice);
+        token.approve(address(staking), 2000 * 1e18);
+        staking.stake(2000 * 1e18, 0);
+        token.transfer(bob, 50_000 * 1e18);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot votes");
+
+        // bob staka DOPO la creazione della proposta (durante il voting delay)
+        vm.warp(block.timestamp + 12 hours);
+        vm.startPrank(bob);
+        token.approve(address(staking), 40_000 * 1e18);
+        staking.stake(40_000 * 1e18, 0);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 13 hours); // oltre voteStart, dentro il periodo di voto
+
+        // bob ha voting power live ma NON allo snapshot: non puo' votare
+        assertGt(staking.votingPower(bob), 0);
+        vm.prank(bob);
+        vm.expectRevert(DaimonGovernor.InsufficientVotingPower.selector);
+        governor.castVote(proposalId, 1);
+
+        // alice invece vota con il peso che aveva allo snapshot
+        vm.prank(alice);
+        governor.castVote(proposalId, 1);
+    }
+
+    function test_VotingPowerAtTracksCheckpoints() public {
+        _deployFullStack();
+        _giveAliceSomeNewTokens(1000 * 1e18);
+
+        // Timestamp fissi (letterali): con via-ir il compilatore considera
+        // block.timestamp invariante nella transazione e puo' ri-leggerlo
+        // dopo un vm.warp invece di riusare il valore salvato prima —
+        // quindi qui non deriviamo mai i timestamp da block.timestamp.
+        uint256 tStake = 1_000_000;
+        vm.warp(tStake);
+
+        vm.startPrank(alice);
+        token.approve(address(staking), 1000 * 1e18);
+        uint256 lockId = staking.stake(1000 * 1e18, 0); // 30gg, 1x
+        vm.stopPrank();
+
+        assertEq(staking.votingPowerAt(alice, tStake), 1000 * 1e18);
+        assertEq(staking.votingPowerAt(alice, tStake - 1), 0); // prima dello stake: zero
+
+        vm.warp(tStake + 31 days);
+        vm.prank(alice);
+        staking.withdraw(lockId);
+
+        assertEq(staking.votingPowerAt(alice, tStake + 31 days), 0);          // oggi: zero
+        assertEq(staking.votingPowerAt(alice, tStake + 1 days), 1000 * 1e18); // lo storico resta interrogabile
+    }
+
+    // --- A2: nessun EOA detiene l'admin del Timelock dopo il wiring ---
+    function test_NoEOAHoldsTimelockAdminAfterWiring() public {
+        _deployFullStack();
+        bytes32 adminRole = timelock.ADMIN_ROLE();
+        bytes32 proposerRole = timelock.PROPOSER_ROLE();
+
+        assertTrue(timelock.hasRole(adminRole, address(timelock))); // self-administered
+        assertFalse(timelock.hasRole(adminRole, deployer));
+        assertFalse(timelock.hasRole(adminRole, guardian));
+        assertFalse(timelock.hasRole(adminRole, alice));
+
+        // il deployer non puo' piu' ruotare ruoli
+        vm.prank(deployer);
+        vm.expectRevert();
+        timelock.grantRole(proposerRole, deployer);
+    }
+
+    // --- A3 + M1: swap fee con slippage protection e split dei fondi ---
+    function test_FeeSwapSlippageProtectedAndFundsSplit() public {
+        _deployFullStack();
+
+        // abbassa la soglia di swap al minimo consentito (0.0001% = 1M token)
+        vm.prank(address(timelock));
+        token.setMinimumTokensBeforeSwap(1_000_000 * 1e18);
+
+        vm.deal(address(router), 5000 ether);
+
+        // accumula fee nel contratto: transfer con fee alice -> bob
+        _giveAliceSomeNewTokens(100_000_000 * 1e18);
+        vm.prank(alice);
+        token.transfer(bob, 50_000_000 * 1e18); // 4% liquidity fee = 2M token al contratto
+
+        assertGe(token.balanceOf(address(token)), 1_000_000 * 1e18);
+
+        address pair = token.uniswapV2Pair();
+        address dead = token.deadAddress();
+        uint256 marketingBefore = marketingWallet.balance;
+
+        // sell verso la pair: innesca _swapAccumulatedFees (con minOut dal
+        // quote del router) e poi il buyback (anch'esso con minOut)
+        vm.prank(alice);
+        token.transfer(pair, 1000 * 1e18);
+
+        // 1M token swappati a rate 1e15 = 1000 ether ricevuti:
+        // ramo marketing = 20/40 = 500 ether, di cui 60% staking / 40% wallet
+        assertEq(marketingWallet.balance - marketingBefore, 200 ether);
+        assertEq(address(staking).balance, 300 ether);
+        assertEq(staking.undistributedRewards(), 300 ether); // nessuno staka: accodati (M1)
+        assertGt(token.balanceOf(dead), 0); // buyback eseguito nonostante minOut > 0
+    }
+
+    function test_MaxSwapSlippageGovernedAndBounded() public {
+        _deployFullStack();
+        assertEq(token.maxSwapSlippageBps(), 500); // default 5%
+
+        vm.prank(alice);
+        vm.expectRevert();
+        token.setMaxSwapSlippageBps(1000); // non governance
+
+        vm.prank(address(timelock));
+        vm.expectRevert("DaimonV2: slippage out of range");
+        token.setMaxSwapSlippageBps(3001);
+
+        vm.prank(address(timelock));
+        vm.expectRevert("DaimonV2: slippage out of range");
+        token.setMaxSwapSlippageBps(49);
+
+        vm.prank(address(timelock));
+        token.setMaxSwapSlippageBps(1000);
+        assertEq(token.maxSwapSlippageBps(), 1000);
+    }
+
+    // --- M3: withdraw sottrae esattamente il voting power accreditato ---
+    function test_WithdrawUsesStoredVotingPower() public {
+        _deployFullStack();
+        _giveAliceSomeNewTokens(1500 * 1e18);
+
+        vm.startPrank(alice);
+        token.approve(address(staking), 1500 * 1e18);
+        uint256 lockA = staking.stake(1000 * 1e18, 0); // 1x -> 1000
+        uint256 lockB = staking.stake(500 * 1e18, 3);  // 4x -> 2000
+        vm.stopPrank();
+
+        assertEq(staking.votingPower(alice), 3000 * 1e18);
+
+        vm.warp(block.timestamp + 366 days);
+        vm.prank(alice);
+        staking.withdraw(lockB);
+        assertEq(staking.votingPower(alice), 1000 * 1e18); // esattamente -2000
+        assertEq(staking.totalVotingPower(), 1000 * 1e18);
+
+        vm.prank(alice);
+        staking.withdraw(lockA);
+        assertEq(staking.votingPower(alice), 0);
+        assertEq(staking.totalVotingPower(), 0);
+    }
+
+    // --- M5: il dead address non matura reflection ---
+    function test_DeadAddressDoesNotAccrueReflections() public {
+        _deployFullStack();
+
+        vm.prank(address(migration));
+        token.transfer(address(router), 1_000_000 * 1e18);
+
+        address dead = token.deadAddress();
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(token);
+
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: 1 ether}(
+            0, path, dead, block.timestamp + 300
+        );
+
+        uint256 deadBal = token.balanceOf(dead);
+        assertGt(deadBal, 0);
+
+        // molte transfer con fee: le reflection non devono accrescere il dead
+        _giveAliceSomeNewTokens(10_000_000 * 1e18);
+        vm.startPrank(alice);
+        for (uint256 i = 0; i < 5; i++) {
+            token.transfer(bob, 1_000_000 * 1e18);
+        }
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(dead), deadBal);
+    }
+
+    // --- M1 + M2: reward accodati senza staker e distribuiti al primo notify utile ---
+    function test_UndistributedRewardsFlowToFirstStaker() public {
+        _deployFullStack();
+
+        vm.deal(address(this), 10 ether);
+        staking.notifyRewardAmount{value: 4 ether}(4 ether);
+        assertEq(staking.undistributedRewards(), 4 ether);
+        assertEq(staking.pendingReward(alice), 0);
+
+        _giveAliceSomeNewTokens(1000 * 1e18);
+        vm.startPrank(alice);
+        token.approve(address(staking), 1000 * 1e18);
+        staking.stake(1000 * 1e18, 0);
+        vm.stopPrank();
+
+        staking.notifyRewardAmount{value: 2 ether}(2 ether);
+        assertEq(staking.undistributedRewards(), 0);
+        assertEq(staking.pendingReward(alice), 6 ether); // 4 accodati + 2 nuovi, esatti con scala 1e27
+
+        uint256 balBefore = alice.balance;
+        vm.prank(alice);
+        staking.claimReward();
+        assertEq(alice.balance - balBefore, 6 ether);
+    }
+
+    // --- B7: dopo la scadenza il guardian puo' solo togliere la pausa ---
+    function test_GuardianCanUnpauseAfterExpiry() public {
+        _deployFullStack();
+        vm.prank(guardian);
+        token.setPaused(true);
+
+        vm.warp(block.timestamp + 1096 days);
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonV2.GuardianExpired.selector);
+        token.setPaused(true);
+
+        vm.prank(guardian);
+        token.setPaused(false);
+        assertFalse(token.paused());
+    }
+
+    // --- B3: support invalido rifiutato ---
+    function test_CastVoteRevertsOnInvalidSupport() public {
+        _deployFullStack();
+        _giveAliceSomeNewTokens(2000 * 1e18);
+        vm.startPrank(alice);
+        token.approve(address(staking), 2000 * 1e18);
+        staking.stake(2000 * 1e18, 0);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 proposalId = governor.propose(address(token), 0, data, "Invalid support");
+
+        vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
+        vm.prank(alice);
+        vm.expectRevert(DaimonGovernor.InvalidSupport.selector);
+        governor.castVote(proposalId, 3);
+    }
+
+    // --- B4: claim reverta se il NUOVO token applica una fee ---
+    function test_MigrationRevertsIfNewTokenTakesFee() public {
+        _deployFullStack();
+
+        // errore di wiring simulato: la migration perde l'esclusione dalle fee
+        vm.prank(address(timelock));
+        token.setExcludedFromFee(address(migration), false);
+
+        oldToken.excludeFromFee(treasury); // il lato del vecchio token e' a posto
+        vm.startPrank(alice);
+        oldToken.approve(address(migration), 1000 * 1e18);
+        vm.expectRevert(DaimonMigration.AmountMismatch.selector);
+        migration.claim(1000 * 1e18);
+        vm.stopPrank();
+    }
+
+    // --- B6: eventi sui setter sensibili ---
+    function test_SetterEventsEmitted() public {
+        _deployFullStack();
+
+        vm.prank(address(timelock));
+        vm.expectEmit(true, false, false, true, address(token));
+        emit DaimonV2.ExcludedFromFeeSet(alice, true);
+        token.setExcludedFromFee(alice, true);
+
+        vm.prank(address(timelock));
+        vm.expectEmit(true, false, false, true, address(token));
+        emit DaimonV2.MarketingWalletSet(bob);
+        token.setMarketingWallet(bob);
+
+        vm.prank(address(timelock));
+        vm.expectEmit(false, false, false, true, address(token));
+        emit DaimonV2.SwapAndLiquifyEnabledSet(false);
+        token.setSwapAndLiquifyEnabled(false);
+
+        vm.prank(address(timelock));
+        vm.expectEmit(false, false, false, true, address(token));
+        emit DaimonV2.BuyBackEnabledSet(false);
+        token.setBuyBackEnabled(false);
+    }
+
+    // --- M7: floor sulla soglia di swap ---
+    function test_MinimumSwapThresholdHasFloor() public {
+        _deployFullStack();
+        uint256 floorAmt = token.totalSupply() / 1_000_000;
+
+        vm.prank(address(timelock));
+        vm.expectRevert("DaimonV2: swap threshold too low");
+        token.setMinimumTokensBeforeSwap(floorAmt - 1);
+
+        vm.prank(address(timelock));
+        token.setMinimumTokensBeforeSwap(floorAmt);
+        assertEq(token.minimumTokensBeforeSwap(), floorAmt);
     }
 
     // ============================================================
