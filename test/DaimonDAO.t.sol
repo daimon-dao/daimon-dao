@@ -27,54 +27,9 @@ import "../src/DaimonGovernor.sol";
 import "../src/DaimonTimelock.sol";
 import "../src/DaimonMigration.sol";
 import "../src/mocks/MockUniswap.sol";
-
-// ============================================================
-// Mock del vecchio contratto Daimon (replica minima per i test di migrazione)
-// Usiamo l'originale fornito dall'utente, rinominato per evitare collisioni
-// di nome import; per i test includiamo solo le funzioni essenziali.
-// ============================================================
-contract MockOldDaimon {
-    string public name = "Daimon";
-    mapping(address => uint256) private _balances;
-    mapping(address => mapping(address => uint256)) private _allowances;
-    mapping(address => bool) public excludedFromFee;
-    uint256 public taxFeeBps = 50; // 5%, simula la fee del vecchio contratto
-    uint256 private _totalSupply;
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    constructor(uint256 initialSupply, address holder) {
-        _totalSupply = initialSupply;
-        _balances[holder] = initialSupply;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return _balances[account];
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        _allowances[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function excludeFromFee(address account) external {
-        excludedFromFee[account] = true;
-    }
-
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool) {
-        require(_allowances[sender][msg.sender] >= amount, "allowance");
-        _allowances[sender][msg.sender] -= amount;
-
-        uint256 fee = excludedFromFee[recipient] || excludedFromFee[sender] ? 0 : (amount * taxFeeBps) / 1000;
-        uint256 net = amount - fee;
-
-        _balances[sender] -= amount;
-        _balances[recipient] += net;
-
-        emit Transfer(sender, recipient, net);
-        return true;
-    }
-}
+// Mock del vecchio contratto Daimon: condiviso con lo script di deploy
+// testnet (script/Deploy.s.sol), vive in src/mocks.
+import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
 
 contract DaimonDAOTest is Test {
     DaimonV2 public tokenImpl;
