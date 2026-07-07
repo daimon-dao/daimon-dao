@@ -4,3 +4,4 @@ broadcast/
 .env
 .claude/settings.local.json
 .password
+.testwallets/
