@@ -44,8 +44,12 @@ contract Deploy is Script {
     uint256 internal constant PROPOSAL_THRESHOLD = 1000 ether;  // 1000 DMN di voting power per proporre
 
     function run() external {
-        // Il broadcaster arriva da --account (keystore) o --private-key.
-        address deployer = msg.sender;
+        vm.startBroadcast();
+
+        // Broadcaster REALE (da --account/--private-key): msg.sender non e'
+        // affidabile qui — con --account senza --sender resterebbe il
+        // DefaultSender di Foundry e la predizione del nonce fallirebbe.
+        (, address deployer,) = vm.readCallers();
 
         address router = vm.envOr("ROUTER", PANCAKE_V2_ROUTER_TESTNET);
         address guardian = vm.envOr("GUARDIAN_ADDRESS", deployer);
@@ -61,8 +65,6 @@ contract Deploy is Script {
         if (treasury == deployer || marketingWallet == deployer) {
             console2.log("ATTENZIONE: treasury/marketing = deployer. Accettabile SOLO su testnet.");
         }
-
-        vm.startBroadcast();
 
         // ---- 1. Vecchio Daimon: mock su testnet se non fornito ----
         if (oldDaimonAddr == address(0)) {

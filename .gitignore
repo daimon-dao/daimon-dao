@@ -3,3 +3,4 @@ cache/
 broadcast/
 .env
 .claude/settings.local.json
+.password
