@@ -61,6 +61,17 @@ export default function Migrazione() {
     functionName: "migrationDeadline",
   });
 
+  const { data: treasuryAddr } = useReadContract({
+    ...migration,
+    functionName: "treasury",
+  });
+  // La treasury e' la DESTINAZIONE dei vecchi token: se migrasse se stessa
+  // il suo saldo non cambierebbe e il contratto reverterebbe con
+  // AmountMismatch. Meglio spiegarlo prima che l'utente firmi.
+  const isTreasury = Boolean(
+    address && treasuryAddr && address.toLowerCase() === (treasuryAddr as string).toLowerCase()
+  );
+
   const { data, refetch } = useReadContracts({
     contracts: address
       ? [
@@ -87,7 +98,7 @@ export default function Migrazione() {
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
   const step1Done = isConnected;
   const step2Done = step1Done && approved;
-  const disabled = paused || deadlineExpired;
+  const disabled = paused || deadlineExpired || isTreasury;
 
   async function doApprove() {
     await approveTx.send({
@@ -138,6 +149,15 @@ export default function Migrazione() {
               — mancano {formatCountdown(Number(deadline) - now)}.
             </>
           )}
+        </div>
+      )}
+
+      {isTreasury && (
+        <div className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro">
+          ⚠ Il wallet connesso è la <b>tesoreria della DAO</b>, cioè la
+          destinazione dei vecchi token: non può migrare se stesso (il
+          contratto rifiuterebbe l&apos;operazione). Connetti un altro wallet
+          per provare la migrazione.
         </div>
       )}
 
