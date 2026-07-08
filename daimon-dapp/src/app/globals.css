@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Palette DAPP_SPEC.md §2 come CSS variables.
+ * Default: dark (blu notte). La classe .light sull'html attiva il tema chiaro.
+ */
+:root,
+html.dark {
+  --bg: #0a1128;
+  --card: #111b3a;
+  --border: #2a3655;
+  --title: #f5e9c8;
+  --text: #e8ebf4;
+  --muted: #8a94ad;
+}
+
+html.light {
+  --bg: #f7f5ef;
+  --card: #ffffff;
+  --border: #ddd6c4;
+  --title: #0a1128;
+  --text: #1c2440;
+  --muted: #5b6478;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+}
+
+@layer components {
+  .btn-oro {
+    @apply rounded-lg bg-oro px-4 py-2 text-sm font-medium text-[#0a1128] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-outline {
+    @apply rounded-lg border border-bordi px-4 py-2 text-sm text-testo transition hover:border-oro/60 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .card {
+    @apply rounded-2xl border border-bordi bg-card p-5;
+  }
+  .input {
+    @apply w-full rounded-lg border border-bordi bg-bg px-3 py-2 text-sm text-testo outline-none focus:border-oro/70;
+  }
+}
