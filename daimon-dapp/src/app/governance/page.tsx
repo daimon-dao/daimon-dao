@@ -92,14 +92,17 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
   const voteTx = useTx();
   const queueTx = useTx();
   const executeTx = useTx();
+  // Scelta espressa in QUESTA sessione (il contratto salva solo hasVoted,
+  // non il verso del voto: per i voti passati mostriamo il badge generico).
+  const [castChoice, setCastChoice] = useState<number | null>(null);
 
-  const { data: proposal, refetch: refetchProposal } = useReadContract({
+  const { data: proposal } = useReadContract({
     ...governor,
     functionName: "proposals",
     args: [id],
     query: { refetchInterval: 30_000 },
   });
-  const { data: stateData, refetch: refetchState } = useReadContract({
+  const { data: stateData } = useReadContract({
     ...governor,
     functionName: "state",
     args: [id],
@@ -119,7 +122,7 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
   const readyTs = operation ? (operation as readonly [bigint, boolean, boolean])[0] : undefined;
 
   // voting power dell'utente ALLO SNAPSHOT + hasVoted (spec §7)
-  const { data: voterData, refetch: refetchVoter } = useReadContracts({
+  const { data: voterData } = useReadContracts({
     contracts:
       address && p
         ? [
@@ -156,21 +159,23 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
     return totalVotes > 0n ? Number((v * 10000n) / totalVotes) / 100 : 0;
   }
 
+  // Il refetch post-conferma e' automatico (invalidazione in useTx).
   async function vote(support: number) {
     await voteTx.send({ ...governor, functionName: "castVote", args: [id, support] });
-    refetchProposal();
-    refetchVoter();
+    setCastChoice(support);
   }
   async function doQueue() {
     await queueTx.send({ ...governor, functionName: "queue", args: [id] });
-    refetchProposal();
-    refetchState();
   }
   async function doExecute() {
     await executeTx.send({ ...governor, functionName: "execute", args: [id] });
-    refetchProposal();
-    refetchState();
   }
+
+  const alreadyVoted = hasVoted === true || voteTx.phase === "success";
+  const choiceLabel =
+    castChoice === 1 ? ": Sì" : castChoice === 0 ? ": No" : castChoice === 2 ? ": astensione" : "";
+  const noSnapshotPower =
+    isConnected && snapshotVp !== undefined && snapshotVp === 0n;
 
   return (
     <div className="card">
@@ -226,22 +231,35 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
           >
             {snapshotVp !== undefined ? formatCompact(snapshotVp) : "…"} ⓘ
           </b>
-          {hasVoted && <span className="ml-2 text-verde">Hai già votato ✓</span>}
+        </p>
+      )}
+      {noSnapshotPower && phase.key === "active" && (
+        <p className="mt-1 text-xs text-secondario">
+          Non puoi votare questa proposta: il tuo wallet non aveva voting power
+          al momento della sua creazione. Solo chi aveva già token in stake
+          prima della proposta può votarla (protezione anti-manipolazione).
         </p>
       )}
 
       {/* Azioni per fase */}
       <div className="mt-4 flex flex-wrap gap-2">
-        {phase.key === "active" && (
+        {phase.key === "active" && alreadyVoted && (
+          <span className="rounded-full bg-verde/20 px-3 py-1.5 text-sm font-medium text-verde">
+            Hai votato{choiceLabel} ✓
+          </span>
+        )}
+        {phase.key === "active" && !alreadyVoted && (
           <>
             <button className="btn-oro" disabled={!canVote || paused} onClick={() => vote(1)}
               title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
               Vota Sì
             </button>
-            <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(0)}>
+            <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(0)}
+              title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
               Vota No
             </button>
-            <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(2)}>
+            <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(2)}
+              title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
               Astieniti
             </button>
           </>

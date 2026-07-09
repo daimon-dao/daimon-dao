@@ -86,7 +86,7 @@ export default function Staking() {
   const selected = options.find((o) => o.index === optionIndex) ?? options[0];
 
   // --- Dati utente ---
-  const { data: userData, refetch: refetchUser } = useReadContracts({
+  const { data: userData } = useReadContracts({
     contracts: address
       ? [
           { ...token, functionName: "balanceOf", args: [address] },
@@ -105,7 +105,7 @@ export default function Staking() {
   // --- Posizioni: scansione dei lock per id (numero piccolo su testnet) ---
   const { data: nextLockId } = useReadContract({ ...staking, functionName: "nextLockId" });
   const nLocks = Math.min(Number(nextLockId ?? 0n), MAX_LOCK_SCAN);
-  const { data: locksData, refetch: refetchLocks } = useReadContracts({
+  const { data: locksData } = useReadContracts({
     contracts: Array.from({ length: nLocks }, (_, i) => ({
       ...staking,
       functionName: "locks" as const,
@@ -151,14 +151,16 @@ export default function Staking() {
   const sliderMax = balance !== undefined ? formatUnitsNumber(balance) : 100_000_000;
 
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
+  // Il contratto rifiuterebbe uno stake oltre il saldo: blocchiamo prima.
+  const insufficientBalance = isConnected && balance !== undefined && amount > balance;
 
+  // Il refetch post-conferma e' automatico (invalidazione in useTx).
   async function doApprove() {
     await approveTx.send({
       ...token,
       functionName: "approve",
       args: [ADDRESSES.daimonStaking, amount],
     });
-    refetchUser();
   }
   async function doStake() {
     if (!selected) return;
@@ -167,17 +169,12 @@ export default function Staking() {
       functionName: "stake",
       args: [amount, BigInt(selected.index)],
     });
-    refetchUser();
-    refetchLocks();
   }
   async function doWithdraw(id: number) {
     await withdrawTx.send({ ...staking, functionName: "withdraw", args: [BigInt(id)] });
-    refetchUser();
-    refetchLocks();
   }
   async function doClaim() {
     await claimTx.send({ ...staking, functionName: "claimReward", args: [] });
-    refetchUser();
   }
 
   return (
@@ -257,7 +254,8 @@ export default function Staking() {
                 <button
                   className="btn-outline"
                   onClick={doApprove}
-                  disabled={amount === 0n || paused || approveTx.phase === "signing" || approveTx.phase === "pending"}
+                  disabled={amount === 0n || insufficientBalance || paused || approveTx.phase === "signing" || approveTx.phase === "pending"}
+                  title={insufficientBalance ? "Importo superiore al saldo disponibile" : undefined}
                 >
                   1. Approva
                 </button>
@@ -265,8 +263,14 @@ export default function Staking() {
               <button
                 className="btn-oro"
                 onClick={doStake}
-                disabled={!approved || amount === 0n || paused || stakeTx.phase === "signing" || stakeTx.phase === "pending"}
-                title={!approved ? "Prima approva l'importo" : undefined}
+                disabled={!approved || amount === 0n || insufficientBalance || paused || stakeTx.phase === "signing" || stakeTx.phase === "pending"}
+                title={
+                  insufficientBalance
+                    ? "Importo superiore al saldo disponibile"
+                    : !approved
+                      ? "Prima approva l'importo"
+                      : undefined
+                }
               >
                 {approved ? "Metti in stake" : "2. Metti in stake"}
               </button>
@@ -278,6 +282,13 @@ export default function Staking() {
             </>
           )}
         </div>
+        {insufficientBalance && (
+          <p className="mt-2 text-xs text-rosso">
+            L&apos;importo supera il saldo disponibile
+            {balance !== undefined ? ` (${formatCompact(balance)} DMN)` : ""}: riducilo
+            per procedere.
+          </p>
+        )}
         <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} />
         <TxStatus phase={stakeTx.phase} hash={stakeTx.hash} errorMessage={stakeTx.errorMessage} />
       </div>
@@ -351,6 +362,7 @@ export default function Staking() {
                 className="btn-oro mt-4"
                 onClick={doClaim}
                 disabled={!myReward || myReward === 0n || paused || claimTx.phase === "signing" || claimTx.phase === "pending"}
+                title={!myReward || myReward === 0n ? "Nessun reward da riscuotere al momento" : undefined}
               >
                 Riscuoti
               </button>

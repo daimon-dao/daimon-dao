@@ -72,7 +72,7 @@ export default function Migrazione() {
     address && treasuryAddr && address.toLowerCase() === (treasuryAddr as string).toLowerCase()
   );
 
-  const { data, refetch } = useReadContracts({
+  const { data } = useReadContracts({
     contracts: address
       ? [
           { ...oldToken, functionName: "balanceOf", args: [address] },
@@ -98,15 +98,19 @@ export default function Migrazione() {
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
   const step1Done = isConnected;
   const step2Done = step1Done && approved;
-  const disabled = paused || deadlineExpired || isTreasury;
+  // Il contratto rifiuterebbe una migrazione oltre il saldo: blocchiamo prima.
+  const insufficientBalance =
+    isConnected && oldBalance !== undefined && amount > oldBalance;
+  const disabled = paused || deadlineExpired || isTreasury || insufficientBalance;
 
+  // Il refetch post-conferma (balance, allowance) e' automatico: useTx
+  // invalida le query wagmi quando la transazione risulta confermata.
   async function doApprove() {
     await approveTx.send({
       ...oldToken,
       functionName: "approve",
       args: [ADDRESSES.daimonMigration, amount],
     });
-    refetch();
   }
 
   async function doClaim() {
@@ -116,7 +120,6 @@ export default function Migrazione() {
       args: [amount],
     });
     setClaimed({ amount, hash });
-    refetch();
   }
 
   return (
@@ -216,8 +219,15 @@ export default function Migrazione() {
               }
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
-              disabled={!step1Done || disabled}
+              disabled={!step1Done || paused || deadlineExpired || isTreasury}
             />
+            {insufficientBalance && (
+              <p className="mt-1 text-xs text-rosso">
+                L&apos;importo supera i vecchi Daimon disponibili
+                {oldBalance !== undefined ? ` (${formatCompact(oldBalance)})` : ""}:
+                riducilo per procedere.
+              </p>
+            )}
             <button
               className="btn-oro mt-3"
               onClick={doApprove}
