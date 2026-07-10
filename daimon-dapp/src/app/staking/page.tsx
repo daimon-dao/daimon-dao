@@ -239,7 +239,10 @@ export default function Staking() {
             </p>
             <p className="mt-2 text-sm">
               <span className="text-secondario">Sbloccabile il </span>
-              <b>{formatDate(unlockDate)}</b>
+              {/* Gated sulle opzioni on-chain: una data derivata
+                  dall'orologio al primo paint non coincide mai tra l'HTML
+                  prerenderizzato e il client (hydration mismatch). */}
+              <b>{selected ? formatDate(unlockDate) : "…"}</b>
             </p>
           </div>
         </div>
