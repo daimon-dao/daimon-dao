@@ -1,17 +1,21 @@
 /*
- * Placeholder del logo (DAPP_SPEC.md §2): cerchio con bordo oro
- * tratteggiato e testo "LOGO". Quando arriva il file definitivo:
- * metterlo in /public/logo.svg e sostituire il contenuto qui sotto con
- * <img src="/logo.svg" alt="Daimon" className="h-9 w-9" />.
+ * Logo ufficiale Daimon (public/logo.svg, vettoriale, tavola 500x500,
+ * convertito dal file .ai ufficiale).
+ *
+ * In dark mode il disco navy del logo si fonderebbe con lo sfondo blu
+ * notte: un anello oro sottile (solo dark) ne definisce il bordo senza
+ * alterare il file originale.
  */
+/* eslint-disable @next/next/no-img-element */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
-    <span
-      className="flex items-center justify-center rounded-full border-2 border-dashed border-oro text-oro select-none shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.24 }}
-      aria-label="Logo Daimon (segnaposto)"
-    >
-      LOGO
-    </span>
+    <img
+      src="/logo.svg"
+      alt="Daimon"
+      width={size}
+      height={size}
+      className="shrink-0 select-none rounded-full dark:ring-1 dark:ring-oro/60"
+      style={{ width: size, height: size }}
+    />
   );
 }

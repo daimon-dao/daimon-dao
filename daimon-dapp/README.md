@@ -38,13 +38,17 @@ Tutto in **un solo file**: [src/config/contracts.ts](src/config/contracts.ts).
 
 Nessun altro file va toccato: RPC, explorer e chain wagmi seguono a cascata.
 
-## Sostituire il logo
+## Logo
 
-Il placeholder (cerchio oro tratteggiato con testo "LOGO") è in
-[src/components/Logo.tsx](src/components/Logo.tsx). Quando arriva il file
-definitivo: mettilo in `public/logo.svg` e sostituisci il contenuto del
-componente con `<img src="/logo.svg" … />` (istruzioni nel commento del file).
-Per il favicon: aggiungere `src/app/icon.svg`.
+Il logo ufficiale (vettoriale, dal file .ai) è in `public/logo.svg`, usato
+da [src/components/Logo.tsx](src/components/Logo.tsx). In dark mode il
+componente aggiunge un anello oro sottile (`dark:ring-oro/60`) perché il
+disco navy del logo si fonderebbe con lo sfondo blu notte.
+
+Favicon e icona iOS sono gestite dalle convenzioni App Router di Next:
+`src/app/icon.svg` (favicon vettoriale) e `src/app/apple-icon.png`
+(180×180, quadrato blu notte opaco). Per aggiornare il logo: rigenerare
+questi tre file (SVG via `pdftocairo -svg`, vedi storia del repo).
 
 ## Note operative
 
