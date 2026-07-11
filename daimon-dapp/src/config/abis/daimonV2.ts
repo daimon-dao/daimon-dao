@@ -1183,7 +1183,7 @@ export const daimonV2Abi = [
       {
         "name": "staking",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
       }
     ],

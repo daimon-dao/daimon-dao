@@ -64,6 +64,7 @@ contract DaimonMigration is ReentrancyGuard {
     event Swept(address indexed to, uint256 amount);
 
     error ZeroAmount();
+    error ZeroAddress();
     error AmountMismatch();
     error MigrationEnded();
     error MigrationStillOpen();
@@ -76,6 +77,11 @@ contract DaimonMigration is ReentrancyGuard {
     }
 
     constructor(address _oldDaimon, address _newDaimon, address _treasury, address _governance, uint256 _migrationDurationSeconds) {
+        // Tutti immutable: uno zero qui renderebbe il contratto inutilizzabile
+        // (o brucerebbe i vecchi token verso address(0)) senza rimedio.
+        if (_oldDaimon == address(0) || _newDaimon == address(0) || _treasury == address(0) || _governance == address(0)) {
+            revert ZeroAddress();
+        }
         oldDaimon = IOldDaimon(_oldDaimon);
         newDaimon = INewDaimon(_newDaimon);
         treasury = _treasury;

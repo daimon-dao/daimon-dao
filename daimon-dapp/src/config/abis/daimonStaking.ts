@@ -10,7 +10,7 @@ export const daimonStakingAbi = [
         "internalType": "address"
       },
       {
-        "name": "_governance",
+        "name": "initialGovernance",
         "type": "address",
         "internalType": "address"
       }

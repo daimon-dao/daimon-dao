@@ -418,6 +418,19 @@ export const daimonGovernorAbi = [
   },
   {
     "type": "event",
+    "name": "GuardianSet",
+    "inputs": [
+      {
+        "name": "newGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ProposalCanceled",
     "inputs": [
       {
@@ -485,6 +498,32 @@ export const daimonGovernorAbi = [
       },
       {
         "name": "eta",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProposalThresholdSet",
+    "inputs": [
+      {
+        "name": "threshold",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "QuorumBpsSet",
+    "inputs": [
+      {
+        "name": "bps",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"

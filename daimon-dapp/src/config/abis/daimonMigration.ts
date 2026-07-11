@@ -232,6 +232,11 @@ export const daimonMigrationAbi = [
   },
   {
     "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ZeroAmount",
     "inputs": []
   }

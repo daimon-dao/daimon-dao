@@ -150,7 +150,7 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event FeesUpdated(uint256 taxFee, uint256 buybackFee, uint256 marketingFee);
     event ParamsUpdated(string param, uint256 value);
     event PausedSet(bool paused);
-    event StakingContractSet(address staking);
+    event StakingContractSet(address indexed staking);
     event MarketingWalletSet(address indexed wallet);
     event ExcludedFromFeeSet(address indexed account, bool excluded);
     event SwapAndLiquifyEnabledSet(bool enabled);

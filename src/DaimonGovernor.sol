@@ -89,6 +89,9 @@ contract DaimonGovernor {
     event ProposalQueued(uint256 indexed id, uint256 eta);
     event ProposalExecuted(uint256 indexed id);
     event ProposalCanceled(uint256 indexed id);
+    event GuardianSet(address indexed newGuardian);
+    event QuorumBpsSet(uint256 bps);
+    event ProposalThresholdSet(uint256 threshold);
 
     error InsufficientVotingPower();
     error VotingClosed();
@@ -107,6 +110,10 @@ contract DaimonGovernor {
 
     constructor(address _staking, address _timelock, address _guardian, uint256 _quorumBps, uint256 _proposalThreshold) {
         require(_quorumBps >= MIN_QUORUM_BPS && _quorumBps <= 5000, "DaimonGovernor: invalid quorum");
+        require(
+            _staking != address(0) && _timelock != address(0) && _guardian != address(0),
+            "DaimonGovernor: zero address"
+        );
         staking = IDaimonStakingVotes(_staking);
         timelock = ITimelockControllerMinimal(_timelock);
         guardian = _guardian;
@@ -207,7 +214,9 @@ contract DaimonGovernor {
 
     function setGuardian(address newGuardian) external {
         require(msg.sender == address(timelock), "DaimonGovernor: only via timelock");
+        require(newGuardian != address(0), "DaimonGovernor: zero address");
         guardian = newGuardian;
+        emit GuardianSet(newGuardian);
     }
 
     function setQuorumBps(uint256 bps) external {
@@ -215,10 +224,12 @@ contract DaimonGovernor {
         require(bps >= MIN_QUORUM_BPS, "DaimonGovernor: below MIN_QUORUM_BPS");
         require(bps <= 5000, "DaimonGovernor: quorum too high");
         quorumBps = bps;
+        emit QuorumBpsSet(bps);
     }
 
     function setProposalThreshold(uint256 threshold) external {
         require(msg.sender == address(timelock), "DaimonGovernor: only via timelock");
         proposalThreshold = threshold;
+        emit ProposalThresholdSet(threshold);
     }
 }

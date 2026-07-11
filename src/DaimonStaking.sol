@@ -122,9 +122,11 @@ contract DaimonStaking is ReentrancyGuard {
     error NotLockOwner();
     error ZeroAmount();
 
-    constructor(address _daimonToken, address _governance) {
+    // Il parametro si chiama initialGovernance (non _governance) per non
+    // fare shadowing del mapping omonimo dello stato.
+    constructor(address _daimonToken, address initialGovernance) {
         daimonToken = IDaimonV2Token(_daimonToken);
-        _setGovernance(_governance, true);
+        _setGovernance(initialGovernance, true);
 
         // Opzioni di default: 30gg / 90gg / 180gg / 365gg
         lockOptions.push(LockOption(30 days, 1000, true));
