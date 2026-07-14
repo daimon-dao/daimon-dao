@@ -292,8 +292,8 @@ export default function Staking() {
             per procedere.
           </p>
         )}
-        <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} />
-        <TxStatus phase={stakeTx.phase} hash={stakeTx.hash} errorMessage={stakeTx.errorMessage} />
+        <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} notice={approveTx.notice} />
+        <TxStatus phase={stakeTx.phase} hash={stakeTx.hash} errorMessage={stakeTx.errorMessage} notice={stakeTx.notice} />
       </div>
 
       {/* Posizioni + reward */}
@@ -336,7 +336,7 @@ export default function Staking() {
               })}
             </div>
           )}
-          <TxStatus phase={withdrawTx.phase} hash={withdrawTx.hash} errorMessage={withdrawTx.errorMessage} />
+          <TxStatus phase={withdrawTx.phase} hash={withdrawTx.hash} errorMessage={withdrawTx.errorMessage} notice={withdrawTx.notice} />
           {Number(nextLockId ?? 0n) > MAX_LOCK_SCAN && (
             <p className="mt-2 text-xs text-secondario">
               Nota: mostrate le prime {MAX_LOCK_SCAN} posizioni globali.
@@ -369,7 +369,7 @@ export default function Staking() {
               >
                 Riscuoti
               </button>
-              <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} />
+              <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} notice={claimTx.notice} />
               {myVotingPower !== undefined && (
                 <p className="mt-4 text-xs text-secondario">
                   Il tuo voting power totale: {formatCompact(myVotingPower)}

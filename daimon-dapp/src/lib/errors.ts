@@ -48,6 +48,20 @@ const ERROR_MESSAGES: Record<string, string> = {
   AccessControlUnauthorizedAccount: "Il wallet connesso non ha i permessi per questa azione.",
 };
 
+/*
+ * Il rifiuto della firma nel wallet (EIP-1193 code 4001) e' un'azione
+ * NORMALE dell'utente, non un errore: va distinta da revert e guasti.
+ */
+export function isUserRejection(err: unknown): boolean {
+  if (err instanceof BaseError && err.walk((e) => e instanceof UserRejectedRequestError)) {
+    return true;
+  }
+  const e = err as { code?: number; message?: string; shortMessage?: string } | null;
+  if (e?.code === 4001) return true;
+  const text = `${e?.shortMessage ?? ""} ${e?.message ?? ""}`;
+  return /user rejected|user denied|rejected the request/i.test(text);
+}
+
 export function mapTxError(err: unknown): string {
   if (err instanceof BaseError) {
     const rejected = err.walk((e) => e instanceof UserRejectedRequestError);

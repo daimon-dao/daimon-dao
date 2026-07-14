@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { mapTxError } from "@/lib/errors";
+import { mapTxError, isUserRejection } from "@/lib/errors";
 
 export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
 
@@ -15,11 +15,20 @@ export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
  * REFETCH AUTOMATICO: alla CONFERMA on-chain (receipt success) vengono
  * invalidate tutte le query wagmi/react-query attive, cosi' barre di voto,
  * saldi, allowance, posizioni e reward si aggiornano da soli su ogni
- * pagina, senza refresh manuale. (Un refetch chiamato subito dopo la
- * firma leggerebbe ancora lo stato pre-transazione.)
+ * pagina, senza refresh manuale.
+ *
+ * GESTIONE ERRORI STRUTTURALE: send() non rigetta MAI (niente unhandled
+ * rejection dagli onClick, quindi niente overlay di Next). Tre casi:
+ *  (a) rifiuto dell'utente nel wallet (4001) -> azione normale: reset
+ *      silenzioso dello stato + avviso neutro "Transazione annullata";
+ *  (b) revert del contratto -> phase "error" con messaggio italiano
+ *      mappato (mapTxError);
+ *  (c) errore imprevisto -> phase "error" con messaggio generico,
+ *      dettagli completi in console per il debug.
  */
 export function useTx() {
   const queryClient = useQueryClient();
+  const [notice, setNotice] = useState<string | null>(null);
 
   const {
     writeContractAsync,
@@ -43,6 +52,28 @@ export function useTx() {
     }
   }, [receipt.isSuccess, hash, queryClient]);
 
+  async function send(
+    args: Parameters<typeof writeContractAsync>[0]
+  ): Promise<`0x${string}` | null> {
+    setNotice(null);
+    try {
+      return await writeContractAsync(args);
+    } catch (err) {
+      if (isUserRejection(err)) {
+        // (a) Rifiutare una firma non e' un errore: stato riportato a
+        // idle e avviso neutro, nessun rosso, nessun overlay.
+        reset();
+        setNotice("Transazione annullata nel wallet.");
+      } else {
+        // (b)/(c) wagmi ha gia' registrato writeError: la fase diventa
+        // "error" e TxStatus mostra il messaggio mappato in italiano.
+        // I dettagli grezzi restano in console per il debug.
+        console.error("[useTx] transazione non inviata:", err);
+      }
+      return null;
+    }
+  }
+
   let phase: TxPhase = "idle";
   if (isSigning) phase = "signing";
   else if (writeError) phase = "error";
@@ -56,5 +87,5 @@ export function useTx() {
       ? "La transazione è fallita on-chain."
       : null;
 
-  return { send: writeContractAsync, phase, hash, errorMessage, reset };
+  return { send, phase, hash, errorMessage, notice, reset };
 }

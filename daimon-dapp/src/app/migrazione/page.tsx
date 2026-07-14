@@ -119,7 +119,8 @@ export default function Migrazione() {
       functionName: "claim",
       args: [amount],
     });
-    setClaimed({ amount, hash });
+    // null = transazione non inviata (es. firma rifiutata): niente schermata di successo.
+    if (hash) setClaimed({ amount, hash });
   }
 
   return (
@@ -235,7 +236,7 @@ export default function Migrazione() {
             >
               {approved ? "Approvazione già concessa ✓" : "Approva la migrazione"}
             </button>
-            <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} />
+            <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} notice={approveTx.notice} />
           </Step>
 
           <Step n={3} title="Ricevi DMN" active={step2Done} done={false}>
@@ -253,7 +254,7 @@ export default function Migrazione() {
             >
               Migra ora
             </button>
-            <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} />
+            <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} notice={claimTx.notice} />
           </Step>
         </div>
       )}

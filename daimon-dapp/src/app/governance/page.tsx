@@ -160,9 +160,10 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
   }
 
   // Il refetch post-conferma e' automatico (invalidazione in useTx).
+  // send() non rigetta mai: null = non inviata (es. firma rifiutata).
   async function vote(support: number) {
-    await voteTx.send({ ...governor, functionName: "castVote", args: [id, support] });
-    setCastChoice(support);
+    const h = await voteTx.send({ ...governor, functionName: "castVote", args: [id, support] });
+    if (h) setCastChoice(support);
   }
   async function doQueue() {
     await queueTx.send({ ...governor, functionName: "queue", args: [id] });
@@ -280,9 +281,9 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
           </button>
         )}
       </div>
-      <TxStatus phase={voteTx.phase} hash={voteTx.hash} errorMessage={voteTx.errorMessage} />
-      <TxStatus phase={queueTx.phase} hash={queueTx.hash} errorMessage={queueTx.errorMessage} />
-      <TxStatus phase={executeTx.phase} hash={executeTx.hash} errorMessage={executeTx.errorMessage} />
+      <TxStatus phase={voteTx.phase} hash={voteTx.hash} errorMessage={voteTx.errorMessage} notice={voteTx.notice} />
+      <TxStatus phase={queueTx.phase} hash={queueTx.hash} errorMessage={queueTx.errorMessage} notice={queueTx.notice} />
+      <TxStatus phase={executeTx.phase} hash={executeTx.hash} errorMessage={executeTx.errorMessage} notice={executeTx.notice} />
     </div>
   );
 }
@@ -388,7 +389,7 @@ function CreateProposal({
       >
         Crea proposta
       </button>
-      <TxStatus phase={tx.phase} hash={tx.hash} errorMessage={tx.errorMessage} />
+      <TxStatus phase={tx.phase} hash={tx.hash} errorMessage={tx.errorMessage} notice={tx.notice} />
     </div>
   );
 }

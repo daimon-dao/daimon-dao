@@ -7,11 +7,21 @@ export function TxStatus({
   phase,
   hash,
   errorMessage,
+  notice,
 }: {
   phase: TxPhase;
   hash?: `0x${string}`;
   errorMessage?: string | null;
+  notice?: string | null;
 }) {
+  // Avviso neutro (es. firma annullata dall'utente): non e' un errore.
+  if (phase === "idle" && notice) {
+    return (
+      <div className="mt-3 rounded-lg border border-bordi bg-bg/40 px-3 py-2 text-sm text-secondario">
+        ℹ {notice}
+      </div>
+    );
+  }
   if (phase === "idle") return null;
 
   return (

@@ -5,6 +5,7 @@ import { Providers } from "@/components/Providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { PausedBanner } from "@/components/PausedBanner";
+import { GlobalErrorGuard } from "@/components/GlobalErrorGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.className} min-h-screen bg-bg text-testo antialiased`}>
         <Providers>
+          <GlobalErrorGuard />
           <PausedBanner />
           <Header />
           <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
