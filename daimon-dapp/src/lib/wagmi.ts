@@ -1,4 +1,4 @@
-import { createConfig, http } from "wagmi";
+import { cookieStorage, createConfig, createStorage, http } from "wagmi";
 import { bsc, bscTestnet } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { ACTIVE_CHAIN } from "@/config/contracts";
@@ -10,13 +10,19 @@ import { ACTIVE_CHAIN } from "@/config/contracts";
  */
 const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
+// Config SINGLETON a livello di modulo: creata una sola volta per runtime,
+// mai dentro un componente (i connectors non vanno ricreati a ogni render).
 export const wagmiConfig = createConfig({
   chains: [ACTIVE_CHAIN],
-  // Con SSR/prerender di Next la reidratazione dello store da localStorage
-  // va rimandata a DOPO il mount: senza, il primo render client (wallet
-  // gia' connesso in precedenza) differisce dall'HTML del server ->
-  // "Hydration failed". E' il pattern raccomandato da wagmi per Next.
+  // Pattern SSR completo raccomandato da wagmi per Next (App Router):
+  //  - ssr: true rimanda la reidratazione dello store a dopo il mount
+  //    (senza: hydration mismatch col wallet gia' connesso);
+  //  - cookieStorage rende lo stato di connessione leggibile ANCHE dal
+  //    server: il root layout lo passa come initialState al WagmiProvider
+  //    (cookieToInitialState), cosi' la connessione e' presente dal primo
+  //    render e sopravvive alle navigazioni client-side senza flash.
   ssr: true,
+  storage: createStorage({ storage: cookieStorage }),
   connectors: [
     injected(),
     ...(wcProjectId

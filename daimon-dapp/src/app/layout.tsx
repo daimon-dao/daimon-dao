@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
+import { cookieToInitialState } from "wagmi";
 import "./globals.css";
+import { wagmiConfig } from "@/lib/wagmi";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -24,13 +27,19 @@ try {
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Stato wagmi ricostruito dal cookie lato server: la connessione del
+  // wallet e' nel primo render (niente flash "Connetti wallet" e niente
+  // perdita di stato nelle navigazioni). Nota: headers() rende le route
+  // dinamiche — va bene, i dati sono comunque letti on-chain dal client.
+  const initialState = cookieToInitialState(wagmiConfig, headers().get("cookie"));
+
   return (
     <html lang="it" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className={`${inter.className} min-h-screen bg-bg text-testo antialiased`}>
-        <Providers>
+        <Providers initialState={initialState}>
           <GlobalErrorGuard />
           <PausedBanner />
           <Header />
