@@ -156,6 +156,54 @@ identica transfer è passata dopo la ripresa.
 
 ---
 
+## Test 6 — Ciclo di burn completo (Piano B) ✅
+
+_Eseguito il 2026-07-17. Piano B: la pool testnet è troppo sottile per far
+scattare il buyback interno autonomo (richiede saldo BNB del contratto > 1,
+irraggiungibile coi tBNB dei faucet), quindi il ramo buyback è stato
+riprodotto manualmente con un acquisto verso il dead address — stessa
+identica meccanica di `_buyBackAndBurn`. Lo swap fee autonomo, invece, è
+stato triggerato on-chain reale._
+
+**Cosa testato**: creazione liquidità reale sulla pair PancakeSwap testnet,
+accumulo fee oltre `minimumTokensBeforeSwap` (200M DMN), trigger dello swap
+fee autonomo con distribuzione BNB a marketing + staking, poi burn della
+supply verso il floor.
+
+Setup:
+- Deployer → B: 900M vecchi Daimon `0x0697e67fa330366050ba82e9e3933904a1980ef2f19cd4580e0891f8ab8ac166`
+- Deployer → B: 0.4 tBNB `0x71cd3d70cce3331d7ca299cddad033fb54688fefc0ba0d63cd4db851b161ad41`
+- B migra 900M → DMN: approve `0xf30ba28107af7ce2408b11081b4505e90c37841ccda338ef58e689afb1733f9a`, claim `0x44228f91a7520026a2d9278e6c84b2f48d89e5b259f9c17f55e7295c8c5cb2b7`
+- Liquidità pool: 60M DMN + 0.3 tBNB `0xc709a21f3e944aec2c0d09f5d90080d4f746b195d6f0536d485a056bcb2d3202`
+
+Accumulo fee (ping-pong B↔C, 7 hop fino a superare 200M):
+`0x07c76a6f…`, `0x2aa563c9…`, `0x9c7bdd8c…`, `0xf8d73005…`, `0x457004ec…`,
+`0x5fbced54…`, `0x29c38fde94c68e56ff0a0dc3df6dd1e1d7c1968daf1937d5a2827369d156b1ef`
+
+**Trigger swap fee autonomo** (sell C→pair) — `0xdfb46263409a3dd7bcf424749bed84c0f51079b599bc4b5db10ee1553ec28739`:
+- 200M DMN di fee swappati per **0.2334 tBNB**
+- marketing wallet: **+0.0467 tBNB** (0.3675 → 0.4142)
+- staking: **+0.0700 tBNB** di reward distribuiti agli staker
+- contratto trattiene **0.1167 tBNB** come riserva buyback
+
+**Burn**:
+- buy dalla pool → dead address (0.015 tBNB): **+44.79M DMN al dead** — `0xc46363ba7bb54246e3056bcfa4933f8353e35b01e149d0d418efa4ac540a2e5f`
+- `burnDeadBalanceToFloor()`: **totalSupply 1000.000B → 999.955B** — `0xd3e3a6f334878f5ac59ee0b74a47a964ae795d9bb153a01c3e800176695cfb79`
+- **44.785.811 DMN bruciati** dalla supply, dead address azzerato
+
+**Esito**: PASS. Lo swap fee autonomo funziona sulla pool reale (marketing e
+staking pagati in tBNB veri); `burnDeadBalanceToFloor` riduce realmente la
+supply; la dashboard mostra i token bruciati e la barra di deflazione mossa.
+
+**Anomalie**: 1 (di orchestrazione, non del contratto). Il primo tentativo di
+trigger è stato lanciato dal wallet B, che il ping-pong aveva lasciato a
+saldo 0 (l'ultimo hop era B→C): lo swap fee riusciva ma il trasferimento
+successivo dei 1000 DMN da B faceva underflow su `_rOwned[B] -= rAmount`
+(B non aveva i token). Localizzato con fork test e ritriggerato da C (che
+deteneva i DMN). Nessun difetto dei contratti.
+
+---
+
 ## Riepilogo
 
 | # | Test | Esito |
@@ -163,8 +211,9 @@ identica transfer è passata dopo la ripresa.
 | 1 | Migrazione 1:1 con treasury | ✅ PASS |
 | 2 | Fee 5% + reflection ai fermi | ✅ PASS (nota RPC stantio) |
 | 3 | Voting power 1x/4x + lock | ✅ PASS |
-| 4 | Governance propose + delay | ✅ PASS — vote/queue/execute a calendario (9→21 lug) |
+| 4 | Governance propose + delay | ✅ PASS — vote 9 lug, queue 14 lug, execute dal 21 lug |
 | 5 | Pausa guardian | ✅ PASS |
+| 6 | Ciclo di burn (swap fee autonomo + burn supply) | ✅ PASS (Piano B) |
 
 Le chiavi dei wallet di test B e C sono in `.testwallets/` (escluso da git):
-servono ancora per votare la proposta #0 — non cancellarle fino all'execute.
+servono ancora per l'execute della proposta #0 — non cancellarle prima.
