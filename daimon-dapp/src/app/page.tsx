@@ -6,7 +6,7 @@ import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
-import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown } from "@/lib/format";
+import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
 import { usePrice } from "@/hooks/usePrice";
 import { useNow } from "@/hooks/useNow";
 import { PROPOSAL_PHASE, phaseOf, type ProposalTuple } from "@/lib/governance";
@@ -137,7 +137,7 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Supply attuale"
-          value={totalSupply !== undefined ? `${formatCompact(totalSupply)} DMN` : "…"}
+          value={totalSupply !== undefined ? `${formatCompact(totalSupply, 18, 3)} DMN` : "…"}
           exact={totalSupply !== undefined ? `${formatExact(totalSupply)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
         />
@@ -187,7 +187,7 @@ export default function Dashboard() {
         <div className="mt-2 flex justify-between text-xs text-secondario">
           <span>
             {burned !== undefined ? `${formatCompact(burned)} DMN bruciati` : "…"} (
-            {progressPct.toFixed(3)}%)
+            {truncFixed(progressPct, 3)}%)
           </span>
           <span>floor: 21B</span>
         </div>

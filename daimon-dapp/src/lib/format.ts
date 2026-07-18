@@ -1,8 +1,28 @@
 import { formatUnits } from "viem";
 
 /*
+ * Tronca `x` a `digits` decimali VERSO LO ZERO (mai arrotondamento): il
+ * valore mostrato non supera mai quello reale. Fondamentale per le metriche
+ * deflazionarie — con round, 999.955 diventerebbe "1000.0" nascondendo il
+ * burn. Costruisce la stringa dai pezzi interi per evitare che toFixed
+ * ri-arrotondi per imprecisione floating point.
+ */
+export function truncFixed(x: number, digits: number): string {
+  const sign = x < 0 ? "-" : "";
+  const abs = Math.abs(x);
+  const factor = 10 ** digits;
+  const scaled = Math.floor(abs * factor); // troncamento verso il basso
+  const intPart = Math.floor(scaled / factor);
+  if (digits === 0) return `${sign}${intPart}`;
+  const fracPart = (scaled % factor).toString().padStart(digits, "0");
+  return `${sign}${intPart}.${fracPart}`;
+}
+
+/*
  * Formattazione importi (DAPP_SPEC.md §8.5): compatta e leggibile
  * ("987.4B", "1.5M"), con il valore esatto disponibile per i tooltip.
+ * Sempre troncata verso il basso: la cifra visualizzata non eccede mai il
+ * valore on-chain reale.
  */
 export function formatCompact(value: bigint, decimals = 18, digits = 1): string {
   const n = Number(formatUnits(value, decimals));
@@ -10,10 +30,10 @@ export function formatCompact(value: bigint, decimals = 18, digits = 1): string 
   const abs = Math.abs(n);
   // Niente tier "T": la scala di riferimento del progetto e' il miliardo
   // ("1000B -> 21B"), quindi 1e12 si mostra come 1000B.
-  if (abs >= 1e9) return `${(n / 1e9).toFixed(digits)}B`;
-  if (abs >= 1e6) return `${(n / 1e6).toFixed(digits)}M`;
-  if (abs >= 1e3) return `${(n / 1e3).toFixed(digits)}K`;
-  if (abs >= 1) return n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  if (abs >= 1e9) return `${truncFixed(n / 1e9, digits)}B`;
+  if (abs >= 1e6) return `${truncFixed(n / 1e6, digits)}M`;
+  if (abs >= 1e3) return `${truncFixed(n / 1e3, digits)}K`;
+  if (abs >= 1) return truncFixed(n, 2);
   if (abs === 0) return "0";
   return n.toLocaleString("it-IT", { maximumFractionDigits: 6 });
 }
