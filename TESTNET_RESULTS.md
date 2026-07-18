@@ -204,6 +204,62 @@ deteneva i DMN). Nessun difetto dei contratti.
 
 ---
 
+## Test 7 — Claim reward multi-wallet con quadratura al wei ✅
+
+_Eseguito il 2026-07-18/19. Tre wallet con voting power diversi hanno
+riscosso i reward BNB dalla dApp; verifica contabile completa a valle._
+
+**Fonte dei reward** — un solo `notifyRewardAmount`, arrivato dallo swap fee
+autonomo del Test 6: **0.070008014335556812 BNB**
+(tx `0xdfb46263409a3dd7bcf424749bed84c0f51079b599bc4b5db10ee1553ec28739`,
+blocco 119.840.962, 18/07 13:19:31). Al momento del notify:
+`totalVotingPower` = 6.3M (B 3M, deployer 0.3M, wallet nuovo 3M).
+
+**Operazioni di claim** (ordine cronologico, verificate via `cast receipt`):
+
+| Wallet | Voting power | BNB riscossi (esatti) | Tx | Quando |
+|---|---|---|---|---|
+| Nuovo `0x8bd3…B491` | 3.000.000 | 0.033337149683598481 | `0x5792a79ca050b3f6d049cdbc3b514ceb6f76b02a92ca170d1a497d5d9d492315` | 18/07 18:38:03 |
+| Deployer `0x3863…3A50` | 300.000 | 0.003333714968359848 | `0xa26d2df8794cc63d1475781a68536505b9fbaf98f903a0990ced9660d8a2cc9b` | 18/07 23:49:44 |
+| B `0x59B1…DA35` | 3.000.000 | 0.033337149683598481 | `0x30f9e441089fe3785b4a9536cd64395c5cac41873ba2ea77b228a41576730691` | 18/07 23:50:27 |
+
+**Quadratura al wei** (invariante: entrati = riscossi + pending +
+undistributed + dust):
+
+```
+entrati (notify)          70008014335556812 wei
+riscossi (somma 3 claim)  70008014335556810 wei
+pending residui (tutti)                   0
+undistributedRewards                      0
+dust                                      2 wei
+balance BNB del contratto                 2 wei  == dust ✓
+```
+
+I 2 wei residui sono interamente spiegati: ogni claim calcola
+`floor(vp × rewardPerVotingPowerStored / 1e27)` e le tre divisioni intere
+troncano complessivamente 2 wei, che restano nel contratto come polvere.
+**Nessuno scarto inspiegabile.**
+
+**Proporzionalità**: i due wallet con vp identico (3M) hanno riscosso lo
+stesso importo al wei; il deployer con vp = 1/10 (300k) ha riscosso
+esattamente 1/10 (a meno di 1 wei di floor). Reward ∝ voting power ✓.
+
+**Esito**: PASS. La dApp ha aggiornato saldi e pending senza refresh
+(refetch automatico post-conferma), e la contabilità del contratto chiude
+esatta.
+
+**Nota operativa — getLogs sui nodi free BSC testnet**: `eth_getLogs` è
+di fatto indisponibile su tutti gli RPC gratuiti provati (data-seed
+Binance: -32005 limit exceeded anche su singolo blocco; drpc: errori
+interni/range; Ankr/zan/publicnode: richiedono API key). La ricostruzione
+eventi qui è stata fatta da stato del contratto + `cast receipt` sugli
+hash forniti dai wallet. Per mainnet: la lista eventi della dApp
+(proposte, claim, ecc.) richiederà un RPC a pagamento con getLogs o un
+indexer dedicato — già annotato anche nel README della dApp come lavoro
+di fase 2.
+
+---
+
 ## Riepilogo
 
 | # | Test | Esito |
@@ -214,6 +270,7 @@ deteneva i DMN). Nessun difetto dei contratti.
 | 4 | Governance propose + delay | ✅ PASS — vote 9 lug, queue 14 lug, execute dal 21 lug |
 | 5 | Pausa guardian | ✅ PASS |
 | 6 | Ciclo di burn (swap fee autonomo + burn supply) | ✅ PASS (Piano B) |
+| 7 | Claim reward multi-wallet + quadratura al wei | ✅ PASS |
 
 Le chiavi dei wallet di test B e C sono in `.testwallets/` (escluso da git):
 servono ancora per l'execute della proposta #0 — non cancellarle prima.
