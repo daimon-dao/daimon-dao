@@ -93,6 +93,16 @@ Funziona ANCHE senza wallet connesso (tutte letture pubbliche on-chain).
 **Verificabilità:** ogni metric card ha una piccola icona/link che apre il
 contratto relativo su BscScan (testnet.bscscan.com per chain 97).
 
+**Bottone "Compra DMN"** (aggiunto 2026-07-19): nella card prezzo, bottone
+oro che apre PancakeSwap con `outputCurrency` = indirizzo DMN preso da
+contracts.ts (mai hardcodato: su mainnet segue il nuovo indirizzo da solo).
+NON è uno swap integrato — solo un link, per portare l'utente sulla pool
+ufficiale e proteggerlo dai token fake. Sotto il bottone: indirizzo
+troncato copiabile con invito a verificarlo. Su chain 97 il bottone è
+disabilitato con tooltip ("PancakeSwap non offre una UI di swap testnet"),
+pronto per chain 56. Link secondario discreto nel footer (solo mainnet).
+Niente parametri referral/tracking nell'URL.
+
 ## 5. Migrazione — percorso guidato, non form
 
 Wizard in 3 passi visivi:
@@ -179,6 +189,9 @@ Eseguita/Bocciata/Annullata → badge di stato
 - NIENTE variazione % 24h o indicatori rossi/verdi sul prezzo — deciso.
 - NIENTE sezione lending/borrowing — arriverà in fase 2, non predisporre UI.
 - NIENTE localStorage per dati sensibili.
+- NIENTE swap integrato nella dApp — deciso 2026-07-19: rimandato alla
+  fase 2 DeFi, da attivare via proposta DAO. Soluzione ponte: il bottone
+  "Compra DMN" (§4) che apre PancakeSwap sulla pair ufficiale.
 
 ## 10. Consegna
 

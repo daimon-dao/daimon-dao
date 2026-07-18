@@ -7,6 +7,7 @@ import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
+import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { usePrice } from "@/hooks/usePrice";
 import { useNow } from "@/hooks/useNow";
 import { PROPOSAL_PHASE, phaseOf, type ProposalTuple } from "@/lib/governance";
@@ -21,12 +22,14 @@ function MetricCard({
   sub,
   exact,
   contract,
+  children,
 }: {
   title: string;
   value: string;
   sub?: string;
   exact?: string;
   contract: string;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="card relative">
@@ -35,6 +38,7 @@ function MetricCard({
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-secondario">{sub}</p>}
+      {children}
       <a
         href={explorerAddress(contract)}
         target="_blank"
@@ -168,7 +172,9 @@ export default function Dashboard() {
               : "prezzo dalla pool PancakeSwap"
           }
           contract={ADDRESSES.pancakePair}
-        />
+        >
+          <BuyDmnButton />
+        </MetricCard>
       </div>
 
       {/* Barra di deflazione */}

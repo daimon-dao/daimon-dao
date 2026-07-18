@@ -27,6 +27,18 @@ export function Footer() {
               {label} ↗
             </a>
           ))}
+          {/* Link discreto alla pool ufficiale: solo su mainnet (su testnet
+              PancakeSwap non ha una UI di swap). */}
+          {!IS_TESTNET && (
+            <a
+              href={`https://pancakeswap.finance/swap?outputCurrency=${ADDRESSES.daimonV2}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-oro underline-offset-2 hover:underline"
+            >
+              Compra DMN su PancakeSwap ↗
+            </a>
+          )}
         </div>
         <p className="mt-6 text-xs text-secondario">
           Daimon DAO — nessun owner, nessun mint, floor di supply a 21B. Verifica tutto on-chain.
