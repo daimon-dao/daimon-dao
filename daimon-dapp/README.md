@@ -50,6 +50,35 @@ Favicon e icona iOS sono gestite dalle convenzioni App Router di Next:
 (180×180, quadrato blu notte opaco). Per aggiornare il logo: rigenerare
 questi tre file (SVG via `pdftocairo -svg`, vedi storia del repo).
 
+## Deploy su Vercel (staging)
+
+La dApp è una sottocartella del monorepo: su Vercel va impostata
+**Root Directory = `daimon-dapp`**. Le pagine usano rendering dinamico
+(cookie wagmi letti server-side), pienamente supportato da Vercel —
+nessuna configurazione extra, niente `vercel.json`.
+
+1. Push del monorepo su un repo **GitHub privato**, poi su
+   [vercel.com](https://vercel.com) → *Add New → Project* → importa il repo.
+2. In *Configure Project*: Root Directory `daimon-dapp` (Edit → seleziona
+   la cartella). Framework rilevato: Next.js; build command e output di
+   default.
+3. *Environment Variables*: aggiungi `NEXT_PUBLIC_WC_PROJECT_ID` con il
+   project id WalletConnect (obbligatoria per il QR su mobile;
+   `.env.local` non viene deployato). `NEXT_PUBLIC_CHAIN_ID` non serve:
+   il default è 97 (testnet).
+4. Deploy. L'URL `*.vercel.app` è raggiungibile ma non indicizzato/linkato.
+   Per renderlo davvero privato: *Settings → Deployment Protection →
+   Vercel Authentication* (gratuito) — richiede login Vercel per vedere
+   il sito. Nota per i test mobile: aprire l'URL nel browser del telefono
+   (dove si può fare login Vercel), NON nel browser in-app di MetaMask;
+   la connessione wallet passa comunque da WalletConnect via deep link.
+5. Su WalletConnect Cloud, aggiungi l'URL Vercel alla allowlist dei
+   domini del progetto (Settings del progetto WC), altrimenti il relay
+   può rifiutare le sessioni da quel dominio.
+
+Per il lancio mainnet: stessa procedura + `NEXT_PUBLIC_CHAIN_ID=56` e
+indirizzi mainnet in contracts.ts (vedi sopra).
+
 ## Note operative
 
 - La lista posizioni di staking scansiona i lock per id (fino a 400): su
