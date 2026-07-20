@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
-import { ACTIVE_CHAIN } from "@/config/contracts";
+import { ACTIVE_CHAIN, explorerAddress } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
 
 export function ConnectButton() {
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, chainId, connector } = useAccount();
   const { connectors, connectAsync, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
@@ -22,6 +23,48 @@ export function ConnectButton() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  async function copyAddress() {
+    if (!address) return;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(address);
+      ok = true;
+    } catch {
+      // Fallback per contesti dove la Clipboard API e' negata.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = address;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  // Apre il selettore account del wallet SENZA disconnettere: alla scelta
+  // di un altro account MetaMask emette accountsChanged e wagmi si aggiorna.
+  async function changeAccount() {
+    setMenuOpen(false);
+    try {
+      const provider = (await connector?.getProvider()) as
+        | { request?: (args: { method: string; params?: unknown[] }) => Promise<unknown> }
+        | undefined;
+      await provider?.request?.({
+        method: "wallet_requestPermissions",
+        params: [{ eth_accounts: {} }],
+      });
+    } catch {
+      /* rifiuto dell'utente o wallet senza supporto: nessun errore */
+    }
+  }
 
   if (!mounted) {
     return <button className="btn-oro opacity-60">Connetti wallet</button>;
@@ -39,14 +82,53 @@ export function ConnectButton() {
   }
 
   if (isConnected && address) {
+    // Click esplorativo -> menu con le opzioni, MAI disconnessione diretta.
     return (
-      <button
-        className="rounded-lg border border-oro/60 px-4 py-2 text-sm font-medium text-oro hover:bg-oro/10"
-        onClick={() => disconnect()}
-        title="Clicca per disconnettere"
-      >
-        {shortAddress(address)}
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          className="rounded-lg border border-oro/60 px-4 py-2 text-sm font-medium text-oro hover:bg-oro/10"
+          onClick={() => setMenuOpen((v) => !v)}
+          title="Opzioni wallet"
+        >
+          {shortAddress(address)}
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-bordi bg-card p-2 shadow-xl">
+            <button
+              onClick={copyAddress}
+              className="block w-full break-all rounded-lg px-3 py-2 text-left font-mono text-xs text-testo hover:bg-oro/10"
+              title="Clicca per copiare l'indirizzo completo"
+            >
+              {copied ? "copiato ✓" : address}
+            </button>
+            <a
+              href={explorerAddress(address)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-lg px-3 py-2 text-sm text-testo hover:bg-oro/10"
+              onClick={() => setMenuOpen(false)}
+            >
+              Vedi su BscScan ↗
+            </a>
+            <button
+              onClick={changeAccount}
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10"
+            >
+              Cambia account
+            </button>
+            <div className="my-1 border-t border-bordi" />
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                disconnect();
+              }}
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rosso/80 hover:bg-rosso/10"
+            >
+              Disconnetti
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
 

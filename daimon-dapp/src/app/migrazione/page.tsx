@@ -7,6 +7,7 @@ import { ADDRESSES, explorerTx } from "@/config/contracts";
 import { mockOldDaimonAbi } from "@/config/abis/mockOldDaimon";
 import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
 import { ConnectButton } from "@/components/ConnectButton";
+import { DataOwner } from "@/components/DataOwner";
 import { TxStatus } from "@/components/TxStatus";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
@@ -192,12 +193,15 @@ export default function Migrazione() {
         <div className="space-y-4">
           <Step n={1} title="Connetti" active={!step1Done} done={step1Done}>
             {isConnected ? (
-              <p className="text-sm">
-                Vecchi Daimon rilevati nel wallet:{" "}
-                <b title={oldBalance !== undefined ? formatExact(oldBalance) : ""}>
-                  {oldBalance !== undefined ? `${formatCompact(oldBalance)}` : "…"}
-                </b>
-              </p>
+              <>
+                <p className="text-sm">
+                  Vecchi Daimon rilevati nel wallet:{" "}
+                  <b title={oldBalance !== undefined ? formatExact(oldBalance) : ""}>
+                    {oldBalance !== undefined ? `${formatCompact(oldBalance)}` : "…"}
+                  </b>
+                </p>
+                <DataOwner address={address} />
+              </>
             ) : (
               <div className="flex items-center gap-3">
                 <p className="text-sm text-secondario">

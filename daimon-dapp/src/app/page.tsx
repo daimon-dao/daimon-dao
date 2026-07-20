@@ -8,6 +8,7 @@ import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
+import { DataOwner } from "@/components/DataOwner";
 import { usePrice } from "@/hooks/usePrice";
 import { useNow } from "@/hooks/useNow";
 import { PROPOSAL_PHASE, phaseOf, type ProposalTuple } from "@/lib/governance";
@@ -206,6 +207,7 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="card">
           <h2 className="font-medium text-orochiaro">Il tuo staking</h2>
+          {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
             <p className="mt-3 text-sm text-secondario">
               Connetti il wallet per vedere posizioni e reward.

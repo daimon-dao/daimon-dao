@@ -7,6 +7,7 @@ import { ADDRESSES } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { ConnectButton } from "@/components/ConnectButton";
+import { DataOwner } from "@/components/DataOwner";
 import { TxStatus } from "@/components/TxStatus";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
@@ -300,6 +301,7 @@ export default function Staking() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card lg:col-span-2">
           <h2 className="font-medium text-orochiaro">Le tue posizioni</h2>
+          {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
             <p className="mt-3 text-sm text-secondario">
               Connetti il wallet per vedere posizioni e reward.
@@ -346,6 +348,7 @@ export default function Staking() {
 
         <div className="card">
           <h2 className="font-medium text-orochiaro">Reward maturati</h2>
+          {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
             <p className="mt-3 text-sm text-secondario">
               Connetti il wallet per vedere i reward.
