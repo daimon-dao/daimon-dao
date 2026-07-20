@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { isAddress, isHex, parseEther } from "viem";
 import { ADDRESSES } from "@/config/contracts";
@@ -27,8 +27,13 @@ const staking = { address: ADDRESSES.daimonStaking, abi: daimonStakingAbi } as c
 export default function Governance() {
   const { isConnected } = useAccount();
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // true per qualche secondo dopo che proposalCount CRESCE: chiude il form,
+  // mostra il banner ed evidenzia la card appena nata. Guidato dal conteggio
+  // (non dal componente form) cosi' funziona anche se l'utente ha chiuso il
+  // form prima della conferma — lo scenario del bug della proposta #1.
+  const [justCreated, setJustCreated] = useState(false);
 
-  const { data: countData, isLoading: countLoading, refetch } = useReadContracts({
+  const { data: countData, isLoading: countLoading } = useReadContracts({
     contracts: [
       { ...governor, functionName: "proposalCount" },
       { ...governor, functionName: "quorumBps" },
@@ -36,6 +41,23 @@ export default function Governance() {
     ],
   });
   const proposalCount = Number((countData?.[0]?.result as bigint | undefined) ?? 0n);
+
+  const prevCount = useRef<number | null>(null);
+  useEffect(() => {
+    if (countData?.[0]?.result === undefined) return; // conteggio non ancora letto
+    if (prevCount.current === null) {
+      prevCount.current = proposalCount;
+      return;
+    }
+    if (proposalCount > prevCount.current) {
+      prevCount.current = proposalCount;
+      setShowAdvanced(false);
+      setJustCreated(true);
+      const t = window.setTimeout(() => setJustCreated(false), 8000);
+      return () => window.clearTimeout(t);
+    }
+    prevCount.current = proposalCount;
+  }, [proposalCount, countData]);
   const quorumBps = (countData?.[1]?.result as bigint | undefined) ?? 1000n;
   const threshold = countData?.[2]?.result as bigint | undefined;
 
@@ -59,7 +81,13 @@ export default function Governance() {
         </button>
       </div>
 
-      {showAdvanced && <CreateProposal threshold={threshold} onCreated={refetch} />}
+      {showAdvanced && <CreateProposal threshold={threshold} />}
+
+      {justCreated && (
+        <div className="card border-verde/50 text-sm text-verde">
+          ✔ Proposta creata e confermata on-chain: è la prima della lista qui sotto.
+        </div>
+      )}
 
       {countLoading ? (
         <div className="card text-sm text-secondario">Caricamento proposte…</div>
@@ -67,8 +95,13 @@ export default function Governance() {
         <div className="card text-sm text-secondario">Nessuna proposta ancora creata.</div>
       ) : (
         <div className="space-y-4">
-          {ids.map((id) => (
-            <ProposalCard key={id.toString()} id={id} quorumBps={quorumBps} />
+          {ids.map((id, i) => (
+            <ProposalCard
+              key={id.toString()}
+              id={id}
+              quorumBps={quorumBps}
+              highlight={justCreated && i === 0}
+            />
           ))}
         </div>
       )}
@@ -85,7 +118,15 @@ export default function Governance() {
   );
 }
 
-function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
+function ProposalCard({
+  id,
+  quorumBps,
+  highlight = false,
+}: {
+  id: bigint;
+  quorumBps: bigint;
+  highlight?: boolean;
+}) {
   const now = useNow();
   const paused = usePaused();
   const { address, isConnected } = useAccount();
@@ -137,6 +178,8 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
 
   if (!p) return <div className="card text-sm text-secondario">Caricamento proposta #{id.toString()}…</div>;
 
+  // (evidenziazione post-creazione: anello oro per qualche secondo)
+
   const phase = phaseOf(stateData as number | undefined, p, now, readyTs);
   const info = PROPOSAL_PHASE[phase.key];
 
@@ -179,7 +222,7 @@ function ProposalCard({ id, quorumBps }: { id: bigint; quorumBps: bigint }) {
     isConnected && snapshotVp !== undefined && snapshotVp === 0n;
 
   return (
-    <div className="card">
+    <div className={`card ${highlight ? "border-oro/70 ring-1 ring-oro/50" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-orochiaro">
@@ -314,13 +357,7 @@ function VoteBar({
   );
 }
 
-function CreateProposal({
-  threshold,
-  onCreated,
-}: {
-  threshold?: bigint;
-  onCreated: () => void;
-}) {
+function CreateProposal({ threshold }: { threshold?: bigint }) {
   const { address, isConnected } = useAccount();
   const paused = usePaused();
   const tx = useTx();
@@ -341,6 +378,10 @@ function CreateProposal({
   const enoughVp =
     myVp !== undefined && threshold !== undefined && (myVp as bigint) >= threshold;
 
+  // Nessun callback di conferma qui: la chiusura del form, il banner e
+  // l'evidenziazione sono guidati dall'aumento di proposalCount nel parent,
+  // cosi' funzionano anche se questo componente viene smontato prima della
+  // conferma on-chain.
   async function submit() {
     let wei = 0n;
     try {
@@ -351,7 +392,6 @@ function CreateProposal({
       functionName: "propose",
       args: [target as `0x${string}`, wei, calldata as `0x${string}`, description],
     });
-    onCreated();
   }
 
   return (

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useConfig, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { waitForTransactionReceipt } from "wagmi/actions";
 import { mapTxError, isUserRejection } from "@/lib/errors";
 
 export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
@@ -28,6 +29,7 @@ export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
  */
 export function useTx() {
   const queryClient = useQueryClient();
+  const config = useConfig();
   const [notice, setNotice] = useState<string | null>(null);
 
   const {
@@ -38,26 +40,31 @@ export function useTx() {
     reset,
   } = useWriteContract();
 
+  // Il receipt hook alimenta le fasi UI (pending/success) finche' il
+  // componente e' montato; l'INVALIDAZIONE invece e' imperativa (sotto),
+  // cosi' non dipende dalla vita del componente.
   const receipt = useWaitForTransactionReceipt({
     hash,
     query: { enabled: Boolean(hash) },
   });
-
-  // Invalida una sola volta per hash confermato.
-  const invalidatedFor = useRef<`0x${string}` | null>(null);
-  useEffect(() => {
-    if (receipt.isSuccess && hash && invalidatedFor.current !== hash) {
-      invalidatedFor.current = hash;
-      queryClient.invalidateQueries();
-    }
-  }, [receipt.isSuccess, hash, queryClient]);
 
   async function send(
     args: Parameters<typeof writeContractAsync>[0]
   ): Promise<`0x${string}` | null> {
     setNotice(null);
     try {
-      return await writeContractAsync(args);
+      const txHash = await writeContractAsync(args);
+      // Invalidazione GARANTITA alla conferma: promise imperativa che
+      // sopravvive anche se il componente che ha lanciato la transazione
+      // viene smontato prima del receipt (es. l'utente chiude il form
+      // avanzato subito dopo il submit — il bug della proposta #1).
+      // Un useEffect legato all'hook, invece, muore con l'unmount.
+      waitForTransactionReceipt(config, { hash: txHash })
+        .then((r) => {
+          if (r.status === "success") queryClient.invalidateQueries();
+        })
+        .catch(() => {});
+      return txHash;
     } catch (err) {
       if (isUserRejection(err)) {
         // (a) Rifiutare una firma non e' un errore: stato riportato a
