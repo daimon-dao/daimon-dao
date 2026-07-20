@@ -52,6 +52,17 @@ const ERROR_MESSAGES: Record<string, string> = {
  * Il rifiuto della firma nel wallet (EIP-1193 code 4001) e' un'azione
  * NORMALE dell'utente, non un errore: va distinta da revert e guasti.
  */
+/*
+ * Il wallet e' su una chain diversa da quella della transazione: non e' un
+ * errore del contratto ma un problema di rete, da trattare con un invito
+ * neutro allo switch (mai un errore rosso).
+ */
+export function isChainMismatch(err: unknown): boolean {
+  const e = err as { name?: string; message?: string; shortMessage?: string } | null;
+  const text = `${e?.name ?? ""} ${e?.shortMessage ?? ""} ${e?.message ?? ""}`;
+  return /ChainMismatch|does not match the target chain|chain of the wallet/i.test(text);
+}
+
 export function isUserRejection(err: unknown): boolean {
   if (err instanceof BaseError && err.walk((e) => e instanceof UserRejectedRequestError)) {
     return true;

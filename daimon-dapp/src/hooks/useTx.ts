@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConfig, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { waitForTransactionReceipt } from "wagmi/actions";
-import { mapTxError, isUserRejection } from "@/lib/errors";
+import { getAccount, switchChain, waitForTransactionReceipt } from "wagmi/actions";
+import { ACTIVE_CHAIN } from "@/config/contracts";
+import { mapTxError, isUserRejection, isChainMismatch } from "@/lib/errors";
 
 export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
 
@@ -26,11 +27,25 @@ export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
  *      mappato (mapTxError);
  *  (c) errore imprevisto -> phase "error" con messaggio generico,
  *      dettagli completi in console per il debug.
+ *
+ * GUARDIA DI RETE: prima di OGNI firma, se il wallet e' su una chain
+ * diversa da quella attesa viene richiesto lo switch; la firma parte solo
+ * a switch riuscito (e con chainId esplicito come seconda cintura).
+ * Mai piu' richieste di firma sulla chain sbagliata.
  */
 export function useTx() {
   const queryClient = useQueryClient();
   const config = useConfig();
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Gli avvisi neutri si auto-dissolvono (o spariscono alla prossima azione).
+  const noticeTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
+  function showNotice(msg: string) {
+    setNotice(msg);
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 6000);
+  }
 
   const {
     writeContractAsync,
@@ -51,9 +66,31 @@ export function useTx() {
   async function send(
     args: Parameters<typeof writeContractAsync>[0]
   ): Promise<`0x${string}` | null> {
+    window.clearTimeout(noticeTimer.current);
     setNotice(null);
+
+    // Guardia di rete: il wallet potrebbe essere su un'altra chain (es.
+    // BSC mainnet). Lo switch viene richiesto PRIMA della firma; se
+    // l'utente lo rifiuta, nessuna transazione parte.
+    const { chainId } = getAccount(config);
+    if (chainId !== undefined && chainId !== ACTIVE_CHAIN.id) {
+      try {
+        await switchChain(config, { chainId: ACTIVE_CHAIN.id });
+      } catch (err) {
+        if (isUserRejection(err)) {
+          showNotice("Cambio di rete annullato: nessuna transazione inviata.");
+        } else {
+          console.error("[useTx] cambio rete fallito:", err);
+          showNotice(`Impossibile passare a ${ACTIVE_CHAIN.name} nel wallet.`);
+        }
+        return null;
+      }
+    }
+
     try {
-      const txHash = await writeContractAsync(args);
+      // chainId esplicito: anche se lo stato del connettore fosse
+      // disallineato, wagmi rifiuta la firma su una chain diversa.
+      const txHash = await writeContractAsync({ ...args, chainId: ACTIVE_CHAIN.id });
       // Invalidazione GARANTITA alla conferma: promise imperativa che
       // sopravvive anche se il componente che ha lanciato la transazione
       // viene smontato prima del receipt (es. l'utente chiude il form
@@ -68,9 +105,15 @@ export function useTx() {
     } catch (err) {
       if (isUserRejection(err)) {
         // (a) Rifiutare una firma non e' un errore: stato riportato a
-        // idle e avviso neutro, nessun rosso, nessun overlay.
+        // idle e avviso neutro auto-dissolvente, nessun rosso, nessun overlay.
         reset();
-        setNotice("Transazione annullata nel wallet.");
+        showNotice("Transazione annullata nel wallet.");
+      } else if (isChainMismatch(err)) {
+        // Rete sbagliata sfuggita alla guardia (es. stato del connettore
+        // disallineato): viem ha comunque RIFIUTATO di firmare sulla chain
+        // errata. reset() toglie la fase error, poi avviso neutro.
+        reset();
+        showNotice(`Passa a ${ACTIVE_CHAIN.name} nel wallet e riprova.`);
       } else {
         // (b)/(c) wagmi ha gia' registrato writeError: la fase diventa
         // "error" e TxStatus mostra il messaggio mappato in italiano.
