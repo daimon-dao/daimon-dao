@@ -13,6 +13,30 @@ Contratti in scope: `DaimonV2` (token), `DaimonStaking`, `DaimonGovernor`,
 
 ---
 
+## 0. Segnalazione responsabile di vulnerabilità
+
+Se pensi di aver trovato una vulnerabilità nei contratti, negli script di
+deploy o nella dApp, **non aprire una issue pubblica e non pubblicarla**:
+una vulnerabilità resa pubblica prima della correzione mette a rischio i
+fondi degli utenti.
+
+Usa invece il canale privato di GitHub: **Security → Report a
+vulnerability** su questo repository (Private Vulnerability Reporting).
+La segnalazione arriva solo ai maintainer, che possono discuterla con te
+in privato e pubblicare un advisory coordinato una volta risolta.
+
+Cosa includere: descrizione, contratto/file interessato, impatto stimato,
+passi per riprodurre (una PoC in Foundry è l'ideale). Rispondiamo nel più
+breve tempo possibile; al momento non esiste un programma di bug bounty,
+ma il contributo verrà accreditato nell'advisory se lo desideri.
+
+In scope: i contratti elencati sopra, gli script in `script/` e la dApp
+(`daimon-dapp/`). Fuori scope: siti terzi, RPC pubblici, dipendenze
+upstream (segnalale ai rispettivi progetti), e tutto ciò che riguarda
+esclusivamente la rete di test.
+
+---
+
 ## 1. Attori e capacità
 
 | Attore | Chi è | Cosa può fare | Cosa NON può fare |
