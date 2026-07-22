@@ -31,11 +31,18 @@ html {
 }
 
 @layer components {
+  /*
+   * Stato disabled: UN solo linguaggio visivo per "non disponibile" in
+   * tutta la dApp. Il btn-oro disabilitato PERDE il pieno oro (a 50% di
+   * opacita' restava troppo simile all'attivo, specie su mobile) e
+   * diventa un ghost neutro: fondo trasparente, anello grigio (ring
+   * inset: nessuno shift di layout), testo attenuato, opacita' 40%.
+   */
   .btn-oro {
-    @apply rounded-lg bg-oro px-4 py-2 text-sm font-medium text-[#0a1128] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg bg-oro px-4 py-2 text-sm font-medium text-[#0a1128] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-secondario disabled:opacity-40 disabled:ring-1 disabled:ring-inset disabled:ring-bordi disabled:hover:brightness-100;
   }
   .btn-outline {
-    @apply rounded-lg border border-bordi px-4 py-2 text-sm text-testo transition hover:border-oro/60 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-bordi px-4 py-2 text-sm text-testo transition hover:border-oro/60 disabled:cursor-not-allowed disabled:text-secondario disabled:opacity-40 disabled:hover:border-bordi;
   }
   .card {
     @apply rounded-2xl border border-bordi bg-card p-5;

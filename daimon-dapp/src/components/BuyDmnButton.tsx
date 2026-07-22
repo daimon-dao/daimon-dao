@@ -36,11 +36,7 @@ export function BuyDmnButton({ block = true }: { block?: boolean }) {
   return (
     <div className="mt-3">
       {IS_TESTNET ? (
-        <button
-          className={`btn-oro ${width} cursor-not-allowed opacity-60`}
-          disabled
-          title={t("buy.testnetTitle")}
-        >
+        <button className={`btn-oro ${width}`} disabled title={t("buy.testnetTitle")}>
           {t("buy.button")}
         </button>
       ) : (
