@@ -1,17 +1,3 @@
-/*
- * Rigenerazione delle grafiche social (output in ./out, poi si copiano
- * in social-assets/). Setup una tantum, dalla cartella di questo script:
- *
- *   npm init -y && npm i @resvg/resvg-js
- *   cp ../../daimon-dapp/public/logo.svg .
- *   # scaricare i TTF STATICI di Inter (release rsms/inter, cartella
- *   # extras/ttf/) in ./fonts/use/  — servono Regular/Medium/SemiBold/
- *   # Bold/ExtraBold/Black. NB: la variable font non basta, resvg non
- *   # seleziona il peso dalle variabili → usare i pesi statici.
- *   node build.mjs
- *
- * lib.mjs si aspetta logo.svg e fonts/use/ nella cwd.
- */
 import fs from "node:fs";
 import { coin, render } from "./lib.mjs";
 
@@ -102,21 +88,20 @@ function githubPreview() {
     faintRings(640, 300, GOLD, 0.04) +
     coin(560, 120, 160, { coinFill: "#111b3a", glow: true }) +
     T(640, 400, "Daimon DAO", { size: 72, weight: 800, fill: GOLD, anchor: "middle" }) +
-    T(640, 465, "Nessun owner · Nessun mint · Floor 21B", { size: 30, weight: 500, fill: CREAM, op: 0.8, anchor: "middle" }) +
+    T(640, 465, "No owner · No mint · Floor 21B", { size: 30, weight: 500, fill: CREAM, op: 0.8, anchor: "middle" }) +
     T(640, 545, "github.com/daimon-dao", { size: 26, weight: 500, fill: CREAM, op: 0.5, anchor: "middle" }) +
     `</svg>`;
 }
 
 /* ============ RENDER ============ */
+// Banner gestiti da banner.mjs (varianti A/B). Qui: card social + preview, EN.
 const jobs = [
-  ["banner-profilo-it.png", banner("it")],
-  ["banner-profilo-en.png", banner("en")],
-  ["stat-fee.png", statCard({ eyebrow: "FEE", big: "11% → 4%", bigSize: 175, caption: "decise dalla DAO, non da un padrone" })],
-  ["stat-timelock.png", statCard({ eyebrow: "TIMELOCK", big: "604.800", bigSize: 185, caption: "secondi di timelock. Esatti. Anche per noi." })],
-  ["stat-owner-mint.png", statCard({ eyebrow: "GARANZIE", big: "0 owner · 0 mint", bigSize: 130, caption: "per sempre, garantito dal codice" })],
-  ["stat-supply.png", statCard({ eyebrow: "SUPPLY", big: "1000B → 21B", bigSize: 150, caption: "supply deflazionaria verso il floor", extra: deflBar })],
-  ["quote-codice.png", quoteCard("Gli umani sbagliano.", "Il codice no.")],
-  ["quote-verificate.png", quoteCard("Non chiedeteci fiducia.", "Verificate.")],
+  ["stat-fee.png", statCard({ eyebrow: "FEE", big: "11% → 4%", bigSize: 175, caption: "decided by the DAO, not by a boss" })],
+  ["stat-timelock.png", statCard({ eyebrow: "TIMELOCK", big: "604,800", bigSize: 185, caption: "seconds of timelock. Exact. Even for us." })],
+  ["stat-owner-mint.png", statCard({ eyebrow: "GUARANTEES", big: "0 owner · 0 mint", bigSize: 130, caption: "forever, guaranteed by the code" })],
+  ["stat-supply.png", statCard({ eyebrow: "SUPPLY", big: "1000B → 21B", bigSize: 150, caption: "deflationary supply toward the floor", extra: deflBar })],
+  ["quote-codice.png", quoteCard("Humans make mistakes.", "Code doesn't.")],
+  ["quote-verificate.png", quoteCard("Don't trust us.", "Verify.")],
   ["github-preview.png", githubPreview()],
 ];
 
