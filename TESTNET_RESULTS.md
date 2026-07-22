@@ -309,6 +309,64 @@ economico reale** è dimostrato al wei.
 
 ---
 
+## Test 9 — Proposta #2: sweep dei DMN non riscattati (in corso) ⏳
+
+**Obiettivo**: ciclo di governance REALE con effetto post-deadline —
+dopo la chiusura della migrazione (07/08/2026 01:08:39) la DAO, via
+Timelock, recupera i DMN mai riscattati verso la treasury.
+
+**Proposta #2** (id on-chain = 2):
+- **target**: `0x4c6f45b0148534296D8F9660ebA5cC3598855Bb2` (DaimonMigration)
+- **calldata**: `0xc44337b4` = `sweepUnclaimed()` (nessun argomento)
+- **descrizione**: "Proposta #2 — Sweep dei DMN non riscattati verso la
+  treasury DAO dopo la chiusura della migrazione (7/08). Include le
+  reflection accumulate dal contratto."
+- **proposer**: wallet B (`0x59B1…DA35`, vp 3.000.000)
+- **creazione**: tx `0x67b41be1ac4ab7ce3804ae24b6e1b1b50dfcb427834840286f3b9a14f3aceaa2`
+  (block 120654407, status success)
+
+**Pre-condizioni verificate on-chain prima di creare**:
+- `migration.governance` = Timelock (`0x6a98…27f5`) → l'execute via
+  timelock è abilitato a chiamare `sweepUnclaimed`. ✓
+- `sweepExecuted` = false; il contratto migration detiene **~999.12B DMN**
+  non riscattati (importo che finirà in treasury). ✓
+- `sweepUnclaimed()` reverte con `MigrationStillOpen()` finché
+  `block.timestamp <= migrationDeadline` → l'execute NON può che cadere
+  **dopo** il 07/08 01:08:39. ✓ (garanzia a livello di contratto, non solo
+  di calendario)
+
+**Calendario esatto** (VOTING_DELAY 1g, VOTING_PERIOD 5g, timelock 7g):
+
+| Fase | Data/ora (IT) | Note |
+|---|---|---|
+| Creazione | **22/07/2026 19:00:32** | fatto (state = Pending) |
+| Voto APRE (voteStart) | **23/07/2026 19:00:32** | prima di qui `castVote` reverte `VotingClosed` |
+| Voto CHIUDE (voteEnd) | **28/07/2026 19:00:32** | 5 giorni di finestra |
+| Queue (dopo voteEnd) | **28/07 → 31/07 01:08:39** | va fatto entro il 31/07 01:08 per allineare il timelock alla deadline |
+| Timelock ready | queue + 7g | se queue 28/07 → 04/08; se queue 31/07 01:08 → 07/08 01:08 |
+| **Execute (sweep)** | **subito dopo 07/08 01:08:39** | possibile solo a deadline migrazione superata |
+
+Nota sul margine: l'execute cade **dopo il 07/08 01:08:39 in ogni caso**
+(gated dal contratto). Se si mette in coda entro il 31/07 01:08:39 il
+timelock è pronto esattamente alla deadline → margine ≈ 0. Se si mette in
+coda prima (es. subito a fine voto, 28/07), il timelock è pronto qualche
+giorno prima ma lo sweep resta comunque bloccato fino alla deadline: la
+data di execute non cambia (07/08), è solo il countdown "In timelock" a
+mostrarsi pronto in anticipo.
+
+### ⚠️ AZIONI FUTURE RICHIESTE (a calendario)
+
+1. **VOTO — ~23/07/2026 19:00** (appena apre): `castVote(2, 1)` (Sì) da
+   wallet B. **Senza questo voto la #2 non raggiunge il quorum** (630K su
+   ~6.3M di vp allo snapshot) e lo sweep salta. Wallet B da solo (3M) basta.
+2. **QUEUE — dopo il 28/07 19:00, entro il 31/07 01:08**: `queue(2)` (chiunque).
+3. **EXECUTE — dopo il 07/08 01:08:39**: `execute(2)` → sweep verso treasury.
+
+**Stato attuale**: PENDING (voto non ancora aperto). Da completare secondo
+il calendario sopra.
+
+---
+
 ## Riepilogo
 
 | # | Test | Esito |
@@ -321,6 +379,8 @@ economico reale** è dimostrato al wei.
 | 6 | Ciclo di burn (swap fee autonomo + burn supply) | ✅ PASS (Piano B) |
 | 7 | Claim reward multi-wallet + quadratura al wei | ✅ PASS |
 | 8 | Controprova economica post-execute (fee 4%) | ✅ PASS |
+| 9 | Proposta #2 sweep (ciclo governance post-deadline) | ⏳ IN CORSO — creata, voto apre 23/07 19:00 |
 
 Le chiavi dei wallet di test B e C sono in `.testwallets/` (escluso da git):
-servono ancora per l'execute della proposta #0 — non cancellarle prima.
+servono ancora per le azioni future della proposta #2 (voto 23/07, queue
+dopo il 28/07, execute dopo il 07/08) — **non cancellarle prima**.
