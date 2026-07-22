@@ -7,6 +7,9 @@
     "testnet": "Test environment — BSC Testnet · tokens and data have no real value",
     "testnetShort": "Testnet — no real value"
   },
+  "rpc": {
+    "degraded": "Blockchain connection unstable: data may be out of date. Reconnecting automatically…"
+  },
   "paused": {
     "message": "⚠ The contract is temporarily paused for emergency: transfers and actions are suspended until the guardian lifts the pause."
   },

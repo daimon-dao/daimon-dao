@@ -7,6 +7,9 @@
     "testnet": "Ambiente di test — BSC Testnet · token e dati senza valore reale",
     "testnetShort": "Testnet — nessun valore reale"
   },
+  "rpc": {
+    "degraded": "Connessione alla blockchain instabile: i dati potrebbero non essere aggiornati. Riconnessione automatica in corso…"
+  },
   "paused": {
     "message": "⚠ Il contratto è temporaneamente in pausa di emergenza: i trasferimenti e le azioni sono sospesi finché il guardian non rimuove la pausa."
   },

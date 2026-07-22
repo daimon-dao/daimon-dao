@@ -9,6 +9,7 @@ import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { DataOwner } from "@/components/DataOwner";
+import { Skeleton } from "@/components/Skeleton";
 import { useI18n } from "@/components/LocaleProvider";
 import { usePrice } from "@/hooks/usePrice";
 import { useNow } from "@/hooks/useNow";
@@ -28,7 +29,7 @@ function MetricCard({
   children,
 }: {
   title: string;
-  value: string;
+  value?: string;
   sub?: string;
   exact?: string;
   contract: string;
@@ -39,7 +40,7 @@ function MetricCard({
     <div className="card relative">
       <p className="text-xs uppercase tracking-wider text-secondario">{title}</p>
       <p className="mt-2 text-2xl font-medium text-orochiaro" title={exact}>
-        {value}
+        {value ?? <Skeleton className="h-7 w-32" />}
       </p>
       {sub && <p className="mt-1 text-xs text-secondario">{sub}</p>}
       {children}
@@ -146,14 +147,14 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title={t("dashboard.supplyTitle")}
-          value={totalSupply !== undefined ? `${formatCompact(totalSupply, 18, 3)} DMN` : "…"}
+          value={totalSupply !== undefined ? `${formatCompact(totalSupply, 18, 3)} DMN` : undefined}
           exact={totalSupply !== undefined ? `${formatExact(totalSupply)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
           linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
           title={t("dashboard.burnedTitle")}
-          value={burned !== undefined ? `${formatCompact(burned)} DMN` : "…"}
+          value={burned !== undefined ? `${formatCompact(burned)} DMN` : undefined}
           sub={t("dashboard.burnedSub")}
           exact={burned !== undefined ? `${formatExact(burned)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
@@ -161,7 +162,7 @@ export default function Dashboard() {
         />
         <MetricCard
           title={t("dashboard.stakedTitle")}
-          value={totalStaked !== undefined ? `${formatCompact(totalStaked)} DMN` : "…"}
+          value={totalStaked !== undefined ? `${formatCompact(totalStaked)} DMN` : undefined}
           sub={
             stakedPct !== undefined
               ? t("dashboard.stakedPct", {
@@ -213,9 +214,11 @@ export default function Dashboard() {
         </div>
         <div className="mt-2 flex justify-between text-xs text-secondario">
           <span>
-            {burned !== undefined
-              ? t("dashboard.burnedAmount", { amount: formatCompact(burned) })
-              : "…"}{" "}
+            {burned !== undefined ? (
+              t("dashboard.burnedAmount", { amount: formatCompact(burned) })
+            ) : (
+              <Skeleton className="h-3 w-24" />
+            )}{" "}
             ({truncFixed(progressPct, 3)}%)
           </span>
           <span>{t("dashboard.floorLabel")}</span>
@@ -237,22 +240,28 @@ export default function Dashboard() {
               <p>
                 <span className="text-secondario">{t("dashboard.inStake")}</span>
                 <span title={mine?.[1]?.result !== undefined ? formatExact(mine[1].result as bigint) : ""}>
-                  {mine?.[1]?.result !== undefined
-                    ? `${formatCompact(mine[1].result as bigint)} DMN`
-                    : "…"}
+                  {mine?.[1]?.result !== undefined ? (
+                    `${formatCompact(mine[1].result as bigint)} DMN`
+                  ) : (
+                    <Skeleton className="h-4 w-16" />
+                  )}
                 </span>
               </p>
               <p>
                 <span className="text-secondario">{t("dashboard.votingPower")}</span>
-                {mine?.[0]?.result !== undefined
-                  ? formatCompact(mine[0].result as bigint)
-                  : "…"}
+                {mine?.[0]?.result !== undefined ? (
+                  formatCompact(mine[0].result as bigint)
+                ) : (
+                  <Skeleton className="h-4 w-16" />
+                )}
               </p>
               <p>
                 <span className="text-secondario">{t("dashboard.rewards")}</span>
-                {mine?.[2]?.result !== undefined
-                  ? `${formatCompact(mine[2].result as bigint)} BNB`
-                  : "…"}
+                {mine?.[2]?.result !== undefined ? (
+                  `${formatCompact(mine[2].result as bigint)} BNB`
+                ) : (
+                  <Skeleton className="h-4 w-16" />
+                )}
               </p>
             </div>
           )}
@@ -263,7 +272,16 @@ export default function Dashboard() {
 
         <div className="card">
           <h2 className="font-medium text-orochiaro">{t("dashboard.governanceTitle")}</h2>
-          {lastId === undefined || !lastProposal ? (
+          {/* Tre stati distinti: conteggio non ancora letto (skeleton, NON
+              il falso "nessuna proposta" — con RPC lento o giu' resterebbe
+              a schermo come un'informazione sbagliata), zero proposte
+              reali, oppure l'ultima proposta. */}
+          {proposalCount === undefined || (lastId !== undefined && !lastProposal) ? (
+            <div className="mt-3 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          ) : lastId === undefined ? (
             <p className="mt-3 text-sm text-secondario">{t("dashboard.noProposals")}</p>
           ) : (
             <LatestProposal

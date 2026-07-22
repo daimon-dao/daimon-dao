@@ -8,6 +8,7 @@ import { mockOldDaimonAbi } from "@/config/abis/mockOldDaimon";
 import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DataOwner } from "@/components/DataOwner";
+import { Skeleton } from "@/components/Skeleton";
 import { TxStatus } from "@/components/TxStatus";
 import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
@@ -187,7 +188,11 @@ export default function Migrazione() {
                 <p className="text-sm">
                   {t("migration.detected")}{" "}
                   <b title={oldBalance !== undefined ? formatExact(oldBalance) : ""}>
-                    {oldBalance !== undefined ? `${formatCompact(oldBalance)}` : "…"}
+                    {oldBalance !== undefined ? (
+                      `${formatCompact(oldBalance)}`
+                    ) : (
+                      <Skeleton className="h-4 w-20" />
+                    )}
                   </b>
                 </p>
                 <DataOwner address={address} />

@@ -8,6 +8,7 @@ import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DataOwner } from "@/components/DataOwner";
+import { Skeleton } from "@/components/Skeleton";
 import { TxStatus } from "@/components/TxStatus";
 import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
@@ -358,7 +359,11 @@ export default function Staking() {
           ) : (
             <>
               <p className="mt-3 text-2xl font-medium text-orochiaro" title={myReward !== undefined ? formatExact(myReward) : ""}>
-                {myReward !== undefined ? `${formatCompact(myReward)} BNB` : "…"}
+                {myReward !== undefined ? (
+                  `${formatCompact(myReward)} BNB`
+                ) : (
+                  <Skeleton className="h-7 w-28" />
+                )}
               </p>
               <p className="mt-1 text-sm text-secondario">
                 ≈{" "}

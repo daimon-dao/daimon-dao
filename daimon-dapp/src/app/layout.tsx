@@ -9,6 +9,7 @@ import { LocaleProvider } from "@/components/LocaleProvider";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { PausedBanner } from "@/components/PausedBanner";
+import { RpcHealthBanner } from "@/components/RpcHealthBanner";
 import { TestnetBanner } from "@/components/TestnetBanner";
 import { GlobalErrorGuard } from "@/components/GlobalErrorGuard";
 import { IS_TESTNET } from "@/config/contracts";
@@ -71,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <GlobalErrorGuard />
             <TestnetBanner />
             <PausedBanner />
+            <RpcHealthBanner />
             <Header />
             <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
             <Footer />
