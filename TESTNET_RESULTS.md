@@ -260,6 +260,55 @@ di fase 2.
 
 ---
 
+## Test 8 — Controprova economica post-execute: transfer con fee al 4% ✅
+
+**Obiettivo**: dimostrare che l'execute della proposta #0 (21/07, tx
+`0x5aa519a9884d24037f0cb903f3565f1a9e5e87529e5d4c1baa3f0c054302fe5f`)
+ha cambiato il comportamento economico reale del token, non solo i getter.
+
+**Fee on-chain al momento del test**: taxFee=10, buybackFee=10,
+marketingFee=20 → `liquidityFee = buyback + marketing = 30`. Le fee sono
+in per-mille: totale su un transfer = tax (10) + liquidity (30) = **40/1000
+= 4%** (prima dell'execute: 10+20+20 = 50/1000 = 5%).
+
+**Transfer di prova** (22/07/2026, blocco 120637060): 1.000.000 DMN da
+wallet C (`0x0BD5…F984`) a wallet nuovo (`0x8bd3…B491`) —
+tx `0x347f849deab46e715575b9d0211cde2f53b6b46a83569233e1943b27c79baf63`.
+Wallet-to-wallet: lo swap autonomo non può scattare (solo su `to == pair`),
+conti puliti per costruzione.
+
+**Quadratura al wei** (saldi letti con cast prima/dopo):
+
+```
+evento Transfer emesso            960000000000000000000000  = 960.000 esatti (96%)
+delta mittente C     −999994017140047554240496
+  = −1.000.000 esatti + 5982859952445759504 di riflessione (≈5,98 DMN)
+delta destinatario   +960000079607264774839738
+  = +960.000 esatti + 79607264774839738 di riflessione (≈0,0796 DMN)
+delta contratto      +30000114407223598371936
+  = +30.000 esatti (liquidityFee 3%) + riflessione (il contratto è holder)
+delta deployer (terzo, non coinvolto)  +688173113391125 (pura riflessione ✓)
+totalSupply          INVARIATA (999955214188332986683725989731 prima e dopo)
+```
+
+- **Fee totale = 40.000 DMN su 1.000.000 = esattamente 4%** ✓
+  (10.000 riflessi ai holder + 30.000 accumulati nel contratto).
+- **Ripartizione**: tax 1% → reflection (verificata sotto); buyback 1% +
+  marketing 2% → i 30.000 nel contratto (la divisione buyback/marketing
+  avviene allo swap, pro-quota `marketingFee/liquidityFee`, invariata).
+- **Netto al destinatario = 960.000 esatti = importo − 4%** ✓ (con il 5%
+  pre-execute sarebbero stati 950.000).
+- **Reflection all'1% verificata sui holder terzi**: il deployer, non
+  coinvolto nel transfer, guadagna 688173113391125 wei; il rapporto
+  guadagno/saldo (≈1,00004×10⁻⁸) coincide con tFee/supply riflettibile
+  (10.000 / ~999.955B) ed è lo stesso tasso per tutti i wallet campionati
+  (calcolato sui saldi post-movimento, come da matematica RFI).
+
+**Esito**: PASS. Il ciclo governance → timelock → execute → **effetto
+economico reale** è dimostrato al wei.
+
+---
+
 ## Riepilogo
 
 | # | Test | Esito |
@@ -271,6 +320,7 @@ di fase 2.
 | 5 | Pausa guardian | ✅ PASS |
 | 6 | Ciclo di burn (swap fee autonomo + burn supply) | ✅ PASS (Piano B) |
 | 7 | Claim reward multi-wallet + quadratura al wei | ✅ PASS |
+| 8 | Controprova economica post-execute (fee 4%) | ✅ PASS |
 
 Le chiavi dei wallet di test B e C sono in `.testwallets/` (escluso da git):
 servono ancora per l'execute della proposta #0 — non cancellarle prima.
