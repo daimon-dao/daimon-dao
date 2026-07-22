@@ -10,8 +10,8 @@ i TTF statici di Inter; vedi commento in testa allo script).
 
 | File | Dimensioni | Uso |
 |---|---|---|
-| `banner-profilo-it.png` | 1500×500 | Header profilo X/Twitter (IT). Logo alto-sinistra fuori dalla safe-zone dell'avatar. |
-| `banner-profilo-en.png` | 1500×500 | Header profilo X/Twitter (EN). |
+| `banner-profilo-A-it/en.png` | 1500×500 | Header profilo X — **variante A** (senza logo). L'avatar mostra già il logo Daimon: qui il testo è protagonista, centrato, con sinistra e basso liberi per l'avatar. |
+| `banner-profilo-B-it/en.png` | 1500×500 | Header profilo X — **variante B** (filigrana). Testo a sinistra, simbolo del logo come filigrana chiara tono-su-tono nell'angolo destro (non un secondo logo pieno). |
 | `stat-fee.png` | 1600×900 | Post X — "11% → 4%", fee decise dalla DAO. |
 | `stat-timelock.png` | 1600×900 | Post X — "604.800" secondi di timelock. |
 | `stat-owner-mint.png` | 1600×900 | Post X — "0 owner · 0 mint". |
@@ -22,9 +22,13 @@ i TTF statici di Inter; vedi commento in testa allo script).
 
 ## Note
 
-- **Banner X**: X sovrappone l'avatar nell'angolo in basso a sinistra e
-  ritaglia i bordi su mobile. Logo e testo sono tenuti nella fascia centrale
-  sicura; il logo è in alto a sinistra, sopra la zona dell'avatar.
+- **Banner X**: l'avatar del profilo (che mostra già il logo Daimon) si
+  sovrappone in basso a sinistra e X ritaglia i bordi su mobile. Nessun
+  logo pieno nel banner (sarebbe un secondo cerchio identico all'avatar):
+  variante A senza logo, variante B con filigrana chiara a destra. Testo
+  tenuto nella fascia sicura, lontano dall'angolo in basso a sinistra.
+  Le due varianti sono alternative da scegliere: adottata una, l'altra
+  (e la lingua non usata) si possono rimuovere.
 - **Social preview GitHub**: da caricare in *Settings → General → Social
   preview* del repo (non viene applicata automaticamente dai file nel repo).
 - I template stat/quote sono riutilizzabili: per nuovi dati/frasi basta
