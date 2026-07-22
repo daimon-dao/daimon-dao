@@ -81,6 +81,13 @@ Per segnalare una vulnerabilità: vedi [SECURITY.md](SECURITY.md)
 - Il quorum è calcolato sullo **snapshot** di `totalVotingPower` alla
   creazione, non sul valore live: stake/unstake successivi non alterano la
   soglia. Floor di quorum hardcodato al 10% (`MIN_QUORUM_BPS`).
+- Il quorum conta **`forVotes + abstainVotes`**, escludendo gli against
+  (allineato a OpenZeppelin `GovernorCountingSimple`). Contare i contrari
+  nel quorum creerebbe un incentivo perverso — opporsi potrebbe far
+  raggiungere il quorum e far passare la proposta, mentre tacere lo
+  negherebbe: escludendoli, votare contro **non aiuta mai** a superare la
+  soglia (decide solo l'esito `forVotes > againstVotes`). Corretto pre-audit
+  come Finding 1 del giro avversariale; regressione coperta da test.
 
 ### 2.4 Governance stessa (attore semi-fidato)
 
@@ -148,6 +155,22 @@ La DAO è potente ma **vincolata da limiti hardcodati non aggirabili**:
 5. **Dipendenza dal router PancakeSwap.** Gli swap si affidano al router V2
    esterno; un suo malfunzionamento degrada fee/buyback (gestito con
    try/catch, non blocca i trasferimenti).
+6. **Il voting power NON decade (scelta di design consapevole).** Il vp è
+   `amount × moltiplicatore`, assegnato allo stake e costante fino al
+   `withdraw`; dopo la scadenza del lock (`unlockTime`) l'utente mantiene il
+   vp pieno (fino a 4×) e la relativa quota di reward, pur potendo ritirare
+   in qualsiasi momento. Non è un ve-token in stile Curve (dove il potere
+   decade a zero verso la scadenza): qui il sistema **premia i locker
+   storici**. Conseguenza di teoria dei giochi: la strategia razionale è
+   staccare una volta al moltiplicatore massimo, superare il lock una sola
+   volta e non ritirare mai, mantenendo peso di voto e reward a tempo
+   indefinito con liquidità on-demand; nel tempo il potere di governance
+   tende a cristallizzarsi sui primi/grandi locker e `totalVotingPower` non
+   decade. Non c'è perdita di fondi né vantaggio indebito sui reward (la
+   distribuzione resta proporzionale al vp). È un compromesso **accettato
+   per la v1**; un eventuale decadimento/re-lock del vp è materiale di
+   **fase 2**, introducibile via governance senza toccare la sicurezza dei
+   fondi. Verificato dai test avversariali (Area 3).
 
 ---
 

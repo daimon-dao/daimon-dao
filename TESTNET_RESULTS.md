@@ -367,6 +367,59 @@ il calendario sopra.
 
 ---
 
+## Test 10 — Giro avversariale pre-freeze (Foundry) ✅
+
+Ultimo giro mirato prima del freeze, su ciò che aggiunge valore oltre
+l'audit. Eseguito come test Foundry contro i contratti reali
+(`test/Adversarial.t.sol`, 14 test). Suite completa verde: **74 test, 0
+regressioni**.
+
+**Area 1 — Snapshot / whale.** Il voting power acquisito a un timestamp
+**strettamente successivo** allo snapshot di una proposta **non conta**:
+un whale con 2e9 di vp staccato dopo lo snapshot ha `votingPowerAt(snapshot)
+= 0` e `castVote` reverte `InsufficientVotingPower`. Sfumatura: staccare
+allo stesso timestamp conta, ma richiede lo stesso blocco della creazione;
+poiché i timestamp di blocco EVM sono strettamente crescenti, chi reagisce
+a una proposta già minata è sempre in un blocco successivo → escluso. **Non
+sfruttabile.**
+
+**Area 2 — Valori limite.** Tutti corretti: stake 1 wei → vp 1; migration
+`claim(0)` reverte `ZeroAmount`, `claim(1 wei)` è 1:1; `burnDeadBalanceToFloor`
+atterra **esattamente** su `MIN_SUPPLY` e mai sotto (ripetuto è no-op);
+timelock `execute` a **ready−1s** reverte `TooEarly`, a **ready esatto**
+passa. *Nota limite:* lo stake per singola tx è limitato da `maxTxAmount`
+(0.5% supply = 5B DMN) — stakare importi enormi va spezzato in più tx (per
+design anti-dump).
+
+**Area 3 — Incentivi perversi (teoria dei giochi).** Due finding:
+- **Finding 1 (CORRETTO pre-freeze).** `state()` contava il quorum su
+  `for + against + abstain`: un voto **contro** poteva far raggiungere il
+  quorum e **far passare** la proposta, mentre tacere lo negava — incentivo
+  perverso a non votare invece di opporsi. **Fix:** quorum su
+  `for + abstain` (against escluso, allineato a OpenZeppelin). Il test che
+  ha trovato il finding ora dimostra il comportamento corretto (con for 8%
+  < quorum 10% e against 4% → **Defeated**); un test gemello conferma che
+  l'abstain conta ancora (for 8% + abstain 4% = 12% → **Succeeded**). dApp
+  aggiornata di conseguenza. Commit `cc551ba`.
+- **Finding 2 (ACCETTATO come scelta di design).** Il voting power **non
+  decade** dopo la scadenza del lock: si mantiene il vp pieno (fino a 4×) e
+  la quota reward fino al `withdraw`. Premia i locker storici, differisce
+  dai ve-token (Curve). Nessuna perdita di fondi. Documentato in
+  THREAT_MODEL.md §3.6 come compromesso consapevole per la v1; un eventuale
+  decay è materiale fase 2 via governance.
+
+**Area 4 — Reflection edge.** Contabilità coerente: conservazione entro
+polvere dopo transfer tassati; il dead address (unico escluso dai reward)
+usa il percorso `_tOwned` e il burn-to-floor resta coerente al wei. **Forza
+strutturale:** non esiste alcuna funzione runtime di exclude/include-from-
+reward — solo `deadAddress`, immutabile dall'init. L'intera classe di bug
+RFI da "toggle delle esclusioni" è **assente per costruzione**.
+
+**Esito:** PASS. Un finding corretto (quorum), uno accettato e documentato
+(no-decay del vp); snapshot, boundary e reflection solidi.
+
+---
+
 ## Riepilogo
 
 | # | Test | Esito |
@@ -380,6 +433,7 @@ il calendario sopra.
 | 7 | Claim reward multi-wallet + quadratura al wei | ✅ PASS |
 | 8 | Controprova economica post-execute (fee 4%) | ✅ PASS |
 | 9 | Proposta #2 sweep (ciclo governance post-deadline) | ⏳ IN CORSO — creata, voto apre 23/07 19:00 |
+| 10 | Giro avversariale (snapshot, boundary, incentivi, reflection) | ✅ PASS — Finding 1 corretto, Finding 2 accettato |
 
 Le chiavi dei wallet di test B e C sono in `.testwallets/` (escluso da git):
 servono ancora per le azioni future della proposta #2 (voto 23/07, queue
