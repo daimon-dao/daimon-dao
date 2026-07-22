@@ -190,10 +190,13 @@ function ProposalCard({
   const forVotes = p[9];
   const againstVotes = p[10];
   const abstainVotes = p[11];
-  const totalVotes = forVotes + againstVotes + abstainVotes;
+  const totalVotes = forVotes + againstVotes + abstainVotes; // solo per le % delle barre
+  // Quorum: for + abstain, ESCLUDENDO against (coerente col Governor —
+  // i voti contrari non concorrono al quorum).
+  const quorumVotes = forVotes + abstainVotes;
   const quorumNeeded = (p[6] * quorumBps) / 10000n;
   const quorumPct =
-    quorumNeeded > 0n ? Math.min(Number((totalVotes * 10000n) / quorumNeeded) / 100, 100) : 0;
+    quorumNeeded > 0n ? Math.min(Number((quorumVotes * 10000n) / quorumNeeded) / 100, 100) : 0;
 
   const canVote =
     phase.key === "active" &&
@@ -269,7 +272,7 @@ function ProposalCard({
             <div className="mb-1 flex justify-between text-secondario">
               <span>
                 {t("governance.quorum", {
-                  votes: formatCompact(totalVotes),
+                  votes: formatCompact(quorumVotes),
                   needed: formatCompact(quorumNeeded),
                   pct: (Number(quorumBps) / 100).toFixed(0),
                 })}

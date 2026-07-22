@@ -192,23 +192,35 @@ contract AdversarialTest is StackDeployer {
         governor.castVote(id, 1); // for = 8 < quorum 10
     }
 
-    /// PERVERSO: l'opponent che vota CONTRO fa raggiungere il quorum e la
-    /// proposta PASSA (against conta nel quorum).
-    function test_A3_againstVoteSatisfiesQuorumAndPasses() public {
+    /// FIX Finding 1: l'against NON conta più nel quorum (for+abstain, come
+    /// OZ). Stesso scenario (for 8% < quorum 10%, against 4%): ora votare
+    /// contro NON fa raggiungere il quorum → Defeated. È il comportamento
+    /// CORRETTO — l'asimmetria perversa è eliminata.
+    function test_A3_againstVoteDoesNotSatisfyQuorum() public {
         (uint256 id, address opp) = _quorumScenario();
         vm.prank(opp);
-        governor.castVote(id, 0); // against = 4 → totalVotes = 12 >= 10
+        governor.castVote(id, 0); // against = 4, ESCLUSO dal quorum
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
-        assertEq(_state(id), SUCCEEDED, "against non ha fatto passare (atteso: passa)");
+        assertEq(_state(id), DEFEATED, "against non deve piu' far raggiungere il quorum");
     }
 
-    /// Contrappunto: lo stesso opponent che TACE nega il quorum → Defeated.
-    /// => esiste un incentivo perverso a non votare invece di opporsi.
+    /// Contrappunto: tacere → identico esito (Defeated). Dopo il fix, votare
+    /// contro e non votare danno lo STESSO risultato: nessun incentivo
+    /// perverso a restare in silenzio invece di opporsi.
     function test_A3_silenceDeniesQuorumDefeats() public {
         (uint256 id, ) = _quorumScenario();
-        // opponent NON vota
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
-        assertEq(_state(id), DEFEATED, "silenzio non ha bocciato (atteso: bocciata)");
+        assertEq(_state(id), DEFEATED, "silenzio deve bocciare");
+    }
+
+    /// L'abstain invece conta ancora nel quorum (come OZ): il fix esclude
+    /// SOLO against. for 8% + abstain 4% = 12% >= 10% → Succeeded.
+    function test_A3_abstainCountsTowardQuorum() public {
+        (uint256 id, address opp) = _quorumScenario();
+        vm.prank(opp);
+        governor.castVote(id, 2); // abstain = 4 → for+abstain = 12 >= 10
+        vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
+        assertEq(_state(id), SUCCEEDED, "abstain deve contare nel quorum");
     }
 
     /// Il voting power NON decade: dopo la scadenza del lock resta pieno

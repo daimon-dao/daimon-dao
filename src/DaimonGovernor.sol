@@ -168,10 +168,16 @@ contract DaimonGovernor {
         if (block.timestamp < p.voteStart) return ProposalState.Pending;
         if (block.timestamp <= p.voteEnd) return ProposalState.Active;
 
-        uint256 totalVotes = p.forVotes + p.againstVotes + p.abstainVotes;
+        // Quorum su for + abstain, ESCLUDENDO against (allineato a
+        // OpenZeppelin GovernorCountingSimple). Contare i voti contrari nel
+        // quorum creerebbe un incentivo perverso: opporsi potrebbe far
+        // raggiungere il quorum e passare la proposta, mentre tacere lo
+        // negherebbe. Escludendo against, votare contro non aiuta mai a
+        // superare la soglia.
+        uint256 quorumVotes = p.forVotes + p.abstainVotes;
         uint256 quorumNeeded = (p.snapshotTotalVotingPower * quorumBps) / 10000;
 
-        if (totalVotes < quorumNeeded || p.forVotes <= p.againstVotes) {
+        if (quorumVotes < quorumNeeded || p.forVotes <= p.againstVotes) {
             return ProposalState.Defeated;
         }
         return ProposalState.Succeeded;
