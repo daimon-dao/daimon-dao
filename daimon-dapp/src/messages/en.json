@@ -269,7 +269,7 @@
     "AccessControlUnauthorizedAccount": "The connected wallet does not have permission for this action.",
     "rejected": "Signature rejected in the wallet.",
     "contractRefusedReason": "Operation rejected by the contract ({reason}).",
-    "contractRefused": "The transaction was rejected by the contract. No funds were moved.",
+    "contractRefused": "The transaction was rejected by the contract. No funds were moved. If you just confirmed another transaction, your wallet's node may be a few seconds behind: wait a moment and try again.",
     "unexpected": "Unexpected error while sending the transaction."
   }
 }

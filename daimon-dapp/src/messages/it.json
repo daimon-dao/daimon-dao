@@ -269,7 +269,7 @@
     "AccessControlUnauthorizedAccount": "Il wallet connesso non ha i permessi per questa azione.",
     "rejected": "Firma rifiutata nel wallet.",
     "contractRefusedReason": "Operazione rifiutata dal contratto ({reason}).",
-    "contractRefused": "La transazione è stata rifiutata dal contratto. Nessun fondo è stato spostato.",
+    "contractRefused": "La transazione è stata rifiutata dal contratto. Nessun fondo è stato spostato. Se hai appena confermato un'altra transazione, il nodo del tuo wallet può essere indietro di qualche secondo: attendi un attimo e riprova.",
     "unexpected": "Errore imprevisto durante l'invio della transazione."
   }
 }
