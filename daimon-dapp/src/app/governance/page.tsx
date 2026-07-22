@@ -9,10 +9,11 @@ import { daimonTimelockAbi } from "@/config/abis/daimonTimelock";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { ConnectButton } from "@/components/ConnectButton";
 import { TxStatus } from "@/components/TxStatus";
+import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
 import { usePaused } from "@/components/PausedBanner";
-import { formatCompact, formatCountdown, formatExact, shortAddress } from "@/lib/format";
+import { formatCompact, formatCountdown, formatDate, formatExact, shortAddress } from "@/lib/format";
 import {
   PROPOSAL_PHASE,
   phaseOf,
@@ -25,6 +26,7 @@ const timelock = { address: ADDRESSES.daimonTimelock, abi: daimonTimelockAbi } a
 const staking = { address: ADDRESSES.daimonStaking, abi: daimonStakingAbi } as const;
 
 export default function Governance() {
+  const { t } = useI18n();
   const { isConnected } = useAccount();
   const [showAdvanced, setShowAdvanced] = useState(false);
   // true per qualche secondo dopo che proposalCount CRESCE: chiude il form,
@@ -71,13 +73,11 @@ export default function Governance() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-orochiaro">Governance</h1>
-          <p className="mt-1 text-sm text-secondario">
-            Le decisioni passano da voto on-chain e da un timelock pubblico di 7 giorni.
-          </p>
+          <h1 className="text-2xl font-semibold text-orochiaro">{t("governance.title")}</h1>
+          <p className="mt-1 text-sm text-secondario">{t("governance.subtitle")}</p>
         </div>
         <button className="btn-outline" onClick={() => setShowAdvanced((v) => !v)}>
-          {showAdvanced ? "Chiudi modalità avanzata" : "Modalità avanzata (nuova proposta)"}
+          {showAdvanced ? t("governance.advancedClose") : t("governance.advancedOpen")}
         </button>
       </div>
 
@@ -85,14 +85,14 @@ export default function Governance() {
 
       {justCreated && (
         <div className="card border-verde/50 text-sm text-verde">
-          ✔ Proposta creata e confermata on-chain: è la prima della lista qui sotto.
+          {t("governance.created")}
         </div>
       )}
 
       {countLoading ? (
-        <div className="card text-sm text-secondario">Caricamento proposte…</div>
+        <div className="card text-sm text-secondario">{t("governance.loading")}</div>
       ) : proposalCount === 0 ? (
-        <div className="card text-sm text-secondario">Nessuna proposta ancora creata.</div>
+        <div className="card text-sm text-secondario">{t("governance.none")}</div>
       ) : (
         <div className="space-y-4">
           {ids.map((id, i) => (
@@ -108,9 +108,7 @@ export default function Governance() {
 
       {!isConnected && (
         <div className="card flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-secondario">
-            Connetti il wallet per votare o eseguire le proposte.
-          </p>
+          <p className="text-sm text-secondario">{t("governance.connectToVote")}</p>
           <ConnectButton />
         </div>
       )}
@@ -127,6 +125,7 @@ function ProposalCard({
   quorumBps: bigint;
   highlight?: boolean;
 }) {
+  const { t, locale } = useI18n();
   const now = useNow();
   const paused = usePaused();
   const { address, isConnected } = useAccount();
@@ -176,7 +175,12 @@ function ProposalCard({
   const snapshotVp = voterData?.[0]?.result as bigint | undefined;
   const hasVoted = voterData?.[1]?.result as boolean | undefined;
 
-  if (!p) return <div className="card text-sm text-secondario">Caricamento proposta #{id.toString()}…</div>;
+  if (!p)
+    return (
+      <div className="card text-sm text-secondario">
+        {t("governance.loadingProposal", { id: id.toString() })}
+      </div>
+    );
 
   // (evidenziazione post-creazione: anello oro per qualche secondo)
 
@@ -217,7 +221,13 @@ function ProposalCard({
 
   const alreadyVoted = hasVoted === true || voteTx.phase === "success";
   const choiceLabel =
-    castChoice === 1 ? ": Sì" : castChoice === 0 ? ": No" : castChoice === 2 ? ": astensione" : "";
+    castChoice === 1
+      ? t("governance.choiceYes")
+      : castChoice === 0
+        ? t("governance.choiceNo")
+        : castChoice === 2
+          ? t("governance.choiceAbstain")
+          : "";
   const noSnapshotPower =
     isConnected && snapshotVp !== undefined && snapshotVp === 0n;
 
@@ -226,19 +236,24 @@ function ProposalCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-orochiaro">
-            #{id.toString()} — {p[4] || "(senza descrizione)"}
+            {/* La descrizione e' contenuto on-chain del proposer: NON si traduce. */}
+            #{id.toString()} — {p[4] || t("governance.noDescription")}
           </p>
           <p className="mt-1 text-xs text-secondario">
-            proposta da {shortAddress(p[0])} · target {shortAddress(p[1])}
+            {t("governance.proposedBy", {
+              proposer: shortAddress(p[0]),
+              target: shortAddress(p[1]),
+            })}
           </p>
         </div>
         <div className="text-right">
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${info.badgeClass}`}>
-            {info.label}
+            {t(info.labelKey)}
           </span>
           {phase.countdownTo && phase.countdownTo > now && (
             <p className="mt-1 text-xs text-secondario">
-              {phase.countdownLabel} {formatCountdown(phase.countdownTo - now)}
+              {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
+              {formatCountdown(phase.countdownTo - now, locale)}
             </p>
           )}
         </div>
@@ -247,14 +262,17 @@ function ProposalCard({
       {/* Barre voto */}
       {(phase.key === "active" || totalVotes > 0n) && (
         <div className="mt-4 space-y-2 text-xs">
-          <VoteBar label="Sì" value={forVotes} pct={bar(forVotes)} color="bg-verde" />
-          <VoteBar label="No" value={againstVotes} pct={bar(againstVotes)} color="bg-rosso" />
-          <VoteBar label="Astenuti" value={abstainVotes} pct={bar(abstainVotes)} color="bg-secondario" />
+          <VoteBar label={t("governance.yes")} value={forVotes} pct={bar(forVotes)} color="bg-verde" />
+          <VoteBar label={t("governance.no")} value={againstVotes} pct={bar(againstVotes)} color="bg-rosso" />
+          <VoteBar label={t("governance.abstained")} value={abstainVotes} pct={bar(abstainVotes)} color="bg-secondario" />
           <div className="pt-1">
             <div className="mb-1 flex justify-between text-secondario">
               <span>
-                Quorum: {formatCompact(totalVotes)} / {formatCompact(quorumNeeded)} richiesto (
-                {(Number(quorumBps) / 100).toFixed(0)}%)
+                {t("governance.quorum", {
+                  votes: formatCompact(totalVotes),
+                  needed: formatCompact(quorumNeeded),
+                  pct: (Number(quorumBps) / 100).toFixed(0),
+                })}
               </span>
               <span>{quorumPct.toFixed(0)}%</span>
             </div>
@@ -268,59 +286,60 @@ function ProposalCard({
       {/* Voting power allo snapshot */}
       {isConnected && phase.key === "active" && (
         <p className="mt-3 text-xs text-secondario">
-          Il tuo voting power su questa proposta:{" "}
-          <b
-            className="text-testo"
-            title="Il potere di voto è fotografato alla creazione della proposta per impedire manipolazioni: stake successivi non contano."
-          >
+          {t("governance.yourVp")}{" "}
+          <b className="text-testo" title={t("governance.vpTooltip")}>
             {snapshotVp !== undefined ? formatCompact(snapshotVp) : "…"} ⓘ
           </b>
         </p>
       )}
       {noSnapshotPower && phase.key === "active" && (
-        <p className="mt-1 text-xs text-secondario">
-          Non puoi votare questa proposta: il tuo wallet non aveva voting power
-          al momento della sua creazione. Solo chi aveva già token in stake
-          prima della proposta può votarla (protezione anti-manipolazione).
-        </p>
+        <p className="mt-1 text-xs text-secondario">{t("governance.cantVote")}</p>
       )}
 
       {/* Azioni per fase */}
       <div className="mt-4 flex flex-wrap gap-2">
         {phase.key === "active" && alreadyVoted && (
           <span className="rounded-full bg-verde/20 px-3 py-1.5 text-sm font-medium text-verde">
-            Hai votato{choiceLabel} ✓
+            {t("governance.voted", { choice: choiceLabel })}
           </span>
         )}
         {phase.key === "active" && !alreadyVoted && (
           <>
             <button className="btn-oro" disabled={!canVote || paused} onClick={() => vote(1)}
-              title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
-              Vota Sì
+              title={!canVote ? t("governance.needVpTooltip") : undefined}>
+              {t("governance.voteYes")}
             </button>
             <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(0)}
-              title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
-              Vota No
+              title={!canVote ? t("governance.needVpTooltip") : undefined}>
+              {t("governance.voteNo")}
             </button>
             <button className="btn-outline" disabled={!canVote || paused} onClick={() => vote(2)}
-              title={!canVote ? "Serve voting power allo snapshot della proposta" : undefined}>
-              Astieniti
+              title={!canVote ? t("governance.needVpTooltip") : undefined}>
+              {t("governance.voteAbstain")}
             </button>
           </>
         )}
         {phase.key === "succeeded" && (
           <button className="btn-oro" disabled={!isConnected || paused || queueTx.phase === "pending"} onClick={doQueue}>
-            Metti in coda (timelock 7 giorni)
+            {t("governance.queueBtn")}
           </button>
         )}
         {phase.key === "timelock" && (
-          <button className="btn-outline" disabled title={readyTs ? `Eseguibile dal ${new Date(Number(readyTs) * 1000).toLocaleString("it-IT")}` : undefined}>
-            Esegui (in timelock)
+          <button
+            className="btn-outline"
+            disabled
+            title={
+              readyTs
+                ? t("governance.executableFrom", { date: formatDate(readyTs, locale) })
+                : undefined
+            }
+          >
+            {t("governance.executeLocked")}
           </button>
         )}
         {phase.key === "ready" && (
           <button className="btn-oro" disabled={!isConnected || paused || executeTx.phase === "pending"} onClick={doExecute}>
-            Esegui
+            {t("governance.executeBtn")}
           </button>
         )}
       </div>
@@ -358,6 +377,7 @@ function VoteBar({
 }
 
 function CreateProposal({ threshold }: { threshold?: bigint }) {
+  const { t } = useI18n();
   const { address, isConnected } = useAccount();
   const paused = usePaused();
   const tx = useTx();
@@ -396,29 +416,34 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
 
   return (
     <div className="card border-oro/40">
-      <h2 className="font-medium text-orochiaro">Nuova proposta (modalità avanzata)</h2>
+      <h2 className="font-medium text-orochiaro">{t("governance.newProposal")}</h2>
       <p className="mt-1 text-xs text-secondario">
-        Per proporre servono almeno{" "}
-        {threshold !== undefined ? formatCompact(threshold) : "…"} di voting power.
+        {t("governance.thresholdInfo", {
+          threshold: threshold !== undefined ? formatCompact(threshold) : "…",
+        })}
         {myVp !== undefined && (
-          <> Il tuo: {formatCompact(myVp as bigint)}{enoughVp ? " ✓" : " — insufficiente"}.</>
+          <>
+            {" "}
+            {t("governance.yourVpShort", { vp: formatCompact(myVp as bigint) })}
+            {enoughVp ? t("governance.enough") : t("governance.insufficient")}.
+          </>
         )}
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-secondario">Contratto target</label>
+          <label className="mb-1 block text-xs text-secondario">{t("governance.targetLabel")}</label>
           <input className="input" placeholder="0x…" value={target} onChange={(e) => setTarget(e.target.value.trim())} />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-secondario">Value (BNB)</label>
+          <label className="mb-1 block text-xs text-secondario">{t("governance.valueLabel")}</label>
           <input className="input" value={value} onChange={(e) => setValue(e.target.value)} />
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-secondario">Calldata (hex)</label>
+          <label className="mb-1 block text-xs text-secondario">{t("governance.calldataLabel")}</label>
           <input className="input font-mono" placeholder="0x…" value={calldata} onChange={(e) => setCalldata(e.target.value.trim())} />
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-secondario">Descrizione</label>
+          <label className="mb-1 block text-xs text-secondario">{t("governance.descriptionLabel")}</label>
           <textarea className="input" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
       </div>
@@ -427,7 +452,7 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
         onClick={submit}
         disabled={!isConnected || !valid || !enoughVp || paused || tx.phase === "signing" || tx.phase === "pending"}
       >
-        Crea proposta
+        {t("governance.createBtn")}
       </button>
       <TxStatus phase={tx.phase} hash={tx.hash} errorMessage={tx.errorMessage} notice={tx.notice} />
     </div>

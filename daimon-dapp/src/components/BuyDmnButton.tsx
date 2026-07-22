@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ADDRESSES, IS_TESTNET } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
+import { useI18n } from "@/components/LocaleProvider";
 
 /*
  * "Compra DMN": SOLO un link diretto a PancakeSwap con la pair giusta
@@ -19,6 +20,7 @@ import { shortAddress } from "@/lib/format";
 const SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${ADDRESSES.daimonV2}`;
 
 export function BuyDmnButton({ block = true }: { block?: boolean }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   async function copyAddress() {
@@ -37,9 +39,9 @@ export function BuyDmnButton({ block = true }: { block?: boolean }) {
         <button
           className={`btn-oro ${width} cursor-not-allowed opacity-60`}
           disabled
-          title="Disponibile al lancio su mainnet: PancakeSwap non offre un'interfaccia di swap per la testnet."
+          title={t("buy.testnetTitle")}
         >
-          Compra DMN
+          {t("buy.button")}
         </button>
       ) : (
         <a
@@ -47,20 +49,20 @@ export function BuyDmnButton({ block = true }: { block?: boolean }) {
           target="_blank"
           rel="noopener noreferrer"
           className={`btn-oro ${width}`}
-          title="Si apre su PancakeSwap — verifica sempre che l'indirizzo del token corrisponda a quello mostrato qui."
+          title={t("buy.mainnetTitle")}
         >
-          Compra DMN ↗
+          {t("buy.buttonLink")}
         </a>
       )}
       <p className="mt-1.5 text-[11px] leading-snug text-secondario">
-        {IS_TESTNET ? "Disponibile al lancio su mainnet. " : "Si apre su PancakeSwap. "}
-        Verifica l&apos;indirizzo del token:{" "}
+        {IS_TESTNET ? t("buy.testnetNote") : t("buy.mainnetNote")}
+        {t("buy.verifyAddress")}{" "}
         <button
           onClick={copyAddress}
           className="font-mono underline decoration-dotted underline-offset-2 hover:text-oro"
-          title={`Copia l'indirizzo completo: ${ADDRESSES.daimonV2}`}
+          title={t("buy.copyFull", { address: ADDRESSES.daimonV2 })}
         >
-          {copied ? "copiato ✓" : shortAddress(ADDRESSES.daimonV2)}
+          {copied ? t("buy.copied") : shortAddress(ADDRESSES.daimonV2)}
         </button>
       </p>
     </div>

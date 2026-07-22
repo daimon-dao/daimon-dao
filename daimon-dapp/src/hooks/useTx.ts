@@ -6,13 +6,14 @@ import { useConfig, useWriteContract, useWaitForTransactionReceipt } from "wagmi
 import { getAccount, switchChain, waitForTransactionReceipt } from "wagmi/actions";
 import { ACTIVE_CHAIN } from "@/config/contracts";
 import { mapTxError, isUserRejection, isChainMismatch } from "@/lib/errors";
+import { useI18n } from "@/components/LocaleProvider";
 
 export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
 
 /*
  * Ciclo di vita di una transazione (DAPP_SPEC.md §8.2):
  * in attesa di firma -> pending -> confermata/fallita, con hash per il
- * link a BscScan e errore gia' tradotto in italiano.
+ * link a BscScan e errore gia' tradotto nella lingua della UI.
  *
  * REFETCH AUTOMATICO: alla CONFERMA on-chain (receipt success) vengono
  * invalidate tutte le query wagmi/react-query attive, cosi' barre di voto,
@@ -36,6 +37,7 @@ export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
 export function useTx() {
   const queryClient = useQueryClient();
   const config = useConfig();
+  const { t, locale } = useI18n();
   const [notice, setNotice] = useState<string | null>(null);
 
   // Gli avvisi neutri si auto-dissolvono (o spariscono alla prossima azione).
@@ -78,10 +80,10 @@ export function useTx() {
         await switchChain(config, { chainId: ACTIVE_CHAIN.id });
       } catch (err) {
         if (isUserRejection(err)) {
-          showNotice("Cambio di rete annullato: nessuna transazione inviata.");
+          showNotice(t("tx.switchCanceled"));
         } else {
           console.error("[useTx] cambio rete fallito:", err);
-          showNotice(`Impossibile passare a ${ACTIVE_CHAIN.name} nel wallet.`);
+          showNotice(t("tx.switchFailed", { chain: ACTIVE_CHAIN.name }));
         }
         return null;
       }
@@ -107,13 +109,13 @@ export function useTx() {
         // (a) Rifiutare una firma non e' un errore: stato riportato a
         // idle e avviso neutro auto-dissolvente, nessun rosso, nessun overlay.
         reset();
-        showNotice("Transazione annullata nel wallet.");
+        showNotice(t("tx.canceledInWallet"));
       } else if (isChainMismatch(err)) {
         // Rete sbagliata sfuggita alla guardia (es. stato del connettore
         // disallineato): viem ha comunque RIFIUTATO di firmare sulla chain
         // errata. reset() toglie la fase error, poi avviso neutro.
         reset();
-        showNotice(`Passa a ${ACTIVE_CHAIN.name} nel wallet e riprova.`);
+        showNotice(t("tx.switchAndRetry", { chain: ACTIVE_CHAIN.name }));
       } else {
         // (b)/(c) wagmi ha gia' registrato writeError: la fase diventa
         // "error" e TxStatus mostra il messaggio mappato in italiano.
@@ -131,10 +133,12 @@ export function useTx() {
   else if (hash && receipt.isSuccess) phase = "success";
   else if (hash && receipt.isError) phase = "error";
 
+  // Calcolato a ogni render con la lingua attiva: un cambio lingua a
+  // transazione in corso aggiorna anche il messaggio d'errore.
   const errorMessage = writeError
-    ? mapTxError(writeError)
+    ? mapTxError(writeError, locale)
     : receipt.isError
-      ? "La transazione è fallita on-chain."
+      ? t("tx.failedOnChain")
       : null;
 
   return { send, phase, hash, errorMessage, notice, reset };

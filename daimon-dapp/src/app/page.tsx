@@ -9,6 +9,7 @@ import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { DataOwner } from "@/components/DataOwner";
+import { useI18n } from "@/components/LocaleProvider";
 import { usePrice } from "@/hooks/usePrice";
 import { useNow } from "@/hooks/useNow";
 import { PROPOSAL_PHASE, phaseOf, type ProposalTuple } from "@/lib/governance";
@@ -23,6 +24,7 @@ function MetricCard({
   sub,
   exact,
   contract,
+  linkTitle,
   children,
 }: {
   title: string;
@@ -30,6 +32,7 @@ function MetricCard({
   sub?: string;
   exact?: string;
   contract: string;
+  linkTitle: string;
   children?: React.ReactNode;
 }) {
   return (
@@ -44,7 +47,7 @@ function MetricCard({
         href={explorerAddress(contract)}
         target="_blank"
         rel="noreferrer"
-        title="Verifica il contratto su BscScan"
+        title={linkTitle}
         className="absolute right-4 top-4 text-secondario hover:text-oro"
       >
         ⛓
@@ -54,6 +57,7 @@ function MetricCard({
 }
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const now = useNow();
   const { isConnected, address } = useAccount();
   const price = usePrice();
@@ -131,48 +135,60 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-orochiaro">Dashboard</h1>
+        <h1 className="text-2xl font-semibold text-orochiaro">{t("dashboard.title")}</h1>
         <p className="mt-1 text-sm text-secondario">
-          Tutti i dati sono letti in tempo reale dai contratti su BNB Chain
-          {IS_TESTNET ? " (testnet)" : ""}.
+          {t("dashboard.subtitle")}
+          {IS_TESTNET ? t("dashboard.testnetSuffix") : ""}.
         </p>
       </div>
 
       {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="Supply attuale"
+          title={t("dashboard.supplyTitle")}
           value={totalSupply !== undefined ? `${formatCompact(totalSupply, 18, 3)} DMN` : "…"}
           exact={totalSupply !== undefined ? `${formatExact(totalSupply)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
+          linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
-          title="Token bruciati"
+          title={t("dashboard.burnedTitle")}
           value={burned !== undefined ? `${formatCompact(burned)} DMN` : "…"}
-          sub="verso il floor 21B"
+          sub={t("dashboard.burnedSub")}
           exact={burned !== undefined ? `${formatExact(burned)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
+          linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
-          title="Totale stakato"
+          title={t("dashboard.stakedTitle")}
           value={totalStaked !== undefined ? `${formatCompact(totalStaked)} DMN` : "…"}
           sub={
             stakedPct !== undefined
-              ? `${stakedPct < 0.01 ? stakedPct.toFixed(4) : stakedPct.toFixed(2)}% della supply`
+              ? t("dashboard.stakedPct", {
+                  pct: stakedPct < 0.01 ? stakedPct.toFixed(4) : stakedPct.toFixed(2),
+                })
               : undefined
           }
           exact={totalStaked !== undefined ? `${formatExact(totalStaked)} DMN` : undefined}
           contract={ADDRESSES.daimonStaking}
+          linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
-          title="Prezzo DMN"
-          value={price.usd !== null ? formatUsd(price.usd) : IS_TESTNET ? "n/d (testnet)" : "n/d"}
+          title={t("dashboard.priceTitle")}
+          value={
+            price.usd !== null
+              ? formatUsd(price.usd)
+              : IS_TESTNET
+                ? t("dashboard.priceNaTestnet")
+                : t("dashboard.priceNa")
+          }
           sub={
             marketCap !== null
-              ? `Market cap ≈ ${formatUsd(marketCap)}`
-              : "prezzo dalla pool PancakeSwap"
+              ? t("dashboard.marketCap", { value: formatUsd(marketCap) })
+              : t("dashboard.priceSource")
           }
           contract={ADDRESSES.pancakePair}
+          linkTitle={t("dashboard.verifyContract")}
         >
           <BuyDmnButton />
         </MetricCard>
@@ -181,41 +197,45 @@ export default function Dashboard() {
       {/* Barra di deflazione */}
       <div className="card">
         <div className="mb-2 flex items-baseline justify-between text-sm">
-          <span className="font-medium text-orochiaro">Deflazione verso il floor</span>
-          <span className="text-secondario">1000B → 21B</span>
+          <span className="font-medium text-orochiaro">{t("dashboard.deflationTitle")}</span>
+          <span className="text-secondario">{t("dashboard.deflationRange")}</span>
         </div>
         <div className="h-4 overflow-hidden rounded-full border border-bordi bg-bg">
           <div
             className="h-full rounded-full bg-oro transition-all"
             style={{ width: `${Math.max(progressPct, 0.4)}%` }}
-            title={burned !== undefined ? `${formatExact(burned)} DMN bruciati` : undefined}
+            title={
+              burned !== undefined
+                ? t("dashboard.burnedAmount", { amount: formatExact(burned) })
+                : undefined
+            }
           />
         </div>
         <div className="mt-2 flex justify-between text-xs text-secondario">
           <span>
-            {burned !== undefined ? `${formatCompact(burned)} DMN bruciati` : "…"} (
-            {truncFixed(progressPct, 3)}%)
+            {burned !== undefined
+              ? t("dashboard.burnedAmount", { amount: formatCompact(burned) })
+              : "…"}{" "}
+            ({truncFixed(progressPct, 3)}%)
           </span>
-          <span>floor: 21B</span>
+          <span>{t("dashboard.floorLabel")}</span>
         </div>
         <p className="mt-4 rounded-lg bg-oro/10 px-4 py-3 text-center text-sm font-medium text-oro">
-          Quando il floor sarà raggiunto, il 100% della revenue andrà agli staker
+          {t("dashboard.floorPromise")}
         </p>
       </div>
 
       {/* Card di accesso rapido */}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="card">
-          <h2 className="font-medium text-orochiaro">Il tuo staking</h2>
+          <h2 className="font-medium text-orochiaro">{t("dashboard.yourStaking")}</h2>
           {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
-            <p className="mt-3 text-sm text-secondario">
-              Connetti il wallet per vedere posizioni e reward.
-            </p>
+            <p className="mt-3 text-sm text-secondario">{t("dashboard.connectForStaking")}</p>
           ) : (
             <div className="mt-3 space-y-1.5 text-sm">
               <p>
-                <span className="text-secondario">In stake: </span>
+                <span className="text-secondario">{t("dashboard.inStake")}</span>
                 <span title={mine?.[1]?.result !== undefined ? formatExact(mine[1].result as bigint) : ""}>
                   {mine?.[1]?.result !== undefined
                     ? `${formatCompact(mine[1].result as bigint)} DMN`
@@ -223,13 +243,13 @@ export default function Dashboard() {
                 </span>
               </p>
               <p>
-                <span className="text-secondario">Voting power: </span>
+                <span className="text-secondario">{t("dashboard.votingPower")}</span>
                 {mine?.[0]?.result !== undefined
                   ? formatCompact(mine[0].result as bigint)
                   : "…"}
               </p>
               <p>
-                <span className="text-secondario">Reward maturati: </span>
+                <span className="text-secondario">{t("dashboard.rewards")}</span>
                 {mine?.[2]?.result !== undefined
                   ? `${formatCompact(mine[2].result as bigint)} BNB`
                   : "…"}
@@ -237,14 +257,14 @@ export default function Dashboard() {
             </div>
           )}
           <Link href="/staking" className="btn-outline mt-4 inline-block">
-            Vai allo staking →
+            {t("dashboard.goStaking")}
           </Link>
         </div>
 
         <div className="card">
-          <h2 className="font-medium text-orochiaro">Governance</h2>
+          <h2 className="font-medium text-orochiaro">{t("dashboard.governanceTitle")}</h2>
           {lastId === undefined || !lastProposal ? (
-            <p className="mt-3 text-sm text-secondario">Nessuna proposta ancora creata.</p>
+            <p className="mt-3 text-sm text-secondario">{t("dashboard.noProposals")}</p>
           ) : (
             <LatestProposal
               id={lastId}
@@ -254,7 +274,7 @@ export default function Dashboard() {
             />
           )}
           <Link href="/governance" className="btn-outline mt-4 inline-block">
-            Vai alla governance →
+            {t("dashboard.goGovernance")}
           </Link>
         </div>
       </div>
@@ -273,22 +293,25 @@ function LatestProposal({
   state?: number;
   now: number;
 }) {
+  const { t, locale } = useI18n();
   const phase = phaseOf(state, proposal, now);
   const info = PROPOSAL_PHASE[phase.key];
   return (
     <div className="mt-3 text-sm">
       <p className="font-medium">
-        #{id.toString()} — {proposal[4] || "(senza descrizione)"}
+        {/* La descrizione e' contenuto on-chain del proposer: NON si traduce. */}
+        #{id.toString()} — {proposal[4] || t("dashboard.noDescription")}
       </p>
       <p className="mt-1.5">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${info.badgeClass}`}
         >
-          {info.label}
+          {t(info.labelKey)}
         </span>
         {phase.countdownTo && (
           <span className="ml-2 text-secondario">
-            {phase.countdownLabel} {formatCountdown(phase.countdownTo - now)}
+            {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
+            {formatCountdown(phase.countdownTo - now, locale)}
           </span>
         )}
       </p>

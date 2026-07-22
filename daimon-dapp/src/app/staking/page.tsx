@@ -9,6 +9,7 @@ import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DataOwner } from "@/components/DataOwner";
 import { TxStatus } from "@/components/TxStatus";
+import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
 import { usePrice } from "@/hooks/usePrice";
@@ -39,12 +40,8 @@ type Lock = {
   withdrawn: boolean;
 };
 
-function labelDuration(seconds: bigint): string {
-  const days = Number(seconds) / 86400;
-  return `${Math.round(days)} giorni`;
-}
-
 export default function Staking() {
+  const { t, locale } = useI18n();
   const now = useNow();
   const paused = usePaused();
   const price = usePrice();
@@ -181,19 +178,16 @@ export default function Staking() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-orochiaro">Staking</h1>
-        <p className="mt-1 text-sm text-secondario">
-          Blocca DMN per ottenere voting power e reward in BNB. Più lungo il lock,
-          più peso ottieni.
-        </p>
+        <h1 className="text-2xl font-semibold text-orochiaro">{t("staking.title")}</h1>
+        <p className="mt-1 text-sm text-secondario">{t("staking.subtitle")}</p>
       </div>
 
       {/* Simulatore */}
       <div className="card">
-        <h2 className="font-medium text-orochiaro">Simulatore</h2>
+        <h2 className="font-medium text-orochiaro">{t("staking.simulator")}</h2>
         <div className="mt-4 grid gap-6 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-secondario">Importo (DMN)</label>
+            <label className="mb-1 block text-xs text-secondario">{t("staking.amountLabel")}</label>
             <input
               className="input"
               inputMode="decimal"
@@ -209,7 +203,9 @@ export default function Staking() {
               onChange={(e) => setAmountInput(String(Math.round(Number(e.target.value))))}
               className="mt-3 w-full accent-[#c9a227]"
             />
-            <label className="mb-1 mt-4 block text-xs text-secondario">Durata del lock</label>
+            <label className="mb-1 mt-4 block text-xs text-secondario">
+              {t("staking.durationLabel")}
+            </label>
             <div className="flex flex-wrap gap-2">
               {options.map((o) => (
                 <button
@@ -221,29 +217,30 @@ export default function Staking() {
                       : "border-bordi text-secondario hover:text-testo"
                   }`}
                 >
-                  {labelDuration(o.duration)} · {Number(o.multiplierX1000) / 1000}x
+                  {t("staking.days", { n: Math.round(Number(o.duration) / 86400) })} ·{" "}
+                  {Number(o.multiplierX1000) / 1000}x
                 </button>
               ))}
               {options.length === 0 && (
-                <span className="text-sm text-secondario">Caricamento opzioni…</span>
+                <span className="text-sm text-secondario">{t("staking.loadingOptions")}</span>
               )}
             </div>
           </div>
           <div className="rounded-xl border border-bordi bg-bg/50 p-4">
-            <p className="text-sm text-secondario">Otterrai</p>
+            <p className="text-sm text-secondario">{t("staking.youGet")}</p>
             <p className="mt-1 text-2xl font-medium text-orochiaro" title={formatExact(previewVp)}>
-              {formatCompact(previewVp)} voting power
+              {formatCompact(previewVp)} {t("staking.votingPower")}
             </p>
             <p className="mt-2 text-sm text-secondario">
-              Controvalore ≈{" "}
-              {usdValue !== null ? formatUsd(usdValue) : "n/d (testnet)"}
+              {t("staking.usdValue")}
+              {usdValue !== null ? formatUsd(usdValue) : t("staking.naTestnet")}
             </p>
             <p className="mt-2 text-sm">
-              <span className="text-secondario">Sbloccabile il </span>
+              <span className="text-secondario">{t("staking.unlockOn")}</span>
               {/* Gated sulle opzioni on-chain: una data derivata
                   dall'orologio al primo paint non coincide mai tra l'HTML
                   prerenderizzato e il client (hydration mismatch). */}
-              <b>{selected ? formatDate(unlockDate) : "…"}</b>
+              <b>{selected ? formatDate(unlockDate, locale) : "…"}</b>
             </p>
           </div>
         </div>
@@ -259,9 +256,9 @@ export default function Staking() {
                   className="btn-outline"
                   onClick={doApprove}
                   disabled={amount === 0n || insufficientBalance || paused || approveTx.phase === "signing" || approveTx.phase === "pending"}
-                  title={insufficientBalance ? "Importo superiore al saldo disponibile" : undefined}
+                  title={insufficientBalance ? t("staking.insufficientTitle") : undefined}
                 >
-                  1. Approva
+                  {t("staking.approve")}
                 </button>
               )}
               <button
@@ -270,17 +267,17 @@ export default function Staking() {
                 disabled={!approved || amount === 0n || insufficientBalance || paused || stakeTx.phase === "signing" || stakeTx.phase === "pending"}
                 title={
                   insufficientBalance
-                    ? "Importo superiore al saldo disponibile"
+                    ? t("staking.insufficientTitle")
                     : !approved
-                      ? "Prima approva l'importo"
+                      ? t("staking.approveFirst")
                       : undefined
                 }
               >
-                {approved ? "Metti in stake" : "2. Metti in stake"}
+                {approved ? t("staking.stake") : t("staking.stakeNumbered")}
               </button>
               {balance !== undefined && (
                 <span className="text-xs text-secondario">
-                  Disponibili: {formatCompact(balance)} DMN
+                  {t("staking.available", { amount: formatCompact(balance) })}
                 </span>
               )}
             </>
@@ -288,9 +285,9 @@ export default function Staking() {
         </div>
         {insufficientBalance && (
           <p className="mt-2 text-xs text-rosso">
-            L&apos;importo supera il saldo disponibile
-            {balance !== undefined ? ` (${formatCompact(balance)} DMN)` : ""}: riducilo
-            per procedere.
+            {t("staking.insufficientMsg", {
+              balance: balance !== undefined ? ` (${formatCompact(balance)} DMN)` : "",
+            })}
           </p>
         )}
         <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} notice={approveTx.notice} />
@@ -300,14 +297,12 @@ export default function Staking() {
       {/* Posizioni + reward */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card lg:col-span-2">
-          <h2 className="font-medium text-orochiaro">Le tue posizioni</h2>
+          <h2 className="font-medium text-orochiaro">{t("staking.positions")}</h2>
           {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
-            <p className="mt-3 text-sm text-secondario">
-              Connetti il wallet per vedere posizioni e reward.
-            </p>
+            <p className="mt-3 text-sm text-secondario">{t("staking.connectPositions")}</p>
           ) : myLocks.length === 0 ? (
-            <p className="mt-3 text-sm text-secondario">Nessuna posizione attiva.</p>
+            <p className="mt-3 text-sm text-secondario">{t("staking.noPositions")}</p>
           ) : (
             <div className="mt-3 divide-y divide-bordi">
               {myLocks.map((l) => {
@@ -320,18 +315,27 @@ export default function Staking() {
                         <span className="text-oro">{Number(l.multiplierX1000) / 1000}x</span>
                       </p>
                       <p className="text-xs text-secondario" title={formatExact(l.votingPowerGranted)}>
-                        {formatCompact(l.votingPowerGranted)} voting power — sblocco{" "}
-                        {formatDate(l.unlockTime)}
-                        {!unlocked && ` (tra ${formatCountdown(Number(l.unlockTime) - now)})`}
+                        {t("staking.positionVp", {
+                          vp: formatCompact(l.votingPowerGranted),
+                          date: formatDate(l.unlockTime, locale),
+                        })}
+                        {!unlocked &&
+                          t("staking.inTime", {
+                            countdown: formatCountdown(Number(l.unlockTime) - now, locale),
+                          })}
                       </p>
                     </div>
                     <button
                       className="btn-outline"
                       disabled={!unlocked || paused || withdrawTx.phase === "signing" || withdrawTx.phase === "pending"}
-                      title={!unlocked ? `Sbloccabile il ${formatDate(l.unlockTime)}` : undefined}
+                      title={
+                        !unlocked
+                          ? t("staking.unlockableOn", { date: formatDate(l.unlockTime, locale) })
+                          : undefined
+                      }
                       onClick={() => doWithdraw(l.id)}
                     >
-                      Ritira
+                      {t("staking.withdraw")}
                     </button>
                   </div>
                 );
@@ -341,18 +345,16 @@ export default function Staking() {
           <TxStatus phase={withdrawTx.phase} hash={withdrawTx.hash} errorMessage={withdrawTx.errorMessage} notice={withdrawTx.notice} />
           {Number(nextLockId ?? 0n) > MAX_LOCK_SCAN && (
             <p className="mt-2 text-xs text-secondario">
-              Nota: mostrate le prime {MAX_LOCK_SCAN} posizioni globali.
+              {t("staking.scanNote", { n: MAX_LOCK_SCAN })}
             </p>
           )}
         </div>
 
         <div className="card">
-          <h2 className="font-medium text-orochiaro">Reward maturati</h2>
+          <h2 className="font-medium text-orochiaro">{t("staking.rewardsTitle")}</h2>
           {isConnected && <DataOwner address={address} />}
           {!isConnected ? (
-            <p className="mt-3 text-sm text-secondario">
-              Connetti il wallet per vedere i reward.
-            </p>
+            <p className="mt-3 text-sm text-secondario">{t("staking.connectRewards")}</p>
           ) : (
             <>
               <p className="mt-3 text-2xl font-medium text-orochiaro" title={myReward !== undefined ? formatExact(myReward) : ""}>
@@ -362,20 +364,20 @@ export default function Staking() {
                 ≈{" "}
                 {myReward !== undefined && price.bnbUsd !== null
                   ? formatUsd(price.bnbUsd * formatUnitsNumber(myReward))
-                  : "n/d"}
+                  : t("staking.na")}
               </p>
               <button
                 className="btn-oro mt-4"
                 onClick={doClaim}
                 disabled={!myReward || myReward === 0n || paused || claimTx.phase === "signing" || claimTx.phase === "pending"}
-                title={!myReward || myReward === 0n ? "Nessun reward da riscuotere al momento" : undefined}
+                title={!myReward || myReward === 0n ? t("staking.noRewards") : undefined}
               >
-                Riscuoti
+                {t("staking.claim")}
               </button>
               <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} notice={claimTx.notice} />
               {myVotingPower !== undefined && (
                 <p className="mt-4 text-xs text-secondario">
-                  Il tuo voting power totale: {formatCompact(myVotingPower)}
+                  {t("staking.totalVp", { vp: formatCompact(myVotingPower) })}
                 </p>
               )}
             </>

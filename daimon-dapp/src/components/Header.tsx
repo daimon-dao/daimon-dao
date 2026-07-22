@@ -5,15 +5,18 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 import { ConnectButton } from "./ConnectButton";
+import { useI18n } from "@/components/LocaleProvider";
+import type { Locale } from "@/lib/i18n";
 
-const NAV = [
-  { href: "/", label: "Dashboard" },
-  { href: "/migrazione", label: "Migrazione" },
-  { href: "/staking", label: "Staking" },
-  { href: "/governance", label: "Governance" },
+const NAV: Array<{ href: string; labelKey: string }> = [
+  { href: "/", labelKey: "nav.dashboard" },
+  { href: "/migrazione", labelKey: "nav.migration" },
+  { href: "/staking", labelKey: "nav.staking" },
+  { href: "/governance", labelKey: "nav.governance" },
 ];
 
 function ThemeToggle() {
+  const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [light, setLight] = useState(false);
   useEffect(() => {
@@ -35,15 +38,48 @@ function ThemeToggle() {
     <button
       onClick={toggle}
       className="rounded-lg border border-bordi px-2.5 py-2 text-sm text-secondario hover:text-testo"
-      title={light ? "Passa al tema scuro" : "Passa al tema chiaro"}
-      aria-label="Cambia tema"
+      title={light ? t("header.toDark") : t("header.toLight")}
+      aria-label={t("header.changeTheme")}
     >
       {light ? "🌙" : "☀️"}
     </button>
   );
 }
 
+/*
+ * Selettore lingua EN | IT: la scelta persiste in cookie (letta dal server
+ * al prossimo request) e la UI cambia subito, senza reload — la connessione
+ * wallet e lo stato delle pagine non vengono toccati.
+ */
+function LanguageToggle() {
+  const { locale, setLocale, t } = useI18n();
+  const options: Locale[] = ["en", "it"];
+  return (
+    <div
+      className="flex overflow-hidden rounded-lg border border-bordi text-sm"
+      role="group"
+      aria-label={t("header.changeLanguage")}
+    >
+      {options.map((l) => (
+        <button
+          key={l}
+          onClick={() => setLocale(l)}
+          className={`px-2.5 py-2 uppercase ${
+            locale === l
+              ? "bg-oro/15 font-medium text-oro"
+              : "text-secondario hover:text-testo"
+          }`}
+          aria-pressed={locale === l}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Header() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -66,18 +102,19 @@ export function Header() {
                   : "text-secondario hover:text-testo"
               }`}
             >
-              {n.label}
+              {t(n.labelKey)}
             </Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <LanguageToggle />
           <ThemeToggle />
           <ConnectButton />
           <button
             className="rounded-lg border border-bordi px-3 py-2 text-sm text-secondario md:hidden"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Apri menu"
+            aria-label={t("header.openMenu")}
           >
             ☰
           </button>
@@ -95,7 +132,7 @@ export function Header() {
                 pathname === n.href ? "font-medium text-oro" : "text-secondario"
               }`}
             >
-              {n.label}
+              {t(n.labelKey)}
             </Link>
           ))}
         </nav>

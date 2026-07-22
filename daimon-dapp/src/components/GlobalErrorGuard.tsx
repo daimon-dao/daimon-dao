@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/components/LocaleProvider";
 
 /*
  * Rete di sicurezza finale contro gli unhandled rejection che sfuggono ai
@@ -15,6 +16,7 @@ import { useEffect, useState } from "react";
  *    generico. L'overlay e' soppresso ma nulla viene nascosto al debug.
  */
 export function GlobalErrorGuard() {
+  const { t } = useI18n();
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function GlobalErrorGuard() {
         e.stopImmediatePropagation();
         if (/proposal expired|session request expired|request expired/i.test(msg)) {
           console.info("[wallet] richiesta WalletConnect scaduta (QR non usato in tempo)");
-          show("Connessione scaduta, riprova.");
+          show(t("guard.connectionExpired"));
         } else {
           console.info("[wallet] richiesta rifiutata/annullata dall'utente");
           // nessun toast: l'ha deciso l'utente
@@ -57,7 +59,7 @@ export function GlobalErrorGuard() {
       // e avvisiamo con un toast generico (mai una pagina rossa).
       e.preventDefault();
       console.error("[global] unhandled rejection:", e.reason);
-      show("Si è verificato un errore imprevisto. Dettagli nella console.");
+      show(t("guard.unexpected"));
     }
 
     // capture: true -> il nostro handler precede quelli in bubble (Next).
@@ -66,7 +68,7 @@ export function GlobalErrorGuard() {
       window.removeEventListener("unhandledrejection", onRejection, { capture: true });
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [t]);
 
   if (!toast) return null;
   return (

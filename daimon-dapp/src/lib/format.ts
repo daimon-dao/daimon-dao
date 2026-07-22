@@ -1,4 +1,5 @@
 import { formatUnits } from "viem";
+import type { Locale } from "@/lib/i18n";
 
 /*
  * Tronca `x` a `digits` decimali VERSO LO ZERO (mai arrotondamento): il
@@ -63,24 +64,28 @@ export function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-/** Countdown leggibile: "3g 4h", "2h 15m", "12m". */
-export function formatCountdown(secondsLeft: number): string {
-  if (secondsLeft <= 0) return "adesso";
+/** Countdown leggibile: "3g 4h" / "3d 4h", "2h 15m", "12m". */
+export function formatCountdown(secondsLeft: number, locale: Locale = "en"): string {
+  if (secondsLeft <= 0) return locale === "it" ? "adesso" : "now";
   const d = Math.floor(secondsLeft / 86400);
   const h = Math.floor((secondsLeft % 86400) / 3600);
   const m = Math.floor((secondsLeft % 3600) / 60);
-  if (d > 0) return `${d}g ${h}h`;
+  const dayUnit = locale === "it" ? "g" : "d";
+  if (d > 0) return `${d}${dayUnit} ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
-  return "meno di 1 minuto";
+  return locale === "it" ? "meno di 1 minuto" : "less than a minute";
 }
 
-export function formatDate(unixSeconds: number | bigint): string {
-  return new Date(Number(unixSeconds) * 1000).toLocaleString("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+export function formatDate(unixSeconds: number | bigint, locale: Locale = "en"): string {
+  return new Date(Number(unixSeconds) * 1000).toLocaleString(
+    locale === "it" ? "it-IT" : "en-US",
+    {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }
+  );
 }

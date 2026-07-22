@@ -38,18 +38,22 @@ export type PhaseKey =
   | "executed"
   | "canceled";
 
+/*
+ * Le etichette sono CHIAVI i18n (messages/{en,it}.json): i componenti le
+ * risolvono con t() nella lingua attiva.
+ */
 export const PROPOSAL_PHASE: Record<
   PhaseKey,
-  { label: string; badgeClass: string }
+  { labelKey: string; badgeClass: string }
 > = {
-  pending: { label: "In attesa", badgeClass: "bg-secondario/20 text-secondario" },
-  active: { label: "In votazione", badgeClass: "bg-oro/20 text-oro" },
-  defeated: { label: "Bocciata", badgeClass: "bg-rosso/20 text-rosso" },
-  succeeded: { label: "Approvata", badgeClass: "bg-verde/20 text-verde" },
-  timelock: { label: "In timelock", badgeClass: "bg-oro/20 text-oro" },
-  ready: { label: "Pronta per l'esecuzione", badgeClass: "bg-verde/20 text-verde" },
-  executed: { label: "Eseguita", badgeClass: "bg-verde/20 text-verde" },
-  canceled: { label: "Annullata", badgeClass: "bg-secondario/20 text-secondario" },
+  pending: { labelKey: "governance.phase.pending", badgeClass: "bg-secondario/20 text-secondario" },
+  active: { labelKey: "governance.phase.active", badgeClass: "bg-oro/20 text-oro" },
+  defeated: { labelKey: "governance.phase.defeated", badgeClass: "bg-rosso/20 text-rosso" },
+  succeeded: { labelKey: "governance.phase.succeeded", badgeClass: "bg-verde/20 text-verde" },
+  timelock: { labelKey: "governance.phase.timelock", badgeClass: "bg-oro/20 text-oro" },
+  ready: { labelKey: "governance.phase.ready", badgeClass: "bg-verde/20 text-verde" },
+  executed: { labelKey: "governance.phase.executed", badgeClass: "bg-verde/20 text-verde" },
+  canceled: { labelKey: "governance.phase.canceled", badgeClass: "bg-secondario/20 text-secondario" },
 };
 
 export function phaseOf(
@@ -57,7 +61,7 @@ export function phaseOf(
   p: ProposalTuple,
   now: number,
   timelockReadyTs?: bigint
-): { key: PhaseKey; countdownTo?: number; countdownLabel?: string } {
+): { key: PhaseKey; countdownTo?: number; countdownLabelKey?: string } {
   switch (state) {
     case 6:
       return { key: "canceled" };
@@ -67,13 +71,13 @@ export function phaseOf(
       return {
         key: "pending",
         countdownTo: Number(p[7]),
-        countdownLabel: "il voto apre tra",
+        countdownLabelKey: "governance.countdown.opensIn",
       };
     case 1:
       return {
         key: "active",
         countdownTo: Number(p[8]),
-        countdownLabel: "termina tra",
+        countdownLabelKey: "governance.countdown.endsIn",
       };
     case 2:
       return { key: "defeated" };
@@ -81,7 +85,11 @@ export function phaseOf(
       if (!p[14]) return { key: "succeeded" };
       const ready = timelockReadyTs !== undefined ? Number(timelockReadyTs) : undefined;
       if (ready !== undefined && ready > 0 && now < ready) {
-        return { key: "timelock", countdownTo: ready, countdownLabel: "eseguibile tra" };
+        return {
+          key: "timelock",
+          countdownTo: ready,
+          countdownLabelKey: "governance.countdown.executableIn",
+        };
       }
       if (ready !== undefined && ready > 0) return { key: "ready" };
       return { key: "timelock" };

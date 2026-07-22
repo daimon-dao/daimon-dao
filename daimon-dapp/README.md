@@ -28,6 +28,22 @@ Copia `.env.example` in `.env.local`:
 | `NEXT_PUBLIC_CHAIN_ID` | `97` | `97` = BSC testnet, `56` = BSC mainnet |
 | `NEXT_PUBLIC_WC_PROJECT_ID` | vuoto | Project id WalletConnect Cloud. Facoltativo: senza, restano MetaMask/Trust (injected). |
 
+## Lingue (EN/IT)
+
+La dApp è bilingue: **inglese (default) + italiano**. Selettore EN|IT
+nell'header; la scelta persiste nel cookie `daimon-locale`. Al primo
+accesso senza cookie si parte in italiano solo se è la lingua primaria
+del browser (Accept-Language), altrimenti inglese.
+
+Implementazione: dizionari leggeri in `src/messages/{en,it}.json` +
+provider React ([src/components/LocaleProvider.tsx](src/components/LocaleProvider.tsx),
+helper in [src/lib/i18n.ts](src/lib/i18n.ts)) — niente librerie i18n.
+Per aggiungere/modificare testi: stessa chiave in **entrambi** i file
+(il fallback è l'inglese; una chiave mancante appare letterale, così si
+nota subito). Non si traducono i dati on-chain né le descrizioni delle
+proposte; il formato numeri è identico nelle due lingue, date e
+countdown sono localizzati.
+
 ## Cambiare chain (testnet → mainnet)
 
 Tutto in **un solo file**: [src/config/contracts.ts](src/config/contracts.ts).

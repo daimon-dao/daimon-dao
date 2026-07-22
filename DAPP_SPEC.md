@@ -171,17 +171,33 @@ Eseguita/Bocciata/Annullata → badge di stato
 1. NIENTE dati finti: wallet non connesso → invito a connettere, non zeri.
 2. Ogni transazione: stato visibile (in attesa di firma → pending →
    confermata/fallita) con link alla tx su BscScan.
-3. Errori dei contratti mappati su messaggi italiani comprensibili
-   (LockStillActive, VotingClosed, ContractIsPaused, AmountMismatch,
-   GuardianExpired, ecc.). Mai mostrare stringhe raw di revert.
+3. Errori dei contratti mappati su messaggi comprensibili nella lingua
+   della UI (LockStillActive, VotingClosed, ContractIsPaused,
+   AmountMismatch, GuardianExpired, ecc.). Mai mostrare stringhe raw di
+   revert. La mappatura esiste in entrambe le lingue (§8.8).
 4. Se paused() è true: banner globale "Il contratto è temporaneamente in
    pausa di emergenza" e azioni disabilitate.
 5. Tutti gli importi formattati leggibili (1.5M, 20B) con valore esatto
    in tooltip.
 6. Responsive: mobile-first, la maggioranza degli utenti BSC è da mobile.
 7. Nessun tracker/analytics di terze parti. Coerenza con la filosofia.
-8. Testo interfaccia in ITALIANO (inglese predisposto come i18n futuro,
-   ma non richiesto ora).
+8. Interfaccia BILINGUE inglese + italiano (aggiornato 2026-07-22, prima
+   solo italiano). Regole:
+   - Default INGLESE; italiano al primo accesso solo se è la lingua
+     primaria del browser (Accept-Language). Selettore EN|IT nell'header;
+     la scelta persiste in cookie (`daimon-locale`) e viene letta anche
+     dal server → HTML iniziale e primo render client coincidono (niente
+     hydration mismatch).
+   - Implementazione: dizionari custom leggeri (src/messages/en.json +
+     it.json, provider React in LocaleProvider.tsx, lookup con
+     interpolazione in lib/i18n.ts). NIENTE next-intl: 2 lingue e nessun
+     routing per-locale non lo giustificano.
+   - Si traduce TUTTA la UI: pagine, header/footer, banner, avvisi
+     transazione, errori mappati, tooltip, metadata.
+   - NON si traducono: dati on-chain (numeri, indirizzi, hash, simboli),
+     descrizioni delle proposte (contenuto scritto dai proposer).
+   - Formato numeri INVARIATO tra le lingue (floor-truncation incluso);
+     date e countdown localizzati (it-IT ↔ en-US, "3g" ↔ "3d").
 
 ## 9. Cosa NON includere (decisioni esplicite)
 

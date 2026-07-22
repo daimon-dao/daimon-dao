@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { ACTIVE_CHAIN, explorerAddress } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
+import { useI18n } from "@/components/LocaleProvider";
 
 export function ConnectButton() {
+  const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -67,7 +69,7 @@ export function ConnectButton() {
   }
 
   if (!mounted) {
-    return <button className="btn-oro opacity-60">Connetti wallet</button>;
+    return <button className="btn-oro opacity-60">{t("connect.connect")}</button>;
   }
 
   if (isConnected && chainId !== ACTIVE_CHAIN.id) {
@@ -76,7 +78,7 @@ export function ConnectButton() {
         className="rounded-lg bg-rosso/90 px-4 py-2 text-sm font-medium text-white hover:bg-rosso"
         onClick={() => switchChain({ chainId: ACTIVE_CHAIN.id })}
       >
-        Passa a {ACTIVE_CHAIN.name}
+        {t("connect.switchTo", { chain: ACTIVE_CHAIN.name })}
       </button>
     );
   }
@@ -88,7 +90,7 @@ export function ConnectButton() {
         <button
           className="rounded-lg border border-oro/60 px-4 py-2 text-sm font-medium text-oro hover:bg-oro/10"
           onClick={() => setMenuOpen((v) => !v)}
-          title="Opzioni wallet"
+          title={t("connect.walletOptions")}
         >
           {shortAddress(address)}
         </button>
@@ -97,9 +99,9 @@ export function ConnectButton() {
             <button
               onClick={copyAddress}
               className="block w-full break-all rounded-lg px-3 py-2 text-left font-mono text-xs text-testo hover:bg-oro/10"
-              title="Clicca per copiare l'indirizzo completo"
+              title={t("connect.copyTitle")}
             >
-              {copied ? "copiato ✓" : address}
+              {copied ? t("connect.copied") : address}
             </button>
             <a
               href={explorerAddress(address)}
@@ -108,13 +110,13 @@ export function ConnectButton() {
               className="block rounded-lg px-3 py-2 text-sm text-testo hover:bg-oro/10"
               onClick={() => setMenuOpen(false)}
             >
-              Vedi su BscScan ↗
+              {t("connect.viewOnBscscan")}
             </a>
             <button
               onClick={changeAccount}
               className="block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10"
             >
-              Cambia account
+              {t("connect.switchAccount")}
             </button>
             <div className="my-1 border-t border-bordi" />
             <button
@@ -124,7 +126,7 @@ export function ConnectButton() {
               }}
               className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rosso/80 hover:bg-rosso/10"
             >
-              Disconnetti
+              {t("connect.disconnect")}
             </button>
           </div>
         )}
@@ -135,7 +137,7 @@ export function ConnectButton() {
   return (
     <div className="relative" ref={menuRef}>
       <button className="btn-oro" onClick={() => setMenuOpen((v) => !v)} disabled={isPending}>
-        {isPending ? "Connessione…" : "Connetti wallet"}
+        {isPending ? t("connect.connecting") : t("connect.connect")}
       </button>
       {menuOpen && (
         <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-bordi bg-card p-2 shadow-xl">
@@ -152,12 +154,10 @@ export function ConnectButton() {
                 }
               }}
             >
-              {c.name === "Injected" ? "Browser wallet (MetaMask / Trust)" : c.name}
+              {c.name === "Injected" ? t("connect.injectedName") : c.name}
             </button>
           ))}
-          <p className="px-3 pt-1 text-xs text-secondario">
-            MetaMask e Trust Wallet usano il wallet del browser.
-          </p>
+          <p className="px-3 pt-1 text-xs text-secondario">{t("connect.injectedHint")}</p>
         </div>
       )}
     </div>

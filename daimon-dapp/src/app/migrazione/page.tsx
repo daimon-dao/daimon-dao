@@ -9,6 +9,7 @@ import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DataOwner } from "@/components/DataOwner";
 import { TxStatus } from "@/components/TxStatus";
+import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
 import { usePaused } from "@/components/PausedBanner";
@@ -48,6 +49,7 @@ function Step({
 }
 
 export default function Migrazione() {
+  const { t, locale } = useI18n();
   const now = useNow();
   const paused = usePaused();
   const { address, isConnected } = useAccount();
@@ -127,11 +129,8 @@ export default function Migrazione() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-orochiaro">Migrazione 1:1</h1>
-        <p className="mt-1 text-sm text-secondario">
-          Converti i vecchi Daimon in DMN nuovi, uno a uno. I vecchi token vanno
-          alla tesoreria della DAO.
-        </p>
+        <h1 className="text-2xl font-semibold text-orochiaro">{t("migration.title")}</h1>
+        <p className="mt-1 text-sm text-secondario">{t("migration.subtitle")}</p>
       </div>
 
       {deadline !== undefined && (
@@ -142,38 +141,29 @@ export default function Migrazione() {
               : "border-bordi bg-card text-secondario"
           }`}
         >
-          {deadlineExpired ? (
-            <>
-              La finestra di migrazione si è chiusa il {formatDate(deadline)}. Non è
-              più possibile migrare da questa pagina: contatta la community della
-              DAO per le opzioni disponibili.
-            </>
-          ) : (
-            <>
-              La migrazione chiude il <b className="text-testo">{formatDate(deadline)}</b>{" "}
-              — mancano {formatCountdown(Number(deadline) - now)}.
-            </>
-          )}
+          {deadlineExpired
+            ? t("migration.closed", { date: formatDate(deadline, locale) })
+            : t("migration.closesOn", {
+                date: formatDate(deadline, locale),
+                countdown: formatCountdown(Number(deadline) - now, locale),
+              })}
         </div>
       )}
 
       {isTreasury && (
         <div className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro">
-          ⚠ Il wallet connesso è la <b>tesoreria della DAO</b>, cioè la
-          destinazione dei vecchi token: non può migrare se stesso (il
-          contratto rifiuterebbe l&apos;operazione). Connetti un altro wallet
-          per provare la migrazione.
+          {t("migration.treasuryWarning")}
         </div>
       )}
 
       {claimed && claimTx.phase === "success" ? (
         <div className="card border-verde/50 text-center">
           <p className="text-3xl">🎉</p>
-          <h2 className="mt-2 text-xl font-semibold text-verde">Migrazione completata</h2>
+          <h2 className="mt-2 text-xl font-semibold text-verde">{t("migration.success")}</h2>
           <p className="mt-2 text-sm">
-            Hai ricevuto{" "}
-            <b title={formatExact(claimed.amount)}>{formatCompact(claimed.amount)} DMN</b>{" "}
-            (rapporto 1:1 esatto).
+            {t("migration.successPrefix")}
+            <b title={formatExact(claimed.amount)}>{formatCompact(claimed.amount)} DMN</b>
+            {t("migration.successSuffix")}
           </p>
           <a
             className="mt-3 inline-block text-sm text-oro underline underline-offset-2"
@@ -181,21 +171,21 @@ export default function Migrazione() {
             target="_blank"
             rel="noreferrer"
           >
-            Vedi la transazione su BscScan ↗
+            {t("migration.viewTx")}
           </a>
           <div className="mt-4">
             <button className="btn-outline" onClick={() => setClaimed(null)}>
-              Migra altri token
+              {t("migration.migrateMore")}
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          <Step n={1} title="Connetti" active={!step1Done} done={step1Done}>
+          <Step n={1} title={t("migration.step1")} active={!step1Done} done={step1Done}>
             {isConnected ? (
               <>
                 <p className="text-sm">
-                  Vecchi Daimon rilevati nel wallet:{" "}
+                  {t("migration.detected")}{" "}
                   <b title={oldBalance !== undefined ? formatExact(oldBalance) : ""}>
                     {oldBalance !== undefined ? `${formatCompact(oldBalance)}` : "…"}
                   </b>
@@ -204,23 +194,21 @@ export default function Migrazione() {
               </>
             ) : (
               <div className="flex items-center gap-3">
-                <p className="text-sm text-secondario">
-                  Connetti il wallet per rilevare i tuoi vecchi Daimon.
-                </p>
+                <p className="text-sm text-secondario">{t("migration.connectPrompt")}</p>
                 <ConnectButton />
               </div>
             )}
           </Step>
 
-          <Step n={2} title="Approva" active={step1Done && !step2Done} done={step2Done}>
+          <Step n={2} title={t("migration.step2")} active={step1Done && !step2Done} done={step2Done}>
             <label className="mb-1 block text-xs text-secondario">
-              Importo da migrare (default: tutto il saldo)
+              {t("migration.amountLabel")}
             </label>
             <input
               className="input"
               inputMode="decimal"
               placeholder={
-                oldBalance !== undefined ? formatExact(oldBalance) : "importo in Daimon"
+                oldBalance !== undefined ? formatExact(oldBalance) : t("migration.amountPlaceholder")
               }
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
@@ -228,9 +216,9 @@ export default function Migrazione() {
             />
             {insufficientBalance && (
               <p className="mt-1 text-xs text-rosso">
-                L&apos;importo supera i vecchi Daimon disponibili
-                {oldBalance !== undefined ? ` (${formatCompact(oldBalance)})` : ""}:
-                riducilo per procedere.
+                {t("migration.insufficient", {
+                  balance: oldBalance !== undefined ? ` (${formatCompact(oldBalance)})` : "",
+                })}
               </p>
             )}
             <button
@@ -238,25 +226,25 @@ export default function Migrazione() {
               onClick={doApprove}
               disabled={!step1Done || approved || amount === 0n || disabled || approveTx.phase === "signing" || approveTx.phase === "pending"}
             >
-              {approved ? "Approvazione già concessa ✓" : "Approva la migrazione"}
+              {approved ? t("migration.approveDone") : t("migration.approveBtn")}
             </button>
             <TxStatus phase={approveTx.phase} hash={approveTx.hash} errorMessage={approveTx.errorMessage} notice={approveTx.notice} />
           </Step>
 
-          <Step n={3} title="Ricevi DMN" active={step2Done} done={false}>
+          <Step n={3} title={t("migration.step3")} active={step2Done} done={false}>
             <p className="text-sm text-secondario">
-              Riceverai{" "}
+              {t("migration.receivePrefix")}
               <b className="text-testo" title={formatExact(amount)}>
                 {formatCompact(amount)} DMN
-              </b>{" "}
-              — esattamente 1:1, senza fee.
+              </b>
+              {t("migration.receiveSuffix")}
             </p>
             <button
               className="btn-oro mt-3"
               onClick={doClaim}
               disabled={!step2Done || amount === 0n || disabled || claimTx.phase === "signing" || claimTx.phase === "pending"}
             >
-              Migra ora
+              {t("migration.migrateBtn")}
             </button>
             <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} notice={claimTx.notice} />
           </Step>
