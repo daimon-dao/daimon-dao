@@ -4,7 +4,8 @@
     "description": "dApp ufficiale Daimon (DMN): migrazione 1:1, staking vote-escrow e governance on-chain su BNB Chain."
   },
   "banner": {
-    "testnet": "Ambiente di test — BSC Testnet · token e dati senza valore reale"
+    "testnet": "Ambiente di test — BSC Testnet · token e dati senza valore reale",
+    "testnetShort": "Testnet — nessun valore reale"
   },
   "paused": {
     "message": "⚠ Il contratto è temporaneamente in pausa di emergenza: i trasferimenti e le azioni sono sospesi finché il guardian non rimuove la pausa."
@@ -20,10 +21,13 @@
     "toDark": "Passa al tema scuro",
     "toLight": "Passa al tema chiaro",
     "changeTheme": "Cambia tema",
-    "changeLanguage": "Cambia lingua"
+    "changeLanguage": "Cambia lingua",
+    "language": "Lingua",
+    "theme": "Tema"
   },
   "connect": {
     "connect": "Connetti wallet",
+    "connectShort": "Connetti",
     "connecting": "Connessione…",
     "switchTo": "Passa a {chain}",
     "walletOptions": "Opzioni wallet",

@@ -78,6 +78,11 @@ function LanguageToggle() {
   );
 }
 
+/*
+ * MOBILE-FIRST (spec §8.6): sotto `sm` la barra contiene SOLO logo,
+ * bottone wallet compatto e hamburger — lingua e tema vivono nel menu
+ * hamburger come voci etichettate. Da `sm` in su tornano nella barra.
+ */
 export function Header() {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -85,8 +90,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-bordi bg-bg/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
-        <Link href="/" className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Logo />
           <span className="text-lg font-semibold tracking-wide text-orochiaro">DAIMON</span>
         </Link>
@@ -108,8 +113,11 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <LanguageToggle />
-          <ThemeToggle />
+          {/* Lingua e tema: solo da sm in su (su mobile stanno nel menu ☰) */}
+          <div className="hidden items-center gap-2 sm:flex">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
           <ConnectButton />
           <button
             className="rounded-lg border border-bordi px-3 py-2 text-sm text-secondario md:hidden"
@@ -135,6 +143,15 @@ export function Header() {
               {t(n.labelKey)}
             </Link>
           ))}
+          {/* Su mobile lingua e tema vivono qui (sopra sm sono nella barra) */}
+          <div className="mt-1 flex items-center justify-between gap-3 border-t border-bordi px-3 py-3 sm:hidden">
+            <span className="text-sm text-secondario">{t("header.language")}</span>
+            <LanguageToggle />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-3 pb-3 sm:hidden">
+            <span className="text-sm text-secondario">{t("header.theme")}</span>
+            <ThemeToggle />
+          </div>
         </nav>
       )}
     </header>

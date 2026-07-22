@@ -68,14 +68,23 @@ export function ConnectButton() {
     }
   }
 
+  // Etichetta compatta sotto sm: "Connect"/"Connetti" su UNA riga — il
+  // testo esteso spaccava l'header a 360-428px (bug post-i18n).
+  const connectLabel = (
+    <>
+      <span className="sm:hidden">{t("connect.connectShort")}</span>
+      <span className="hidden sm:inline">{t("connect.connect")}</span>
+    </>
+  );
+
   if (!mounted) {
-    return <button className="btn-oro opacity-60">{t("connect.connect")}</button>;
+    return <button className="btn-oro whitespace-nowrap opacity-60">{connectLabel}</button>;
   }
 
   if (isConnected && chainId !== ACTIVE_CHAIN.id) {
     return (
       <button
-        className="rounded-lg bg-rosso/90 px-4 py-2 text-sm font-medium text-white hover:bg-rosso"
+        className="whitespace-nowrap rounded-lg bg-rosso/90 px-4 py-2 text-sm font-medium text-white hover:bg-rosso"
         onClick={() => switchChain({ chainId: ACTIVE_CHAIN.id })}
       >
         {t("connect.switchTo", { chain: ACTIVE_CHAIN.name })}
@@ -88,7 +97,7 @@ export function ConnectButton() {
     return (
       <div className="relative" ref={menuRef}>
         <button
-          className="rounded-lg border border-oro/60 px-4 py-2 text-sm font-medium text-oro hover:bg-oro/10"
+          className="whitespace-nowrap rounded-lg border border-oro/60 px-3 py-2 font-mono text-sm font-medium text-oro hover:bg-oro/10 sm:px-4"
           onClick={() => setMenuOpen((v) => !v)}
           title={t("connect.walletOptions")}
         >
@@ -136,8 +145,12 @@ export function ConnectButton() {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button className="btn-oro" onClick={() => setMenuOpen((v) => !v)} disabled={isPending}>
-        {isPending ? t("connect.connecting") : t("connect.connect")}
+      <button
+        className="btn-oro whitespace-nowrap"
+        onClick={() => setMenuOpen((v) => !v)}
+        disabled={isPending}
+      >
+        {isPending ? t("connect.connecting") : connectLabel}
       </button>
       {menuOpen && (
         <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-bordi bg-card p-2 shadow-xl">

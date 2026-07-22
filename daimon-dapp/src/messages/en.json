@@ -4,7 +4,8 @@
     "description": "Official Daimon (DMN) dApp: 1:1 migration, vote-escrow staking and on-chain governance on BNB Chain."
   },
   "banner": {
-    "testnet": "Test environment — BSC Testnet · tokens and data have no real value"
+    "testnet": "Test environment — BSC Testnet · tokens and data have no real value",
+    "testnetShort": "Testnet — no real value"
   },
   "paused": {
     "message": "⚠ The contract is temporarily paused for emergency: transfers and actions are suspended until the guardian lifts the pause."
@@ -20,10 +21,13 @@
     "toDark": "Switch to dark theme",
     "toLight": "Switch to light theme",
     "changeTheme": "Change theme",
-    "changeLanguage": "Change language"
+    "changeLanguage": "Change language",
+    "language": "Language",
+    "theme": "Theme"
   },
   "connect": {
     "connect": "Connect wallet",
+    "connectShort": "Connect",
     "connecting": "Connecting…",
     "switchTo": "Switch to {chain}",
     "walletOptions": "Wallet options",
