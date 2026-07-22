@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 import { ConnectButton } from "./ConnectButton";
 import { useI18n } from "@/components/LocaleProvider";
+import { BottomSheet, useIsMobile } from "@/components/BottomSheet";
 import type { Locale } from "@/lib/i18n";
 
 const NAV: Array<{ href: string; labelKey: string }> = [
@@ -87,6 +88,7 @@ export function Header() {
   const { t } = useI18n();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   return (
     <header className="sticky top-0 z-30 border-b border-bordi bg-bg/95 backdrop-blur">
@@ -123,13 +125,15 @@ export function Header() {
             className="rounded-lg border border-bordi px-3 py-2 text-sm text-secondario md:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label={t("header.openMenu")}
+            aria-expanded={open}
           >
             ☰
           </button>
         </div>
       </div>
 
-      {open && (
+      {/* Tra sm e md: espansione inline sotto la barra (come sempre). */}
+      {open && !isMobile && (
         <nav className="border-t border-bordi px-4 py-2 md:hidden">
           {NAV.map((n) => (
             <Link
@@ -143,17 +147,34 @@ export function Header() {
               {t(n.labelKey)}
             </Link>
           ))}
-          {/* Su mobile lingua e tema vivono qui (sopra sm sono nella barra) */}
-          <div className="mt-1 flex items-center justify-between gap-3 border-t border-bordi px-3 py-3 sm:hidden">
-            <span className="text-sm text-secondario">{t("header.language")}</span>
-            <LanguageToggle />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3 pb-3 sm:hidden">
-            <span className="text-sm text-secondario">{t("header.theme")}</span>
-            <ThemeToggle />
-          </div>
         </nav>
       )}
+
+      {/* Sotto sm: bottom sheet con navigazione + lingua + tema. */}
+      <BottomSheet open={open && isMobile} onClose={() => setOpen(false)} label={t("header.openMenu")}>
+        <nav>
+          {NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              onClick={() => setOpen(false)}
+              className={`block rounded-lg px-4 py-3 text-base ${
+                pathname === n.href ? "bg-oro/10 font-medium text-oro" : "text-testo"
+              }`}
+            >
+              {t(n.labelKey)}
+            </Link>
+          ))}
+        </nav>
+        <div className="mt-1 flex items-center justify-between gap-3 border-t border-bordi px-4 py-3">
+          <span className="text-sm text-secondario">{t("header.language")}</span>
+          <LanguageToggle />
+        </div>
+        <div className="flex items-center justify-between gap-3 px-4 pb-1">
+          <span className="text-sm text-secondario">{t("header.theme")}</span>
+          <ThemeToggle />
+        </div>
+      </BottomSheet>
     </header>
   );
 }

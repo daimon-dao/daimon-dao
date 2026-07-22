@@ -5,6 +5,7 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { ACTIVE_CHAIN, explorerAddress } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
 import { useI18n } from "@/components/LocaleProvider";
+import { BottomSheet, useIsMobile } from "@/components/BottomSheet";
 
 export function ConnectButton() {
   const { t } = useI18n();
@@ -12,19 +13,23 @@ export function ConnectButton() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   const { address, isConnected, chainId, connector } = useAccount();
   const { connectors, connectAsync, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
 
   useEffect(() => setMounted(true), []);
+  // Chiusura al click fuori: SOLO per il dropdown desktop — il bottom sheet
+  // vive in un portal fuori da menuRef (chiude col suo backdrop).
   useEffect(() => {
+    if (isMobile) return;
     function onClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+  }, [isMobile]);
 
   async function copyAddress() {
     if (!address) return;
@@ -77,6 +82,79 @@ export function ConnectButton() {
     </>
   );
 
+  /*
+   * Contenuti dei due menu, condivisi tra dropdown (>=sm) e bottom sheet
+   * (<sm). Nel sheet i tap target salgono a >=44px (py-3, testo base).
+   */
+  function accountMenuItems(sheet: boolean) {
+    if (!address) return null;
+    const item = sheet
+      ? "block w-full rounded-lg px-4 py-3 text-left text-base"
+      : "block w-full rounded-lg px-3 py-2 text-left text-sm";
+    return (
+      <>
+        <button
+          onClick={copyAddress}
+          className={`${item} break-all font-mono ${sheet ? "text-sm" : "text-xs"} text-testo hover:bg-oro/10`}
+          title={t("connect.copyTitle")}
+        >
+          {copied ? t("connect.copied") : address}
+        </button>
+        <a
+          href={explorerAddress(address)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${item} text-testo hover:bg-oro/10`}
+          onClick={() => setMenuOpen(false)}
+        >
+          {t("connect.viewOnBscscan")}
+        </a>
+        <button onClick={changeAccount} className={`${item} text-testo hover:bg-oro/10`}>
+          {t("connect.switchAccount")}
+        </button>
+        <div className="my-1 border-t border-bordi" />
+        <button
+          onClick={() => {
+            setMenuOpen(false);
+            disconnect();
+          }}
+          className={`${item} text-rosso/80 hover:bg-rosso/10`}
+        >
+          {t("connect.disconnect")}
+        </button>
+      </>
+    );
+  }
+
+  function connectorItems(sheet: boolean) {
+    const item = sheet
+      ? "block w-full rounded-lg px-4 py-3 text-left text-base text-testo hover:bg-oro/10"
+      : "block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10";
+    return (
+      <>
+        {connectors.map((c) => (
+          <button
+            key={c.uid}
+            className={item}
+            onClick={async () => {
+              setMenuOpen(false);
+              try {
+                await connectAsync({ connector: c });
+              } catch {
+                /* rifiuto dell'utente: nessun errore da mostrare */
+              }
+            }}
+          >
+            {c.name === "Injected" ? t("connect.injectedName") : c.name}
+          </button>
+        ))}
+        <p className={`px-3 pt-1 text-xs text-secondario ${sheet ? "px-4 pb-1" : ""}`}>
+          {t("connect.injectedHint")}
+        </p>
+      </>
+    );
+  }
+
   if (!mounted) {
     return <button className="btn-oro whitespace-nowrap opacity-60">{connectLabel}</button>;
   }
@@ -100,45 +178,22 @@ export function ConnectButton() {
           className="whitespace-nowrap rounded-lg border border-oro/60 px-3 py-2 font-mono text-sm font-medium text-oro hover:bg-oro/10 sm:px-4"
           onClick={() => setMenuOpen((v) => !v)}
           title={t("connect.walletOptions")}
+          aria-expanded={menuOpen}
         >
           {shortAddress(address)}
         </button>
-        {menuOpen && (
+        {menuOpen && !isMobile && (
           <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-bordi bg-card p-2 shadow-xl">
-            <button
-              onClick={copyAddress}
-              className="block w-full break-all rounded-lg px-3 py-2 text-left font-mono text-xs text-testo hover:bg-oro/10"
-              title={t("connect.copyTitle")}
-            >
-              {copied ? t("connect.copied") : address}
-            </button>
-            <a
-              href={explorerAddress(address)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg px-3 py-2 text-sm text-testo hover:bg-oro/10"
-              onClick={() => setMenuOpen(false)}
-            >
-              {t("connect.viewOnBscscan")}
-            </a>
-            <button
-              onClick={changeAccount}
-              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10"
-            >
-              {t("connect.switchAccount")}
-            </button>
-            <div className="my-1 border-t border-bordi" />
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                disconnect();
-              }}
-              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rosso/80 hover:bg-rosso/10"
-            >
-              {t("connect.disconnect")}
-            </button>
+            {accountMenuItems(false)}
           </div>
         )}
+        <BottomSheet
+          open={menuOpen && isMobile}
+          onClose={() => setMenuOpen(false)}
+          label={t("connect.walletOptions")}
+        >
+          {accountMenuItems(true)}
+        </BottomSheet>
       </div>
     );
   }
@@ -149,30 +204,22 @@ export function ConnectButton() {
         className="btn-oro whitespace-nowrap"
         onClick={() => setMenuOpen((v) => !v)}
         disabled={isPending}
+        aria-expanded={menuOpen}
       >
         {isPending ? t("connect.connecting") : connectLabel}
       </button>
-      {menuOpen && (
+      {menuOpen && !isMobile && (
         <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-bordi bg-card p-2 shadow-xl">
-          {connectors.map((c) => (
-            <button
-              key={c.uid}
-              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10"
-              onClick={async () => {
-                setMenuOpen(false);
-                try {
-                  await connectAsync({ connector: c });
-                } catch {
-                  /* rifiuto dell'utente: nessun errore da mostrare */
-                }
-              }}
-            >
-              {c.name === "Injected" ? t("connect.injectedName") : c.name}
-            </button>
-          ))}
-          <p className="px-3 pt-1 text-xs text-secondario">{t("connect.injectedHint")}</p>
+          {connectorItems(false)}
         </div>
       )}
+      <BottomSheet
+        open={menuOpen && isMobile}
+        onClose={() => setMenuOpen(false)}
+        label={t("connect.connect")}
+      >
+        {connectorItems(true)}
+      </BottomSheet>
     </div>
   );
 }

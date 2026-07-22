@@ -51,3 +51,25 @@ html {
     @apply w-full rounded-lg border border-bordi bg-bg px-3 py-2 text-sm text-testo outline-none focus:border-oro/70;
   }
 }
+
+/*
+ * Ingresso del BottomSheet: keyframes CSS puri, NON stato JS + transition —
+ * un requestAnimationFrame puo' non scattare mai a pagina nascosta,
+ * lasciando il pannello bloccato fuori schermo.
+ */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
