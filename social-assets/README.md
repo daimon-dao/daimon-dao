@@ -10,8 +10,9 @@ i TTF statici di Inter; vedi commento in testa allo script).
 
 | File | Dimensioni | Uso |
 |---|---|---|
-| `banner-profilo-A-it/en.png` | 1500×500 | Header profilo X — **variante A** (senza logo). L'avatar mostra già il logo Daimon: qui il testo è protagonista, centrato, con sinistra e basso liberi per l'avatar. |
-| `banner-profilo-B-it/en.png` | 1500×500 | Header profilo X — **variante B** (filigrana). Testo a sinistra, simbolo del logo come filigrana chiara tono-su-tono nell'angolo destro (non un secondo logo pieno). |
+| **`banner-profilo-A-en.png`** | 1500×500 | ⭐ **BANNER UFFICIALE.** Header profilo X — variante A (senza logo), inglese. Il testo è protagonista, centrato, con sinistra e basso liberi per l'avatar. |
+| `banner-profilo-A-it.png` | 1500×500 | Alternativa — variante A (senza logo), italiano. |
+| `banner-profilo-B-en/it.png` | 1500×500 | Alternativa — variante B (filigrana): testo a sinistra, simbolo del logo come filigrana chiara tono-su-tono nell'angolo destro (non un secondo logo pieno). Utile per contesti diversi dal profilo X. |
 | `stat-fee.png` | 1600×900 | Post X — "11% → 4%", fee decise dalla DAO. |
 | `stat-timelock.png` | 1600×900 | Post X — "604.800" secondi di timelock. |
 | `stat-owner-mint.png` | 1600×900 | Post X — "0 owner · 0 mint". |
@@ -27,8 +28,9 @@ i TTF statici di Inter; vedi commento in testa allo script).
   logo pieno nel banner (sarebbe un secondo cerchio identico all'avatar):
   variante A senza logo, variante B con filigrana chiara a destra. Testo
   tenuto nella fascia sicura, lontano dall'angolo in basso a sinistra.
-  Le due varianti sono alternative da scegliere: adottata una, l'altra
-  (e la lingua non usata) si possono rimuovere.
+  Banner adottato: **variante A inglese** (`banner-profilo-A-en.png`).
+  Le altre tre (A-it, B-en, B-it) restano come alternative per contesti
+  diversi (profilo in italiano, header di altre piattaforme, ecc.).
 - **Social preview GitHub**: da caricare in *Settings → General → Social
   preview* del repo (non viene applicata automaticamente dai file nel repo).
 - I template stat/quote sono riutilizzabili: per nuovi dati/frasi basta
