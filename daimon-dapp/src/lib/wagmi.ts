@@ -4,23 +4,23 @@ import { injected, walletConnect } from "wagmi/connectors";
 import { ACTIVE_CHAIN } from "@/config/contracts";
 
 /*
- * Connettori: injected copre MetaMask e Trust Wallet (in-app browser e
- * estensione). WalletConnect richiede un projectId di WalletConnect Cloud:
- * viene aggiunto solo se NEXT_PUBLIC_WC_PROJECT_ID e' impostato.
+ * Connectors: injected covers MetaMask and Trust Wallet (in-app browser and
+ * extension). WalletConnect requires a WalletConnect Cloud projectId: it is
+ * added only if NEXT_PUBLIC_WC_PROJECT_ID is set.
  */
 const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
-// Config SINGLETON a livello di modulo: creata una sola volta per runtime,
-// mai dentro un componente (i connectors non vanno ricreati a ogni render).
+// Module-level SINGLETON config: created once per runtime, never inside a
+// component (connectors must not be recreated on every render).
 export const wagmiConfig = createConfig({
   chains: [ACTIVE_CHAIN],
-  // Pattern SSR completo raccomandato da wagmi per Next (App Router):
-  //  - ssr: true rimanda la reidratazione dello store a dopo il mount
-  //    (senza: hydration mismatch col wallet gia' connesso);
-  //  - cookieStorage rende lo stato di connessione leggibile ANCHE dal
-  //    server: il root layout lo passa come initialState al WagmiProvider
-  //    (cookieToInitialState), cosi' la connessione e' presente dal primo
-  //    render e sopravvive alle navigazioni client-side senza flash.
+  // Full SSR pattern recommended by wagmi for Next (App Router):
+  //  - ssr: true defers store rehydration until after mount
+  //    (without it: hydration mismatch with the already-connected wallet);
+  //  - cookieStorage makes the connection state readable ALSO from the
+  //    server: the root layout passes it as initialState to the WagmiProvider
+  //    (cookieToInitialState), so the connection is present from the first
+  //    render and survives client-side navigations without a flash.
   ssr: true,
   storage: createStorage({ storage: cookieStorage }),
   connectors: [
@@ -29,8 +29,8 @@ export const wagmiConfig = createConfig({
       ? [walletConnect({ projectId: wcProjectId, showQrModal: true })]
       : []),
   ],
-  // Entrambe le chain per soddisfare il tipo (ACTIVE_CHAIN e' una union):
-  // viene usata solo quella attiva.
+  // Both chains to satisfy the type (ACTIVE_CHAIN is a union): only the active
+  // one is actually used.
   transports: {
     [bsc.id]: http("https://bsc-dataseed.binance.org"),
     [bscTestnet.id]: http("https://data-seed-prebsc-1-s1.binance.org:8545"),

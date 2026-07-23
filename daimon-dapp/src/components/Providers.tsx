@@ -6,11 +6,11 @@ import { useState, type ReactNode } from "react";
 import { wagmiConfig } from "@/lib/wagmi";
 
 /*
- * Montato UNA sola volta nel root layout (mai nei layout di pagina):
- * lo stato wagmi/react-query vive qui e deve sopravvivere alle
- * navigazioni client-side. initialState arriva dal cookie letto dal
- * server (cookieToInitialState nel root layout), cosi' la connessione
- * del wallet e' presente gia' al primo render.
+ * Mounted ONCE in the root layout (never in the page layouts): the
+ * wagmi/react-query state lives here and must survive client-side navigations.
+ * initialState comes from the cookie read by the server (cookieToInitialState
+ * in the root layout), so the wallet connection is already present at the
+ * first render.
  */
 export function Providers({
   children,

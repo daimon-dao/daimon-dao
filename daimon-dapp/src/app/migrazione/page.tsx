@@ -69,9 +69,9 @@ export default function Migrazione() {
     ...migration,
     functionName: "treasury",
   });
-  // La treasury e' la DESTINAZIONE dei vecchi token: se migrasse se stessa
-  // il suo saldo non cambierebbe e il contratto reverterebbe con
-  // AmountMismatch. Meglio spiegarlo prima che l'utente firmi.
+  // The treasury is the DESTINATION of the old tokens: if it migrated itself
+  // its balance would not change and the contract would revert with
+  // AmountMismatch. Better to explain it before the user signs.
   const isTreasury = Boolean(
     address && treasuryAddr && address.toLowerCase() === (treasuryAddr as string).toLowerCase()
   );
@@ -91,7 +91,7 @@ export default function Migrazione() {
 
   const deadlineExpired = deadline !== undefined && BigInt(now) > deadline;
 
-  // Importo: default = balance rilevato, modificabile (spec §5)
+  // Amount: default = detected balance, editable (spec §5)
   const amount = useMemo(() => {
     try {
       if (amountInput.trim() !== "") return parseUnits(amountInput.replace(",", "."), 18);
@@ -102,13 +102,13 @@ export default function Migrazione() {
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
   const step1Done = isConnected;
   const step2Done = step1Done && approved;
-  // Il contratto rifiuterebbe una migrazione oltre il saldo: blocchiamo prima.
+  // The contract would reject a migration beyond the balance: block it first.
   const insufficientBalance =
     isConnected && oldBalance !== undefined && amount > oldBalance;
   const disabled = paused || deadlineExpired || isTreasury || insufficientBalance;
 
-  // Il refetch post-conferma (balance, allowance) e' automatico: useTx
-  // invalida le query wagmi quando la transazione risulta confermata.
+  // The post-confirmation refetch (balance, allowance) is automatic: useTx
+  // invalidates the wagmi queries when the transaction is confirmed.
   async function doApprove() {
     await approveTx.send({
       ...oldToken,
@@ -123,7 +123,7 @@ export default function Migrazione() {
       functionName: "claim",
       args: [amount],
     });
-    // null = transazione non inviata (es. firma rifiutata): niente schermata di successo.
+    // null = transaction not sent (e.g. rejected signature): no success screen.
     if (hash) setClaimed({ amount, hash });
   }
 

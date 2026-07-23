@@ -4,16 +4,16 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/components/LocaleProvider";
 
 /*
- * Rete di sicurezza finale contro gli unhandled rejection che sfuggono ai
- * flussi gestiti — in particolare gli eventi asincroni delle librerie
- * wallet che vivono FUORI dalle nostre promise (es. "Proposal expired" di
- * @walletconnect/utils quando il QR scade dopo minuti).
+ * Final safety net against unhandled rejections that escape the managed flows
+ * — in particular the async events from wallet libraries that live OUTSIDE our
+ * promises (e.g. @walletconnect/utils' "Proposal expired" when the QR expires
+ * after minutes).
  *
- * Politica: MAI l'overlay rosso di Next.
- *  - eventi benigni noti (QR scaduto, firma rifiutata): console.info,
- *    con toast discreto solo dove utile all'utente;
- *  - tutto il resto: console.error con i dettagli completi + toast
- *    generico. L'overlay e' soppresso ma nulla viene nascosto al debug.
+ * Policy: NEVER Next's red overlay.
+ *  - known benign events (expired QR, rejected signature): console.info, with
+ *    a discreet toast only where useful to the user;
+ *  - everything else: console.error with the full details + a generic toast.
+ *    The overlay is suppressed but nothing is hidden from debugging.
  */
 export function GlobalErrorGuard() {
   const { t } = useI18n();
@@ -27,9 +27,9 @@ export function GlobalErrorGuard() {
       timer = window.setTimeout(() => setToast(null), 6000);
     }
 
-    // Eventi benigni noti delle librerie wallet: vanno intercettati PRIMA
-    // che il dev-overlay di Next (bubble phase) li mostri. Capture phase +
-    // stopImmediatePropagation impedisce ad altri listener di reagire.
+    // Known benign events from the wallet libraries: they must be intercepted
+    // BEFORE Next's dev overlay (bubble phase) shows them. Capture phase +
+    // stopImmediatePropagation prevents other listeners from reacting.
     function isBenign(reason: { code?: number; message?: string } | null, msg: string) {
       return (
         /proposal expired|session request expired/i.test(msg) ||
@@ -46,23 +46,23 @@ export function GlobalErrorGuard() {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (/proposal expired|session request expired|request expired/i.test(msg)) {
-          console.info("[wallet] richiesta WalletConnect scaduta (QR non usato in tempo)");
+          console.info("[wallet] WalletConnect request expired (QR not used in time)");
           show(t("guard.connectionExpired"));
         } else {
-          console.info("[wallet] richiesta rifiutata/annullata dall'utente");
-          // nessun toast: l'ha deciso l'utente
+          console.info("[wallet] request rejected/canceled by the user");
+          // no toast: the user decided it
         }
         return;
       }
 
-      // Errore imprevisto: sopprimiamo comunque l'overlay ma logghiamo tutto
-      // e avvisiamo con un toast generico (mai una pagina rossa).
+      // Unexpected error: we suppress the overlay anyway but log everything
+      // and warn with a generic toast (never a red page).
       e.preventDefault();
       console.error("[global] unhandled rejection:", e.reason);
       show(t("guard.unexpected"));
     }
 
-    // capture: true -> il nostro handler precede quelli in bubble (Next).
+    // capture: true -> our handler precedes the bubble-phase ones (Next).
     window.addEventListener("unhandledrejection", onRejection, { capture: true });
     return () => {
       window.removeEventListener("unhandledrejection", onRejection, { capture: true });

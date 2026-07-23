@@ -1,16 +1,16 @@
 import fs from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 
-// Contenuto interno del logo (defs + paths), senza il wrapper <svg>.
-// Va inserito in un <svg ... viewBox="0 0 500 500"> per scalare bene.
+// Inner content of the logo (defs + paths), without the <svg> wrapper.
+// It must be placed inside an <svg ... viewBox="0 0 500 500"> to scale well.
 const raw = fs.readFileSync("logo.svg", "utf8");
 export const LOGO_INNER = raw
   .replace(/<\?xml[^>]*\?>/, "")
   .replace(/<svg[^>]*>/, "")
   .replace(/<\/svg>\s*$/, "");
 
-// Medaglione: coin navy (leggermente più chiaro del fondo) + anello oro.
-// x,y = angolo in alto a sinistra; size = diametro.
+// Medallion: navy coin (slightly lighter than the background) + gold ring.
+// x,y = top-left corner; size = diameter.
 export function coin(x, y, size, { coinFill = "#131d40", ring = "#c9a227", ringOp = 0.65, glow = false } = {}) {
   const r = size / 2;
   return `<g transform="translate(${x},${y})">

@@ -1,9 +1,9 @@
 import { encodeAbiParameters, keccak256, parseAbiParameters, zeroHash } from "viem";
 
 /*
- * Fasi di una proposta (DAPP_SPEC.md §7).
+ * Phases of a proposal (DAPP_SPEC.md §7).
  *
- * Tuple del getter pubblico `proposals(id)` di DaimonGovernor:
+ * Tuple of DaimonGovernor's public getter `proposals(id)`:
  *  0 proposer, 1 target, 2 value, 3 data, 4 description,
  *  5 snapshotTimestamp, 6 snapshotTotalVotingPower, 7 voteStart, 8 voteEnd,
  *  9 forVotes, 10 againstVotes, 11 abstainVotes,
@@ -39,8 +39,8 @@ export type PhaseKey =
   | "canceled";
 
 /*
- * Le etichette sono CHIAVI i18n (messages/{en,it}.json): i componenti le
- * risolvono con t() nella lingua attiva.
+ * The labels are i18n KEYS (messages/{en,it}.json): the components resolve
+ * them with t() in the active language.
  */
 export const PROPOSAL_PHASE: Record<
   PhaseKey,
@@ -99,7 +99,7 @@ export function phaseOf(
   }
 }
 
-/** Id dell'operazione nel timelock (hashOperation con predecessor 0). */
+/** Timelock operation id (hashOperation with predecessor 0). */
 export function timelockOperationId(p: ProposalTuple): `0x${string}` {
   return keccak256(
     encodeAbiParameters(parseAbiParameters("address, uint256, bytes, bytes32, bytes32"), [

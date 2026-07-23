@@ -17,7 +17,7 @@ export function TxStatus({
 }) {
   const { t } = useI18n();
 
-  // Avviso neutro (es. firma annullata dall'utente): non e' un errore.
+  // Neutral notice (e.g. signature canceled by the user): not an error.
   if (phase === "idle" && notice) {
     return (
       <div className="mt-3 rounded-lg border border-bordi bg-bg/40 px-3 py-2 text-sm text-secondario">

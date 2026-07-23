@@ -4,10 +4,10 @@ import { shortAddress } from "@/lib/format";
 import { useI18n } from "@/components/LocaleProvider";
 
 /*
- * Etichetta "dati di 0x1234…abcd" per le card personali: quando MetaMask
- * e' su un account non connesso alla dApp, i dati mostrati restano
- * legittimamente quelli dell'account connesso — questa riga rende
- * esplicito DI CHI sono i dati, evitando la confusione.
+ * "data for 0x1234…abcd" label for the personal cards: when MetaMask is on an
+ * account not connected to the dApp, the data shown legitimately remains that
+ * of the connected account — this line makes explicit WHOSE data it is,
+ * avoiding the confusion.
  */
 export function DataOwner({ address }: { address?: `0x${string}` }) {
   const { t } = useI18n();

@@ -8,14 +8,14 @@ import {DaimonMigration} from "../../src/DaimonMigration.sol";
 import {MockOldDaimon} from "../../src/mocks/MockOldDaimon.sol";
 
 /*
- * Handler per l'invariant testing: espone azioni "utente" che il fuzzer
- * invoca in sequenze casuali. Le azioni che il contratto rifiuterebbe per
- * stato (lock attivo, maxTx, saldo) sono racchiuse in try/catch: un revert
- * atteso non deve interrompere la sequenza, ma nessuna azione deve poter
- * violare gli invarianti verificati in InvariantDaimon.
+ * Handler for the invariant testing: exposes "user" actions that the fuzzer
+ * invokes in random sequences. Actions the contract would reject due to state
+ * (active lock, maxTx, balance) are wrapped in try/catch: an expected revert
+ * must not interrupt the sequence, but no action must be able to violate the
+ * invariants checked in InvariantDaimon.
  *
- * Ghost variables: BNB totali versati allo staking e totali riscossi, per
- * l'invariante "il contratto trattiene sempre esattamente la differenza".
+ * Ghost variables: total BNB paid into staking and total claimed, for the
+ * invariant "the contract always retains exactly the difference".
  */
 contract DaimonHandler is Test {
     DaimonV2 public token;
@@ -49,7 +49,7 @@ contract DaimonHandler is Test {
         return actors[seed % actors.length];
     }
 
-    // --- Trasferimento tra attori (fee applicata) ---
+    // --- Transfer between actors (fee applied) ---
     function transfer(uint256 fromSeed, uint256 toSeed, uint256 amount) external {
         address from = _actor(fromSeed);
         address to = _actor(toSeed);
@@ -74,7 +74,7 @@ contract DaimonHandler is Test {
         vm.stopPrank();
     }
 
-    // --- Withdraw (solo lock scaduti; altrimenti revert catturato) ---
+    // --- Withdraw (expired locks only; otherwise the revert is caught) ---
     function withdraw(uint256 lockSeed) external {
         uint256 n = staking.nextLockId();
         if (n == 0) return;
@@ -85,7 +85,7 @@ contract DaimonHandler is Test {
         try staking.withdraw(lockId) {} catch {}
     }
 
-    // --- Migrazione ---
+    // --- Migration ---
     function migrate(uint256 actorSeed, uint256 amount) external {
         address a = _actor(actorSeed);
         uint256 oldBal = oldToken.balanceOf(a);
@@ -97,7 +97,7 @@ contract DaimonHandler is Test {
         vm.stopPrank();
     }
 
-    // --- Finanziamento reward pool ---
+    // --- Reward pool funding ---
     function notifyReward(uint256 amount) external {
         amount = bound(amount, 1, 100 ether);
         vm.deal(address(this), amount);
@@ -106,7 +106,7 @@ contract DaimonHandler is Test {
         } catch {}
     }
 
-    // --- Riscossione reward ---
+    // --- Reward claim ---
     function claimReward(uint256 actorSeed) external {
         address a = _actor(actorSeed);
         uint256 before = a.balance;
@@ -116,7 +116,7 @@ contract DaimonHandler is Test {
         } catch {}
     }
 
-    // --- Avanzamento del tempo (per sbloccare i lock) ---
+    // --- Time advancement (to unlock the locks) ---
     function warp(uint256 secs) external {
         secs = bound(secs, 1 hours, 400 days);
         vm.warp(block.timestamp + secs);

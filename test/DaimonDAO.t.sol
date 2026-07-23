@@ -2,21 +2,16 @@
 pragma solidity 0.8.26;
 
 /*
- * Suite di test in stile Foundry (forge-std).
+ * Main Foundry (forge-std) test suite.
  *
- * COME ESEGUIRLI (in locale, dove hai accesso di rete):
- *   1. forge init daimon-dao --no-commit   (oppure usa una cartella esistente)
- *   2. Copia tutti i file di /contracts dentro src/
- *   3. forge install foundry-rs/forge-std
- *   4. Copia questo file dentro test/
- *   5. forge test -vvv
+ * HOW TO RUN:
+ *   forge test -vvv
  *
- * Non sono riuscito a eseguire questi test in questa sessione: l'ambiente
- * sandbox non ha accesso di rete per scaricare Foundry/forge-std/npm. Il
- * codice e' scritto e controllato a mano con la massima attenzione, ma
- * NON e' stato verificato da un compilatore reale in questa sessione.
- * Eseguili tu in locale e segnalami eventuali errori di compilazione: li
- * correggo immediatamente.
+ * Covers the full stack: token parameters and supply floor, 1:1 migration,
+ * vote-escrow staking, the complete governance cycle (propose → vote → queue
+ * → execute), the burn floor, the guardian expiry, and the fixes from the
+ * security review (snapshot voting power, timelock role hand-off, fee-swap
+ * slippage protection, reward queueing, etc.).
  */
 
 import "forge-std/Test.sol";
@@ -27,13 +22,13 @@ import "../src/DaimonGovernor.sol";
 import "../src/DaimonTimelock.sol";
 import "../src/DaimonMigration.sol";
 import "../src/mocks/MockUniswap.sol";
-// Mock del vecchio contratto Daimon: condiviso con lo script di deploy
-// testnet (script/Deploy.s.sol), vive in src/mocks.
+// Mock of the old Daimon contract: shared with the testnet deploy script
+// (script/Deploy.s.sol), lives in src/mocks.
 import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
 
 contract DaimonDAOTest is Test {
     DaimonV2 public tokenImpl;
-    DaimonV2 public token; // proxy castato come DaimonV2
+    DaimonV2 public token; // proxy cast as DaimonV2
     DaimonStaking public staking;
     DaimonGovernor public governor;
     DaimonTimelock public timelock;
@@ -53,11 +48,11 @@ contract DaimonDAOTest is Test {
 
     uint256 public constant OLD_SUPPLY = 1_000_000_000 * 1e18;
 
-    // NOTA: dato il deploy multi-contratto con dipendenze circolari
-    // (token/staking/governor/timelock/migration si riferiscono a vicenda),
-    // il setup completo e' fatto in _deployFullStack(), chiamato
-    // esplicitamente al primo rigo di ogni test (pattern piu' leggibile di
-    // un setUp() opaco quando i contratti sono cosi' interdipendenti).
+    // NOTE: given the multi-contract deploy with circular dependencies
+    // (token/staking/governor/timelock/migration reference each other), the
+    // full setup lives in _deployFullStack(), called explicitly on the first
+    // line of every test (a more readable pattern than an opaque setUp() when
+    // the contracts are this interdependent).
 
     function _deployFullStack() internal {
         vm.startPrank(deployer);
@@ -65,42 +60,42 @@ contract DaimonDAOTest is Test {
         weth = new MockWETH();
         factory = new MockUniswapV2Factory();
         router = new MockUniswapV2Router02(address(factory), address(weth));
-        vm.deal(address(router), 1000 ether); // liquidita' ETH per i mock swap
+        vm.deal(address(router), 1000 ether); // ETH liquidity for the mock swaps
 
-        oldToken = new MockOldDaimon(OLD_SUPPLY, alice); // alice parte con tutta la vecchia supply
+        oldToken = new MockOldDaimon(OLD_SUPPLY, alice); // alice starts with the entire old supply
 
-        // 1. Deploy implementation + proxy del token. Usiamo deployer come
-        // "migrationContract" temporaneo per ricevere la initial supply: e'
-        // un semplice EOA di passaggio, che subito dopo trasferira' tutto
-        // alla vera DaimonMigration una volta deployata (gia' a riga ~170).
+        // 1. Deploy the token implementation + proxy. We use the deployer as a
+        // temporary "migrationContract" to receive the initial supply: it is a
+        // simple pass-through EOA that immediately afterwards transfers
+        // everything to the real DaimonMigration once deployed (at line ~170).
         tokenImpl = new DaimonV2();
 
         bytes memory initData = abi.encodeWithSelector(
             DaimonV2.initialize.selector,
             "Daimon",
             "DMN",
-            deployer,           // migrationContract temporaneo = deployer stesso
+            deployer,           // temporary migrationContract = the deployer itself
             address(router),
-            deployer,           // governance temporanea
+            deployer,           // temporary governance
             guardian,
             marketingWallet
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(tokenImpl), initData);
         token = DaimonV2(payable(address(proxy)));
 
-        // 2. Deploy staking (usa deployer come governance temporanea)
+        // 2. Deploy staking (uses the deployer as temporary governance)
         staking = new DaimonStaking(address(token), deployer);
 
-        // 3. Deploy timelock: proposer/executor/canceller settati dopo aver
-        // il governor (bootstrap), per ora deployer ha tutti i ruoli admin
+        // 3. Deploy the timelock: proposer/executor/canceller are set after the
+        // governor exists (bootstrap); for now the deployer holds all admin roles
         timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer);
 
-        // 4. Deploy governor (quorum 10% = 1000 bps su 10000)
+        // 4. Deploy the governor (quorum 10% = 1000 bps out of 10000)
         governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 * 1e18);
 
-        // 5. Wiring dei ruoli del Timelock: il Governor deve essere sia
-        // PROPOSER (per queue) sia EXECUTOR (execute() del Governor chiama
-        // timelock.execute() con msg.sender = governor).
+        // 5. Timelock role wiring: the Governor must be both PROPOSER (for
+        // queue) and EXECUTOR (the Governor's execute() calls timelock.execute()
+        // with msg.sender = governor).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
@@ -108,35 +103,35 @@ contract DaimonDAOTest is Test {
         staking.setGovernance(address(timelock), true);
         staking.setGovernance(deployer, false);
 
-        token.setStakingContract(address(staking)); // chiamata mentre deployer ha ancora GOVERNANCE_ROLE
+        token.setStakingContract(address(staking)); // called while the deployer still has GOVERNANCE_ROLE
 
-        // 6. Deploy migration e trasferimento dell'intera initial supply,
-        // che il token aveva accreditato a "deployer" come migrationContract
-        // temporaneo in fase di initialize(). Va fatto PRIMA di cedere la
-        // GOVERNANCE_ROLE al timelock: la vera DaimonMigration deve essere
-        // esclusa dalle fee (in produzione lo e' automaticamente, perche' e'
-        // lei il _migrationContract passato a initialize()); qui il ruolo
-        // era stato ricoperto temporaneamente dal deployer.
+        // 6. Deploy the migration and transfer the entire initial supply, which
+        // the token had credited to "deployer" as the temporary migrationContract
+        // during initialize(). This must happen BEFORE handing GOVERNANCE_ROLE
+        // to the timelock: the real DaimonMigration must be fee-excluded (in
+        // production it is automatically, because it is the _migrationContract
+        // passed to initialize(); here the role was held temporarily by the
+        // deployer).
         migration = new DaimonMigration(address(oldToken), address(token), treasury, address(timelock), 30 days);
         token.setExcludedFromFee(address(migration), true);
 
         uint256 deployerBal = token.balanceOf(deployer);
         token.transfer(address(migration), deployerBal);
 
-        // 7. Handover finale della governance del token al Timelock.
+        // 7. Final hand-off of the token governance to the Timelock.
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
 
-        // 8. Il deployer rinuncia all'ADMIN_ROLE bootstrap del Timelock:
-        // da qui in poi il timelock amministra solo se stesso (le rotazioni
-        // di ruolo passano da proposte di governance).
+        // 8. The deployer renounces the Timelock's bootstrap ADMIN_ROLE: from
+        // here on the timelock administers only itself (role rotations go
+        // through governance proposals).
         timelock.renounceRole(timelock.ADMIN_ROLE(), deployer);
 
         vm.stopPrank();
     }
 
     // ============================================================
-    // Test 1: deploy e parametri base del token
+    // Test 1: deploy and base token parameters
     // ============================================================
     function test_TokenInitialSupplyAndFloor() public {
         _deployFullStack();
@@ -146,9 +141,9 @@ contract DaimonDAOTest is Test {
     }
 
     function test_TokenHasNoMintFunction() public {
-        // Verifica diretta: il selettore di una eventuale funzione mint(address,uint256)
-        // non esiste nel contratto. Una chiamata raw a quel selettore deve
-        // fallire (nessuna funzione corrispondente, nessun fallback che minti).
+        // Direct check: the selector of any potential mint(address,uint256)
+        // function does not exist in the contract. A raw call to that selector
+        // must fail (no matching function, no fallback that mints).
         _deployFullStack();
         uint256 supplyBefore = token.totalSupply();
 
@@ -158,20 +153,20 @@ contract DaimonDAOTest is Test {
         assertFalse(success);
         assertEq(token.totalSupply(), supplyBefore);
 
-        // Verifica anche dopo una transfer reale: la supply non sale mai.
+        // Also check after a real transfer: the supply never rises.
         _giveAliceSomeNewTokens(1000 * 1e18);
 
         assertEq(token.totalSupply(), supplyBefore);
     }
 
     // ============================================================
-    // Test 2: migrazione 1:1
+    // Test 2: 1:1 migration
     // ============================================================
     function test_MigrationOneToOne() public {
         _deployFullStack();
 
         vm.prank(alice);
-        oldToken.excludeFromFee(address(treasury)); // simulazione del passaggio preparatorio nel mock
+        oldToken.excludeFromFee(address(treasury)); // simulates the preparatory step in the mock
 
         uint256 aliceOldBalance = oldToken.balanceOf(alice);
         assertGt(aliceOldBalance, 0);
@@ -188,8 +183,8 @@ contract DaimonDAOTest is Test {
 
     function test_MigrationRevertsOnFeeMismatch() public {
         _deployFullStack();
-        // NON chiamiamo excludeFromFee(treasury): il mock applichera' la
-        // fee del 5%, causando un mismatch che deve far revertire claim().
+        // We do NOT call excludeFromFee(treasury): the mock will apply the 5%
+        // fee, causing a mismatch that must make claim() revert.
         uint256 aliceOldBalance = oldToken.balanceOf(alice);
 
         vm.startPrank(alice);
@@ -217,7 +212,7 @@ contract DaimonDAOTest is Test {
     }
 
     // ============================================================
-    // Test 3: staking e voting power vote-escrow
+    // Test 3: staking and vote-escrow voting power
     // ============================================================
     function test_StakingGrantsWeightedVotingPower() public {
         _deployFullStack();
@@ -225,7 +220,7 @@ contract DaimonDAOTest is Test {
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
-        staking.stake(1000 * 1e18, 0); // lockOption 0 = 30gg, 1.0x
+        staking.stake(1000 * 1e18, 0); // lockOption 0 = 30d, 1.0x
         vm.stopPrank();
 
         assertEq(staking.votingPower(alice), 1000 * 1e18); // 1.0x
@@ -233,7 +228,7 @@ contract DaimonDAOTest is Test {
         _giveAliceSomeNewTokens(500 * 1e18);
         vm.startPrank(alice);
         token.approve(address(staking), 500 * 1e18);
-        staking.stake(500 * 1e18, 3); // lockOption 3 = 365gg, 4.0x
+        staking.stake(500 * 1e18, 3); // lockOption 3 = 365d, 4.0x
         vm.stopPrank();
 
         assertEq(staking.votingPower(alice), 1000 * 1e18 + 2000 * 1e18); // 500*4 = 2000
@@ -245,7 +240,7 @@ contract DaimonDAOTest is Test {
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
-        uint256 lockId = staking.stake(1000 * 1e18, 1); // 90gg
+        uint256 lockId = staking.stake(1000 * 1e18, 1); // 90d
 
         vm.expectRevert(DaimonStaking.LockStillActive.selector);
         staking.withdraw(lockId);
@@ -260,7 +255,7 @@ contract DaimonDAOTest is Test {
     }
 
     // ============================================================
-    // Test 4: ciclo completo di governance (propose -> vote -> queue -> execute)
+    // Test 4: full governance cycle (propose -> vote -> queue -> execute)
     // ============================================================
     function test_FullGovernanceCycle_ChangeFees() public {
         _deployFullStack();
@@ -268,7 +263,7 @@ contract DaimonDAOTest is Test {
         _giveAliceSomeNewTokens(2_000_000 * 1e18);
         vm.startPrank(alice);
         token.approve(address(staking), 2_000_000 * 1e18);
-        staking.stake(2_000_000 * 1e18, 3); // lock lungo, voting power alto
+        staking.stake(2_000_000 * 1e18, 3); // long lock, high voting power
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
@@ -287,7 +282,7 @@ contract DaimonDAOTest is Test {
 
         governor.queue(proposalId);
 
-        vm.warp(block.timestamp + timelock.getMinDelay() + 1); // 7 giorni + 1 secondo
+        vm.warp(block.timestamp + timelock.getMinDelay() + 1); // 7 days + 1 second
 
         governor.execute(proposalId);
 
@@ -299,24 +294,24 @@ contract DaimonDAOTest is Test {
     function test_ProposalDefeatedIfQuorumNotMet() public {
         _deployFullStack();
 
-        // Il quorum e' il 10% di totalVotingPower: perche' NON venga
-        // raggiunto serve molto voting power che resta a guardare. Bob
-        // stake-a in massa e non vota; alice stake-a il minimo necessario
-        // per proporre (proposalThreshold) e vota da sola: i suoi voti
-        // restano sotto il 10% del totale.
+        // Quorum is 10% of totalVotingPower: for it NOT to be reached we need a
+        // lot of voting power sitting on the sidelines. Bob stakes en masse and
+        // does not vote; alice stakes the minimum needed to propose
+        // (proposalThreshold) and votes alone: her votes stay below 10% of the
+        // total.
         _giveAliceSomeNewTokens(200_000 * 1e18);
 
         vm.prank(alice);
-        token.transfer(bob, 100_000 * 1e18); // transfer con fee 5%: bob riceve ~95k
+        token.transfer(bob, 100_000 * 1e18); // transfer with 5% fee: bob receives ~95k
 
         vm.startPrank(bob);
         token.approve(address(staking), 90_000 * 1e18);
-        staking.stake(90_000 * 1e18, 0); // vp bob = 90_000e18, non votera'
+        staking.stake(90_000 * 1e18, 0); // bob vp = 90_000e18, will not vote
         vm.stopPrank();
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
-        staking.stake(1000 * 1e18, 0); // vp alice = 1000e18 = proposalThreshold
+        staking.stake(1000 * 1e18, 0); // alice vp = 1000e18 = proposalThreshold
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(0), uint256(0), uint256(0));
@@ -330,7 +325,7 @@ contract DaimonDAOTest is Test {
 
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
 
-        // totalVotes = 1000e18 < quorum = 10% di 91_000e18 = 9_100e18
+        // totalVotes = 1000e18 < quorum = 10% of 91_000e18 = 9_100e18
         assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Defeated));
     }
 
@@ -339,11 +334,11 @@ contract DaimonDAOTest is Test {
 
         _giveAliceSomeNewTokens(500_000 * 1e18);
         vm.prank(alice);
-        token.transfer(bob, 200_000 * 1e18); // fee 5%: bob riceve ~190k
+        token.transfer(bob, 200_000 * 1e18); // 5% fee: bob receives ~190k
 
-        // Snapshot: al momento della proposta l'unico voting power e' quello
-        // di alice (5000e18). Lei vota con il 100% dello snapshot: quorum
-        // ampiamente raggiunto rispetto allo snapshot.
+        // Snapshot: at proposal time the only voting power is alice's (5000e18).
+        // She votes with 100% of the snapshot: quorum widely reached relative to
+        // the snapshot.
         vm.startPrank(alice);
         token.approve(address(staking), 5000 * 1e18);
         staking.stake(5000 * 1e18, 0);
@@ -360,17 +355,16 @@ contract DaimonDAOTest is Test {
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
         assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
 
-        // DOPO la fine del voto bob stake-a una quantita' enorme: il
-        // totalVotingPower live sale a ~185_000e18, il cui 10% (18_500e18)
-        // sarebbe sopra i 5000e18 votati. Se il quorum usasse il valore
-        // live la proposta diventerebbe retroattivamente Defeated; con lo
-        // snapshot resta Succeeded.
+        // AFTER voting ends bob stakes a huge amount: the live totalVotingPower
+        // rises to ~185_000e18, whose 10% (18_500e18) would be above the 5000e18
+        // voted. If quorum used the live value the proposal would retroactively
+        // become Defeated; with the snapshot it stays Succeeded.
         vm.startPrank(bob);
         token.approve(address(staking), 180_000 * 1e18);
         staking.stake(180_000 * 1e18, 0);
         vm.stopPrank();
 
-        assertGt(staking.totalVotingPower(), 100_000 * 1e18); // il live e' davvero cresciuto
+        assertGt(staking.totalVotingPower(), 100_000 * 1e18); // the live value really did grow
         assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
     }
 
@@ -394,12 +388,12 @@ contract DaimonDAOTest is Test {
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
         assertEq(uint8(governor.state(proposalId)), uint8(DaimonGovernor.ProposalState.Succeeded));
 
-        // Proposta approvata ma MAI schedulata sul Timelock: execute() deve
-        // rifiutarla, altrimenti salterebbe il delay pubblico di 7 giorni.
+        // Proposal approved but NEVER scheduled on the Timelock: execute() must
+        // reject it, otherwise it would skip the public 7-day delay.
         vm.expectRevert(DaimonGovernor.ProposalNotQueued.selector);
         governor.execute(proposalId);
 
-        // Percorso corretto: queue -> attesa del delay -> execute.
+        // Correct path: queue -> wait for the delay -> execute.
         governor.queue(proposalId);
         vm.warp(block.timestamp + timelock.getMinDelay() + 1);
         governor.execute(proposalId);
@@ -407,36 +401,36 @@ contract DaimonDAOTest is Test {
     }
 
     // ============================================================
-    // Test 5: floor di burn mai violato
+    // Test 5: burn floor never violated
     // ============================================================
     function test_BurnNeverGoesBelowFloor() public {
         _deployFullStack();
 
-        // Diamo al router mock una grande quantita' di token DaimonV2, cosi'
-        // che swapExactETHForTokensSupportingFeeOnTransferTokens possa
-        // davvero inviarli al dead address (il mock fa una transfer reale,
-        // non mintata: deve avere il saldo).
+        // Give the mock router a large amount of DaimonV2 tokens so that
+        // swapExactETHForTokensSupportingFeeOnTransferTokens can actually send
+        // them to the dead address (the mock does a real, un-minted transfer:
+        // it must have the balance).
         vm.prank(address(migration));
         token.transfer(address(router), 800_000_000_000 * 1e18);
 
-        // Mandiamo ETH al token e attiviamo manualmente piu' round di
-        // acquisto/burn chiamando ripetutamente la funzione pubblica di
-        // pulizia contabile, dopo aver fatto arrivare token al dead address
-        // tramite swap diretti sul router (simulando cio' che avverrebbe
-        // dentro _buyBackAndBurn nel normale flusso di _transfer).
+        // Send ETH to the token and manually trigger multiple buy/burn rounds by
+        // repeatedly calling the public accounting-cleanup function, after
+        // getting tokens to the dead address via direct swaps on the router
+        // (simulating what would happen inside _buyBackAndBurn in the normal
+        // _transfer flow).
         vm.deal(address(this), 0);
         address[] memory path = new address[](2);
         path[0] = address(weth);
         path[1] = address(token);
 
-        // Il dead address va letto PRIMA del vm.prank: una staticcall usata
-        // come argomento consumerebbe il prank, e lo swap partirebbe dal
-        // test contract (senza ETH) invece che da alice.
+        // Read the dead address BEFORE vm.prank: a staticcall used as an
+        // argument would consume the prank, and the swap would originate from
+        // the test contract (with no ETH) instead of alice.
         address dead = token.deadAddress();
 
-        // Eseguiamo molti round di "acquisto e burn" finche' la differenza
-        // fra supply corrente e MIN_SUPPLY si esaurisce, verificando ad ogni
-        // passo che _tTotal non scenda mai sotto il floor.
+        // Run many "buy and burn" rounds until the gap between the current
+        // supply and MIN_SUPPLY is exhausted, checking at each step that _tTotal
+        // never drops below the floor.
         uint256 floor = token.MIN_SUPPLY();
         for (uint256 i = 0; i < 50; i++) {
             vm.deal(alice, 10 ether);
@@ -453,7 +447,7 @@ contract DaimonDAOTest is Test {
     }
 
     // ============================================================
-    // Test 6: Guardian scadenza a 36 mesi
+    // Test 6: Guardian 36-month expiry
     // ============================================================
     function test_GuardianCanPauseBeforeExpiry() public {
         _deployFullStack();
@@ -469,7 +463,7 @@ contract DaimonDAOTest is Test {
     function test_GuardianCannotPauseAfter36Months() public {
         _deployFullStack();
 
-        vm.warp(block.timestamp + 1096 days); // 36 mesi + 1 giorno
+        vm.warp(block.timestamp + 1096 days); // 36 months + 1 day
 
         vm.prank(guardian);
         vm.expectRevert(DaimonV2.GuardianExpired.selector);
@@ -480,26 +474,26 @@ contract DaimonDAOTest is Test {
         _deployFullStack();
         vm.prank(address(timelock));
         vm.expectRevert("DaimonTimelock: below MIN_DELAY");
-        timelock.updateDelay(1 days); // sotto il minimo di 7 giorni
+        timelock.updateDelay(1 days); // below the 7-day minimum
     }
 
     function test_FeesCannotExceedHardCap() public {
         _deployFullStack();
         vm.prank(address(timelock));
         vm.expectRevert(DaimonV2.FeeTooHigh.selector);
-        token.setFees(50, 30, 30); // 11% totale, sopra il cap del 10%
+        token.setFees(50, 30, 30); // 11% total, above the 10% cap
     }
 
     // ============================================================
-    // Test 7: fix della security review
+    // Test 7: security-review fixes
     // ============================================================
 
-    // --- A1: castVote usa lo snapshot, non il voting power live ---
+    // --- A1: castVote uses the snapshot, not the live voting power ---
     function test_CastVoteUsesSnapshotVotingPower() public {
         _deployFullStack();
         _giveAliceSomeNewTokens(200_000 * 1e18);
 
-        // alice staka PRIMA della proposta e passa token a bob
+        // alice stakes BEFORE the proposal and passes tokens to bob
         vm.startPrank(alice);
         token.approve(address(staking), 2000 * 1e18);
         staking.stake(2000 * 1e18, 0);
@@ -510,22 +504,22 @@ contract DaimonDAOTest is Test {
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot votes");
 
-        // bob staka DOPO la creazione della proposta (durante il voting delay)
+        // bob stakes AFTER proposal creation (during the voting delay)
         vm.warp(block.timestamp + 12 hours);
         vm.startPrank(bob);
         token.approve(address(staking), 40_000 * 1e18);
         staking.stake(40_000 * 1e18, 0);
         vm.stopPrank();
 
-        vm.warp(block.timestamp + 13 hours); // oltre voteStart, dentro il periodo di voto
+        vm.warp(block.timestamp + 13 hours); // past voteStart, within the voting period
 
-        // bob ha voting power live ma NON allo snapshot: non puo' votare
+        // bob has live voting power but NONE at the snapshot: he cannot vote
         assertGt(staking.votingPower(bob), 0);
         vm.prank(bob);
         vm.expectRevert(DaimonGovernor.InsufficientVotingPower.selector);
         governor.castVote(proposalId, 1);
 
-        // alice invece vota con il peso che aveva allo snapshot
+        // alice, instead, votes with the weight she had at the snapshot
         vm.prank(alice);
         governor.castVote(proposalId, 1);
     }
@@ -534,30 +528,30 @@ contract DaimonDAOTest is Test {
         _deployFullStack();
         _giveAliceSomeNewTokens(1000 * 1e18);
 
-        // Timestamp fissi (letterali): con via-ir il compilatore considera
-        // block.timestamp invariante nella transazione e puo' ri-leggerlo
-        // dopo un vm.warp invece di riusare il valore salvato prima —
-        // quindi qui non deriviamo mai i timestamp da block.timestamp.
+        // Fixed (literal) timestamps: with via-ir the compiler treats
+        // block.timestamp as invariant within the transaction and may re-read
+        // it after a vm.warp instead of reusing the value saved earlier — so
+        // here we never derive timestamps from block.timestamp.
         uint256 tStake = 1_000_000;
         vm.warp(tStake);
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
-        uint256 lockId = staking.stake(1000 * 1e18, 0); // 30gg, 1x
+        uint256 lockId = staking.stake(1000 * 1e18, 0); // 30d, 1x
         vm.stopPrank();
 
         assertEq(staking.votingPowerAt(alice, tStake), 1000 * 1e18);
-        assertEq(staking.votingPowerAt(alice, tStake - 1), 0); // prima dello stake: zero
+        assertEq(staking.votingPowerAt(alice, tStake - 1), 0); // before the stake: zero
 
         vm.warp(tStake + 31 days);
         vm.prank(alice);
         staking.withdraw(lockId);
 
-        assertEq(staking.votingPowerAt(alice, tStake + 31 days), 0);          // oggi: zero
-        assertEq(staking.votingPowerAt(alice, tStake + 1 days), 1000 * 1e18); // lo storico resta interrogabile
+        assertEq(staking.votingPowerAt(alice, tStake + 31 days), 0);          // now: zero
+        assertEq(staking.votingPowerAt(alice, tStake + 1 days), 1000 * 1e18); // history stays queryable
     }
 
-    // --- A2: nessun EOA detiene l'admin del Timelock dopo il wiring ---
+    // --- A2: no EOA holds the Timelock admin after wiring ---
     function test_NoEOAHoldsTimelockAdminAfterWiring() public {
         _deployFullStack();
         bytes32 adminRole = timelock.ADMIN_ROLE();
@@ -568,26 +562,26 @@ contract DaimonDAOTest is Test {
         assertFalse(timelock.hasRole(adminRole, guardian));
         assertFalse(timelock.hasRole(adminRole, alice));
 
-        // il deployer non puo' piu' ruotare ruoli
+        // the deployer can no longer rotate roles
         vm.prank(deployer);
         vm.expectRevert();
         timelock.grantRole(proposerRole, deployer);
     }
 
-    // --- A3 + M1: swap fee con slippage protection e split dei fondi ---
+    // --- A3 + M1: fee swap with slippage protection and fund split ---
     function test_FeeSwapSlippageProtectedAndFundsSplit() public {
         _deployFullStack();
 
-        // abbassa la soglia di swap al minimo consentito (0.0001% = 1M token)
+        // lower the swap threshold to the minimum allowed (0.0001% = 1M tokens)
         vm.prank(address(timelock));
         token.setMinimumTokensBeforeSwap(1_000_000 * 1e18);
 
         vm.deal(address(router), 5000 ether);
 
-        // accumula fee nel contratto: transfer con fee alice -> bob
+        // accumulate fees in the contract: taxed transfer alice -> bob
         _giveAliceSomeNewTokens(100_000_000 * 1e18);
         vm.prank(alice);
-        token.transfer(bob, 50_000_000 * 1e18); // 4% liquidity fee = 2M token al contratto
+        token.transfer(bob, 50_000_000 * 1e18); // 4% liquidity fee = 2M tokens to the contract
 
         assertGe(token.balanceOf(address(token)), 1_000_000 * 1e18);
 
@@ -595,17 +589,17 @@ contract DaimonDAOTest is Test {
         address dead = token.deadAddress();
         uint256 marketingBefore = marketingWallet.balance;
 
-        // sell verso la pair: innesca _swapAccumulatedFees (con minOut dal
-        // quote del router) e poi il buyback (anch'esso con minOut)
+        // sell to the pair: triggers _swapAccumulatedFees (with minOut from the
+        // router quote) and then the buyback (also with minOut)
         vm.prank(alice);
         token.transfer(pair, 1000 * 1e18);
 
-        // 1M token swappati a rate 1e15 = 1000 ether ricevuti:
-        // ramo marketing = 20/40 = 500 ether, di cui 60% staking / 40% wallet
+        // 1M tokens swapped at rate 1e15 = 1000 ether received:
+        // marketing branch = 20/40 = 500 ether, of which 60% staking / 40% wallet
         assertEq(marketingWallet.balance - marketingBefore, 200 ether);
         assertEq(address(staking).balance, 300 ether);
-        assertEq(staking.undistributedRewards(), 300 ether); // nessuno staka: accodati (M1)
-        assertGt(token.balanceOf(dead), 0); // buyback eseguito nonostante minOut > 0
+        assertEq(staking.undistributedRewards(), 300 ether); // no staker: queued (M1)
+        assertGt(token.balanceOf(dead), 0); // buyback executed despite minOut > 0
     }
 
     function test_MaxSwapSlippageGovernedAndBounded() public {
@@ -614,7 +608,7 @@ contract DaimonDAOTest is Test {
 
         vm.prank(alice);
         vm.expectRevert();
-        token.setMaxSwapSlippageBps(1000); // non governance
+        token.setMaxSwapSlippageBps(1000); // not governance
 
         vm.prank(address(timelock));
         vm.expectRevert("DaimonV2: slippage out of range");
@@ -629,7 +623,7 @@ contract DaimonDAOTest is Test {
         assertEq(token.maxSwapSlippageBps(), 1000);
     }
 
-    // --- M3: withdraw sottrae esattamente il voting power accreditato ---
+    // --- M3: withdraw subtracts exactly the credited voting power ---
     function test_WithdrawUsesStoredVotingPower() public {
         _deployFullStack();
         _giveAliceSomeNewTokens(1500 * 1e18);
@@ -645,7 +639,7 @@ contract DaimonDAOTest is Test {
         vm.warp(block.timestamp + 366 days);
         vm.prank(alice);
         staking.withdraw(lockB);
-        assertEq(staking.votingPower(alice), 1000 * 1e18); // esattamente -2000
+        assertEq(staking.votingPower(alice), 1000 * 1e18); // exactly -2000
         assertEq(staking.totalVotingPower(), 1000 * 1e18);
 
         vm.prank(alice);
@@ -654,7 +648,7 @@ contract DaimonDAOTest is Test {
         assertEq(staking.totalVotingPower(), 0);
     }
 
-    // --- M5: il dead address non matura reflection ---
+    // --- M5: the dead address does not accrue reflection ---
     function test_DeadAddressDoesNotAccrueReflections() public {
         _deployFullStack();
 
@@ -675,7 +669,7 @@ contract DaimonDAOTest is Test {
         uint256 deadBal = token.balanceOf(dead);
         assertGt(deadBal, 0);
 
-        // molte transfer con fee: le reflection non devono accrescere il dead
+        // many taxed transfers: reflection must not grow the dead balance
         _giveAliceSomeNewTokens(10_000_000 * 1e18);
         vm.startPrank(alice);
         for (uint256 i = 0; i < 5; i++) {
@@ -686,7 +680,7 @@ contract DaimonDAOTest is Test {
         assertEq(token.balanceOf(dead), deadBal);
     }
 
-    // --- M1 + M2: reward accodati senza staker e distribuiti al primo notify utile ---
+    // --- M1 + M2: rewards queued with no staker and distributed at the first useful notify ---
     function test_UndistributedRewardsFlowToFirstStaker() public {
         _deployFullStack();
 
@@ -703,7 +697,7 @@ contract DaimonDAOTest is Test {
 
         staking.notifyRewardAmount{value: 2 ether}(2 ether);
         assertEq(staking.undistributedRewards(), 0);
-        assertEq(staking.pendingReward(alice), 6 ether); // 4 accodati + 2 nuovi, esatti con scala 1e27
+        assertEq(staking.pendingReward(alice), 6 ether); // 4 queued + 2 new, exact at 1e27 scale
 
         uint256 balBefore = alice.balance;
         vm.prank(alice);
@@ -711,7 +705,7 @@ contract DaimonDAOTest is Test {
         assertEq(alice.balance - balBefore, 6 ether);
     }
 
-    // --- B7: dopo la scadenza il guardian puo' solo togliere la pausa ---
+    // --- B7: after expiry the guardian can only unpause ---
     function test_GuardianCanUnpauseAfterExpiry() public {
         _deployFullStack();
         vm.prank(guardian);
@@ -728,7 +722,7 @@ contract DaimonDAOTest is Test {
         assertFalse(token.paused());
     }
 
-    // --- B3: support invalido rifiutato ---
+    // --- B3: invalid support rejected ---
     function test_CastVoteRevertsOnInvalidSupport() public {
         _deployFullStack();
         _giveAliceSomeNewTokens(2000 * 1e18);
@@ -747,15 +741,15 @@ contract DaimonDAOTest is Test {
         governor.castVote(proposalId, 3);
     }
 
-    // --- B4: claim reverta se il NUOVO token applica una fee ---
+    // --- B4: claim reverts if the NEW token applies a fee ---
     function test_MigrationRevertsIfNewTokenTakesFee() public {
         _deployFullStack();
 
-        // errore di wiring simulato: la migration perde l'esclusione dalle fee
+        // simulated wiring error: the migration loses its fee exclusion
         vm.prank(address(timelock));
         token.setExcludedFromFee(address(migration), false);
 
-        oldToken.excludeFromFee(treasury); // il lato del vecchio token e' a posto
+        oldToken.excludeFromFee(treasury); // the old-token side is fine
         vm.startPrank(alice);
         oldToken.approve(address(migration), 1000 * 1e18);
         vm.expectRevert(DaimonMigration.AmountMismatch.selector);
@@ -763,7 +757,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
     }
 
-    // --- B6: eventi sui setter sensibili ---
+    // --- B6: events on sensitive setters ---
     function test_SetterEventsEmitted() public {
         _deployFullStack();
 
@@ -788,7 +782,7 @@ contract DaimonDAOTest is Test {
         token.setBuyBackEnabled(false);
     }
 
-    // --- M7: floor sulla soglia di swap ---
+    // --- M7: floor on the swap threshold ---
     function test_MinimumSwapThresholdHasFloor() public {
         _deployFullStack();
         uint256 floorAmt = token.totalSupply() / 1_000_000;
@@ -806,15 +800,15 @@ contract DaimonDAOTest is Test {
     // Helpers
     // ============================================================
     function _giveAliceSomeNewTokens(uint256 amount) internal {
-        // Per i test che non passano dalla migration, il deployer (che
-        // detiene il resto della initial supply prima del transfer a
-        // migration) puo' non avere piu' fondi dopo _deployFullStack.
-        // Qui simuliamo un secondo canale: usiamo direttamente la migration
-        // per dare ad alice dei nuovi token, presupponendo che alice abbia
-        // ancora vecchi Daimon da migrare (ha l'intera OLD_SUPPLY in setUp).
-        // Il passaggio preparatorio documentato in DaimonMigration (azzerare
-        // la fee del vecchio token verso la treasury) e' replicato qui:
-        // senza, claim() reverte con AmountMismatch per design.
+        // For tests that do not go through the migration, the deployer (which
+        // holds the rest of the initial supply before the transfer to migration)
+        // may have no funds left after _deployFullStack. Here we simulate a
+        // second channel: we use the migration directly to give alice new
+        // tokens, assuming alice still has old Daimon to migrate (she holds the
+        // entire OLD_SUPPLY in setUp). The preparatory step documented in
+        // DaimonMigration (zeroing the old token's fee toward the treasury) is
+        // replicated here: without it, claim() reverts with AmountMismatch by
+        // design.
         oldToken.excludeFromFee(treasury);
         vm.startPrank(alice);
         oldToken.approve(address(migration), amount);

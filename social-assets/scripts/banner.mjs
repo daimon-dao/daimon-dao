@@ -13,11 +13,11 @@ function T(x, y, s, { size = 40, weight = 700, fill = CREAM, anchor = "start", o
 function rings(cx, cy, op) {
   return [110, 190, 280, 390].map((r) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${GOLD}" stroke-opacity="${op}" stroke-width="1.5"/>`).join("");
 }
-// Solo i 3 path oro del simbolo (uncini + barra), senza disco/anelli/maschere.
+// Only the symbol's 3 gold paths (hooks + bar), without disc/rings/masks.
 const SYMBOL = (LOGO_INNER.match(/<path[^>]*fill="rgb\(76\.[^>]*\/>/g) || []).join("");
-// filigrana: SIMBOLO grande ricolorato in tono chiaro a bassa opacità (tono su
-// tono), che sborda dal bordo destro. Colore chiaro → filigrana che si "alza"
-// dal fondo scuro invece di incupirlo.
+// watermark: large SYMBOL recolored in a light tone at low opacity (tone on
+// tone), bleeding off the right edge. A light color → a watermark that "rises"
+// from the dark background instead of darkening it.
 function watermark(x, y, size, op, color = CREAM) {
   const sym = SYMBOL.replace(/fill="rgb\(76\.[^"]*\)"/g, `fill="${color}"`);
   return `<g opacity="${op}"><svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 500 500">${sym}</svg></g>`;
@@ -26,7 +26,7 @@ const head = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3
 
 const L1 = { it: "Nessun owner. Nessun mint.", en: "No owner. No mint." };
 
-// VARIANTE A — nessun logo, testo protagonista, centrato (avatar è in basso-sx)
+// VARIANT A — no logo, text as the hero, centered (avatar is bottom-left)
 function variantA(lang) {
   return head +
     `<rect width="1500" height="500" fill="${NAVY}"/>` +
@@ -37,7 +37,7 @@ function variantA(lang) {
     `</svg>`;
 }
 
-// VARIANTE B — filigrana logo a destra (sfumata), testo a sinistra-centro
+// VARIANT B — logo watermark on the right (faded), text on the left-center
 function variantB(lang) {
   return head +
     `<rect width="1500" height="500" fill="${NAVY}"/>` +

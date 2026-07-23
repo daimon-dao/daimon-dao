@@ -4,21 +4,21 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /*
- * Sotto sm i menu ancorati "galleggiano" e hanno tap target piccoli: lo
- * standard mobile delle dApp e' il bottom sheet. Questo componente e'
- * client-only e viene montato SOLO dopo un'interazione (open=true), quindi
- * non esiste nell'HTML server: zero superficie per hydration mismatch.
+ * Below sm, anchored menus "float" and have small tap targets: the dApp mobile
+ * standard is the bottom sheet. This component is client-only and mounts ONLY
+ * after an interaction (open=true), so it does not exist in the server HTML:
+ * zero surface for a hydration mismatch.
  */
 
-/** true sotto il breakpoint sm (639px). Parte false: valutato solo dopo mount. */
+/** true below the sm breakpoint (639px). Starts false: evaluated only after mount. */
 export function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
     const q = window.matchMedia("(max-width: 639px)");
     const update = () => setMobile(q.matches);
     update();
-    // 'resize' come cintura oltre al change della MQL: la rotazione di un
-    // telefono grande attraversa i 640px e lo stato deve seguire sempre.
+    // 'resize' as a belt in addition to the MQL change: rotating a large
+    // phone crosses 640px and the state must always follow.
     q.addEventListener("change", update);
     window.addEventListener("resize", update);
     return () => {
@@ -50,7 +50,7 @@ export function BottomSheet({
     prevFocus.current = document.activeElement as HTMLElement | null;
   }, [open]);
 
-  // Scroll lock: il contenuto sotto non deve scorrere mentre il sheet e' aperto.
+  // Scroll lock: the content below must not scroll while the sheet is open.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -60,7 +60,7 @@ export function BottomSheet({
     };
   }, [open]);
 
-  // Focus nel pannello, trap del Tab, Escape per chiudere, focus restituito.
+  // Focus in the panel, Tab trap, Escape to close, focus restored.
   useEffect(() => {
     if (!open) return;
     panelRef.current?.focus();
@@ -92,9 +92,9 @@ export function BottomSheet({
     };
   }, [open, onClose]);
 
-  // Swipe verso il basso: il pannello segue il dito; oltre 80px chiude,
-  // altrimenti torna su. I contenuti sono corti (menu), niente conflitto
-  // con lo scroll interno.
+  // Downward swipe: the panel follows the finger; past 80px it closes,
+  // otherwise it snaps back up. The contents are short (menus), no conflict
+  // with the inner scroll.
   function onTouchStart(e: React.TouchEvent) {
     startY.current = e.touches[0].clientY;
   }

@@ -12,43 +12,43 @@ import {DaimonMigration} from "../src/DaimonMigration.sol";
 import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
 
 /*
- * Deploy completo dello stack Daimon DAO su BSC testnet (chain id 97).
+ * Full deploy of the Daimon DAO stack on BSC testnet (chain id 97).
  *
- * Vincoli rispettati (emersi dai fix di sicurezza):
- *  1. La VERA DaimonMigration e' il _migrationContract passato a
- *     initialize() del token: riceve l'intera supply ed e' esclusa dalle
- *     fee fin dal primo blocco. La dipendenza circolare
- *     (token -> migration -> token) e' risolta precalcolando l'indirizzo
- *     della migration dal nonce CREATE del deployer.
- *  2. Il Timelock si auto-amministra; il deployer usa i ruoli bootstrap
- *     solo per il wiring e vi RINUNCIA tutti alla fine.
- *  3. A fine script, assert on-chain che nessun EOA detenga piu' alcun
- *     ruolo amministrativo (governance token, admin/proposer/executor
- *     timelock, governance staking).
+ * Constraints respected (emerged from the security fixes):
+ *  1. The REAL DaimonMigration is the _migrationContract passed to the
+ *     token's initialize(): it receives the entire supply and is excluded
+ *     from fees from the very first block. The circular dependency
+ *     (token -> migration -> token) is resolved by precomputing the
+ *     migration address from the deployer's CREATE nonce.
+ *  2. The Timelock self-administers; the deployer uses the bootstrap roles
+ *     only for the wiring and RENOUNCES them all at the end.
+ *  3. At the end of the script, on-chain asserts that no EOA still holds any
+ *     administrative role (token governance, timelock
+ *     admin/proposer/executor, staking governance).
  *
- * Variabili d'ambiente (tutte opzionali su testnet, vedi DEPLOY.md):
+ * Environment variables (all optional on testnet, see DEPLOY.md):
  *  ROUTER              default: PancakeSwap V2 router BSC testnet
- *  GUARDIAN_ADDRESS    default: deployer (SOLO testnet; in produzione multisig)
- *  MARKETING_WALLET    default: deployer (SOLO testnet)
- *  TREASURY_ADDRESS    default: deployer (SOLO testnet)
- *  OLD_DAIMON          default: vuoto -> deploya MockOldDaimon
- *  OLD_SUPPLY          default: 1_000_000_000 * 1e18 (per il mock)
- *  MIGRATION_DURATION  default: 30 giorni (in secondi)
+ *  GUARDIAN_ADDRESS    default: deployer (testnet ONLY; multisig in production)
+ *  MARKETING_WALLET    default: deployer (testnet ONLY)
+ *  TREASURY_ADDRESS    default: deployer (testnet ONLY)
+ *  OLD_DAIMON          default: empty -> deploys MockOldDaimon
+ *  OLD_SUPPLY          default: 1_000_000_000 * 1e18 (for the mock)
+ *  MIGRATION_DURATION  default: 30 days (in seconds)
  */
 contract Deploy is Script {
     // PancakeSwap V2 Router — BSC TESTNET (chain id 97)
     address internal constant PANCAKE_V2_ROUTER_TESTNET = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
-    uint256 internal constant TIMELOCK_MIN_DELAY = 7 days;      // = MIN_DELAY hardcodato nel timelock
+    uint256 internal constant TIMELOCK_MIN_DELAY = 7 days;      // = MIN_DELAY hardcoded in the timelock
     uint256 internal constant QUORUM_BPS = 1000;                // 10%
-    uint256 internal constant PROPOSAL_THRESHOLD = 1000 ether;  // 1000 DMN di voting power per proporre
+    uint256 internal constant PROPOSAL_THRESHOLD = 1000 ether;  // 1000 DMN of voting power to propose
 
     function run() external {
         vm.startBroadcast();
 
-        // Broadcaster REALE (da --account/--private-key): msg.sender non e'
-        // affidabile qui — con --account senza --sender resterebbe il
-        // DefaultSender di Foundry e la predizione del nonce fallirebbe.
+        // REAL broadcaster (from --account/--private-key): msg.sender is not
+        // reliable here — with --account and no --sender it would stay
+        // Foundry's DefaultSender and the nonce prediction would fail.
         (, address deployer,) = vm.readCallers();
 
         address router = vm.envOr("ROUTER", PANCAKE_V2_ROUTER_TESTNET);
@@ -60,35 +60,35 @@ contract Deploy is Script {
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
 
         if (guardian == deployer) {
-            console2.log("ATTENZIONE: GUARDIAN_ADDRESS = deployer. Accettabile SOLO su testnet.");
+            console2.log("WARNING: GUARDIAN_ADDRESS = deployer. Acceptable on testnet ONLY.");
         }
         if (treasury == deployer || marketingWallet == deployer) {
-            console2.log("ATTENZIONE: treasury/marketing = deployer. Accettabile SOLO su testnet.");
+            console2.log("WARNING: treasury/marketing = deployer. Acceptable on testnet ONLY.");
         }
 
-        // ---- 1. Vecchio Daimon: mock su testnet se non fornito ----
+        // ---- 1. Old Daimon: mock on testnet if not provided ----
         if (oldDaimonAddr == address(0)) {
             MockOldDaimon oldMock = new MockOldDaimon(oldSupply, deployer);
             oldDaimonAddr = address(oldMock);
-            // Passaggio preparatorio della migrazione: senza l'esclusione
-            // della treasury dalle fee del vecchio token, claim() reverte
-            // con AmountMismatch (per design, a protezione degli utenti).
+            // Preparatory migration step: without excluding the treasury from
+            // the old token's fees, claim() reverts with AmountMismatch (by
+            // design, to protect users).
             oldMock.excludeFromFee(treasury);
         }
 
-        // ---- 2. Implementation del token (initialize disabilitata dal constructor) ----
+        // ---- 2. Token implementation (initialize disabled by the constructor) ----
         DaimonV2 impl = new DaimonV2();
 
-        // ---- 3. Precalcolo dell'indirizzo della DaimonMigration ----
-        // Da qui in poi il deployer creera', con nonce consecutivi:
-        //   +0 proxy del token, +1 staking, +2 timelock, +3 governor, +4 migration
+        // ---- 3. Precompute the DaimonMigration address ----
+        // From here on the deployer will create, with consecutive nonces:
+        //   +0 token proxy, +1 staking, +2 timelock, +3 governor, +4 migration
         uint256 nonce = vm.getNonce(deployer);
         address predictedMigration = vm.computeCreateAddress(deployer, nonce + 4);
 
-        // ---- 4. Proxy UUPS con initialize atomica ----
-        // La VERA migration e' il _migrationContract: riceve l'intera
-        // INITIAL_SUPPLY ed e' esclusa dalle fee gia' in initialize().
-        // Nessun EOA "ponte" tocca mai la supply.
+        // ---- 4. UUPS proxy with atomic initialize ----
+        // The REAL migration is the _migrationContract: it receives the entire
+        // INITIAL_SUPPLY and is excluded from fees already in initialize().
+        // No "bridge" EOA ever touches the supply.
         DaimonV2 token = DaimonV2(payable(address(new ERC1967Proxy(
             address(impl),
             abi.encodeCall(DaimonV2.initialize, (
@@ -96,30 +96,30 @@ contract Deploy is Script {
                 "DMN",
                 predictedMigration,
                 router,
-                deployer,        // governance temporanea per il wiring, revocata al punto 9
+                deployer,        // temporary governance for the wiring, revoked at step 9
                 guardian,
                 marketingWallet
             ))
         ))));
 
-        // ---- 5. Staking (governance temporanea: deployer) ----
+        // ---- 5. Staking (temporary governance: deployer) ----
         DaimonStaking staking = new DaimonStaking(address(token), deployer);
 
-        // ---- 6. Timelock: deployer proposer/executor/admin SOLO per bootstrap ----
+        // ---- 6. Timelock: deployer as proposer/executor/admin for bootstrap ONLY ----
         DaimonTimelock timelock = new DaimonTimelock(TIMELOCK_MIN_DELAY, deployer, deployer, guardian, deployer);
 
         // ---- 7. Governor ----
         DaimonGovernor governor =
             new DaimonGovernor(address(staking), address(timelock), guardian, QUORUM_BPS, PROPOSAL_THRESHOLD);
 
-        // ---- 8. Migration: DEVE atterrare sull'indirizzo precalcolato ----
+        // ---- 8. Migration: MUST land on the precomputed address ----
         DaimonMigration migration =
             new DaimonMigration(oldDaimonAddr, address(token), treasury, address(timelock), migrationDuration);
         require(address(migration) == predictedMigration, "Deploy: predicted migration address mismatch");
 
-        // ---- 9. Wiring dei ruoli ----
-        // Governor: proposer (queue) ed executor (execute chiama il timelock
-        // con msg.sender = governor).
+        // ---- 9. Role wiring ----
+        // Governor: proposer (queue) and executor (execute calls the timelock
+        // with msg.sender = governor).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
@@ -132,9 +132,9 @@ contract Deploy is Script {
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
 
-        // ---- 10. Rinuncia finale: il deployer perde l'ultimo ruolo bootstrap ----
-        // Da qui il timelock amministra solo se stesso (le rotazioni di
-        // ruolo passano da proposte di governance).
+        // ---- 10. Final renounce: the deployer loses the last bootstrap role ----
+        // From here the timelock administers only itself (role rotations go
+        // through governance proposals).
         timelock.renounceRole(timelock.ADMIN_ROLE(), deployer);
 
         vm.stopBroadcast();
@@ -143,9 +143,9 @@ contract Deploy is Script {
         _logDeployment(token, impl, staking, timelock, governor, migration, oldDaimonAddr);
     }
 
-    /// Assert on-chain: nessun EOA detiene piu' ruoli amministrativi.
-    /// (Il guardian conserva SOLO pausa/cancel, per design; in produzione
-    /// deve essere un multisig.)
+    /// On-chain assert: no EOA still holds administrative roles.
+    /// (The guardian keeps ONLY pause/cancel, by design; in production it must
+    /// be a multisig.)
     function _assertDecentralized(
         DaimonV2 token,
         DaimonStaking staking,
@@ -155,27 +155,27 @@ contract Deploy is Script {
         address deployer,
         address guardian
     ) internal view {
-        // Token: governa solo il timelock, nessun DEFAULT_ADMIN assegnato.
-        require(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "assert: timelock non governa il token");
-        require(!token.hasRole(token.GOVERNANCE_ROLE(), deployer), "assert: deployer governa ancora il token");
-        require(!token.hasRole(token.DEFAULT_ADMIN_ROLE(), deployer), "assert: deployer admin del token");
-        require(token.hasRole(token.GUARDIAN_ROLE(), guardian), "assert: guardian senza ruolo pausa");
+        // Token: governed only by the timelock, no DEFAULT_ADMIN assigned.
+        require(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "assert: timelock does not govern the token");
+        require(!token.hasRole(token.GOVERNANCE_ROLE(), deployer), "assert: deployer still governs the token");
+        require(!token.hasRole(token.DEFAULT_ADMIN_ROLE(), deployer), "assert: deployer is token admin");
+        require(token.hasRole(token.GUARDIAN_ROLE(), guardian), "assert: guardian has no pause role");
 
-        // Timelock: si auto-amministra, il deployer non ha alcun ruolo.
-        require(timelock.hasRole(timelock.ADMIN_ROLE(), address(timelock)), "assert: timelock non si autoamministra");
-        require(!timelock.hasRole(timelock.ADMIN_ROLE(), deployer), "assert: deployer admin del timelock");
-        require(!timelock.hasRole(timelock.PROPOSER_ROLE(), deployer), "assert: deployer proposer");
-        require(!timelock.hasRole(timelock.EXECUTOR_ROLE(), deployer), "assert: deployer executor");
-        require(timelock.hasRole(timelock.PROPOSER_ROLE(), address(governor)), "assert: governor non proposer");
-        require(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(governor)), "assert: governor non executor");
+        // Timelock: self-administers, the deployer has no role.
+        require(timelock.hasRole(timelock.ADMIN_ROLE(), address(timelock)), "assert: timelock does not self-administer");
+        require(!timelock.hasRole(timelock.ADMIN_ROLE(), deployer), "assert: deployer is timelock admin");
+        require(!timelock.hasRole(timelock.PROPOSER_ROLE(), deployer), "assert: deployer is proposer");
+        require(!timelock.hasRole(timelock.EXECUTOR_ROLE(), deployer), "assert: deployer is executor");
+        require(timelock.hasRole(timelock.PROPOSER_ROLE(), address(governor)), "assert: governor is not proposer");
+        require(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(governor)), "assert: governor is not executor");
 
-        // Staking: governa solo il timelock.
-        require(staking.isGovernance(address(timelock)), "assert: timelock non governa lo staking");
-        require(!staking.isGovernance(deployer), "assert: deployer governa ancora lo staking");
+        // Staking: governed only by the timelock.
+        require(staking.isGovernance(address(timelock)), "assert: timelock does not govern staking");
+        require(!staking.isGovernance(deployer), "assert: deployer still governs staking");
 
-        // Supply: interamente nella migration, mai transitata da un EOA.
-        require(token.balanceOf(address(migration)) == token.INITIAL_SUPPLY(), "assert: supply non in migration");
-        require(token.totalSupply() == token.INITIAL_SUPPLY(), "assert: supply totale inattesa");
+        // Supply: entirely in the migration, never passed through an EOA.
+        require(token.balanceOf(address(migration)) == token.INITIAL_SUPPLY(), "assert: supply not in migration");
+        require(token.totalSupply() == token.INITIAL_SUPPLY(), "assert: unexpected total supply");
     }
 
     function _logDeployment(
@@ -187,15 +187,15 @@ contract Deploy is Script {
         DaimonMigration migration,
         address oldDaimonAddr
     ) internal view {
-        console2.log("=== Daimon DAO - deploy completato ===");
+        console2.log("=== Daimon DAO - deploy complete ===");
         console2.log("DaimonV2 (proxy):        ", address(token));
         console2.log("DaimonV2 (implementation):", address(impl));
-        console2.log("Pair PancakeSwap V2:     ", token.uniswapV2Pair());
+        console2.log("PancakeSwap V2 pair:     ", token.uniswapV2Pair());
         console2.log("DaimonStaking:           ", address(staking));
         console2.log("DaimonTimelock:          ", address(timelock));
         console2.log("DaimonGovernor:          ", address(governor));
         console2.log("DaimonMigration:         ", address(migration));
-        console2.log("Vecchio Daimon:          ", oldDaimonAddr);
-        console2.log("Tutti gli assert di decentralizzazione sono passati.");
+        console2.log("Old Daimon:              ", oldDaimonAddr);
+        console2.log("All decentralization asserts passed.");
     }
 }

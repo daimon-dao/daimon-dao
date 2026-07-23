@@ -7,16 +7,16 @@ import { useClient } from "wagmi";
 import { useI18n } from "@/components/LocaleProvider";
 
 /*
- * Sonda di salute dell'RPC: ogni 15s chiede il numero di blocco tramite lo
- * STESSO transport viem della dApp. Due fallimenti consecutivi (~30s) →
- * banner discreto: i dati potrebbero non essere aggiornati. Sparisce da
- * solo alla prima lettura riuscita (il recupero dei dati e' automatico via
- * react-query, nessun refresh manuale richiesto).
+ * RPC health probe: every 15s it asks for the block number through the SAME
+ * viem transport as the dApp. Two consecutive failures (~30s) → a discreet
+ * banner: the data may be stale. It disappears on its own at the first
+ * successful read (data recovery is automatic via react-query, no manual
+ * refresh required).
  *
- * Volutamente NON usa react-query: le sue query wagmi girano in networkMode
- * offlineFirst e vanno in "paused" (mai in errore) quando l'onlineManager
- * crede il device offline — che e' esattamente uno dei casi da segnalare.
- * setInterval + try/catch non ha stati intermedi.
+ * Deliberately does NOT use react-query: its wagmi queries run in networkMode
+ * offlineFirst and go "paused" (never errored) when the onlineManager believes
+ * the device is offline — which is exactly one of the cases to flag.
+ * setInterval + try/catch has no intermediate states.
  */
 export function RpcHealthBanner() {
   const { t } = useI18n();
@@ -28,14 +28,14 @@ export function RpcHealthBanner() {
     let alive = true;
     async function probe() {
       try {
-        // Azione esplicita: il client di useClient() non ha i metodi estesi.
+        // Explicit action: the client from useClient() lacks the extended methods.
         await getBlockNumber(client!);
         if (!alive) return;
         setFailures(0);
-        // L'RPC risponde: se react-query si crede "offline" (evento online
-        // mai arrivato — capita su WebView e reti instabili), le query dati
-        // resterebbero in pausa per sempre. La sonda che riesce E' la prova
-        // di connettivita': sblocchiamo l'onlineManager e le query riprendono.
+        // The RPC responds: if react-query believes it is "offline" (an online
+        // event that never arrived — happens in WebViews and on flaky networks),
+        // the data queries would stay paused forever. A successful probe IS the
+        // proof of connectivity: we unblock the onlineManager and the queries resume.
         if (!onlineManager.isOnline()) onlineManager.setOnline(true);
       } catch {
         if (alive) setFailures((f) => f + 1);

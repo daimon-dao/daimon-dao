@@ -2,17 +2,17 @@ import { formatUnits } from "viem";
 import type { Locale } from "@/lib/i18n";
 
 /*
- * Tronca `x` a `digits` decimali VERSO LO ZERO (mai arrotondamento): il
- * valore mostrato non supera mai quello reale. Fondamentale per le metriche
- * deflazionarie — con round, 999.955 diventerebbe "1000.0" nascondendo il
- * burn. Costruisce la stringa dai pezzi interi per evitare che toFixed
- * ri-arrotondi per imprecisione floating point.
+ * Truncates `x` to `digits` decimals TOWARD ZERO (never rounding): the value
+ * shown never exceeds the real one. Essential for the deflationary metrics —
+ * with rounding, 999.955 would become "1000.0", hiding the burn. It builds the
+ * string from the integer parts to avoid toFixed re-rounding due to
+ * floating-point imprecision.
  */
 export function truncFixed(x: number, digits: number): string {
   const sign = x < 0 ? "-" : "";
   const abs = Math.abs(x);
   const factor = 10 ** digits;
-  const scaled = Math.floor(abs * factor); // troncamento verso il basso
+  const scaled = Math.floor(abs * factor); // truncate downward
   const intPart = Math.floor(scaled / factor);
   if (digits === 0) return `${sign}${intPart}`;
   const fracPart = (scaled % factor).toString().padStart(digits, "0");
@@ -20,17 +20,16 @@ export function truncFixed(x: number, digits: number): string {
 }
 
 /*
- * Formattazione importi (DAPP_SPEC.md §8.5): compatta e leggibile
- * ("987.4B", "1.5M"), con il valore esatto disponibile per i tooltip.
- * Sempre troncata verso il basso: la cifra visualizzata non eccede mai il
- * valore on-chain reale.
+ * Amount formatting (DAPP_SPEC.md §8.5): compact and readable ("987.4B",
+ * "1.5M"), with the exact value available for the tooltips. Always truncated
+ * downward: the displayed figure never exceeds the real on-chain value.
  */
 export function formatCompact(value: bigint, decimals = 18, digits = 1): string {
   const n = Number(formatUnits(value, decimals));
   if (!isFinite(n)) return "-";
   const abs = Math.abs(n);
-  // Niente tier "T": la scala di riferimento del progetto e' il miliardo
-  // ("1000B -> 21B"), quindi 1e12 si mostra come 1000B.
+  // No "T" tier: the project's reference scale is the billion
+  // ("1000B -> 21B"), so 1e12 is shown as 1000B.
   if (abs >= 1e9) return `${truncFixed(n / 1e9, digits)}B`;
   if (abs >= 1e6) return `${truncFixed(n / 1e6, digits)}M`;
   if (abs >= 1e3) return `${truncFixed(n / 1e3, digits)}K`;
@@ -39,12 +38,12 @@ export function formatCompact(value: bigint, decimals = 18, digits = 1): string 
   return n.toLocaleString("it-IT", { maximumFractionDigits: 6 });
 }
 
-/** bigint (18 decimali) -> number, per calcoli di UI non critici. */
+/** bigint (18 decimals) -> number, for non-critical UI calculations. */
 export function formatUnitsNumber(value: bigint, decimals = 18): number {
   return Number(formatUnits(value, decimals));
 }
 
-/** Valore esatto con separatori, per i tooltip. */
+/** Exact value with separators, for the tooltips. */
 export function formatExact(value: bigint, decimals = 18): string {
   const s = formatUnits(value, decimals);
   const [int, frac] = s.split(".");
@@ -64,7 +63,7 @@ export function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-/** Countdown leggibile: "3g 4h" / "3d 4h", "2h 15m", "12m". */
+/** Human-readable countdown: "3g 4h" / "3d 4h", "2h 15m", "12m". */
 export function formatCountdown(secondsLeft: number, locale: Locale = "en"): string {
   if (secondsLeft <= 0) return locale === "it" ? "adesso" : "now";
   const d = Math.floor(secondsLeft / 86400);

@@ -84,7 +84,7 @@ export default function Staking() {
   );
   const selected = options.find((o) => o.index === optionIndex) ?? options[0];
 
-  // --- Dati utente ---
+  // --- User data ---
   const { data: userData } = useReadContracts({
     contracts: address
       ? [
@@ -101,7 +101,7 @@ export default function Staking() {
   const myVotingPower = userData?.[2]?.result as bigint | undefined;
   const myReward = userData?.[3]?.result as bigint | undefined;
 
-  // --- Posizioni: scansione dei lock per id (numero piccolo su testnet) ---
+  // --- Positions: scan locks by id (a small number on testnet) ---
   const { data: nextLockId } = useReadContract({ ...staking, functionName: "nextLockId" });
   const nLocks = Math.min(Number(nextLockId ?? 0n), MAX_LOCK_SCAN);
   const { data: locksData } = useReadContracts({
@@ -136,7 +136,7 @@ export default function Staking() {
       );
   }, [locksData, address]);
 
-  // --- Simulatore (funziona anche senza wallet, spec §6) ---
+  // --- Simulator (works even without a wallet, spec §6) ---
   const amount = useMemo(() => {
     try {
       return parseUnits((amountInput || "0").replace(",", "."), 18);
@@ -150,10 +150,10 @@ export default function Staking() {
   const sliderMax = balance !== undefined ? formatUnitsNumber(balance) : 100_000_000;
 
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
-  // Il contratto rifiuterebbe uno stake oltre il saldo: blocchiamo prima.
+  // The contract would reject a stake beyond the balance: block it first.
   const insufficientBalance = isConnected && balance !== undefined && amount > balance;
 
-  // Il refetch post-conferma e' automatico (invalidazione in useTx).
+  // The post-confirmation refetch is automatic (invalidation in useTx).
   async function doApprove() {
     await approveTx.send({
       ...token,
@@ -238,9 +238,9 @@ export default function Staking() {
             </p>
             <p className="mt-2 text-sm">
               <span className="text-secondario">{t("staking.unlockOn")}</span>
-              {/* Gated sulle opzioni on-chain: una data derivata
-                  dall'orologio al primo paint non coincide mai tra l'HTML
-                  prerenderizzato e il client (hydration mismatch). */}
+              {/* Gated on the on-chain options: a date derived from the clock
+                  at first paint never matches between the prerendered HTML and
+                  the client (hydration mismatch). */}
               <b>{selected ? formatDate(unlockDate, locale) : "…"}</b>
             </p>
           </div>

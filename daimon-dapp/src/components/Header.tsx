@@ -48,9 +48,9 @@ function ThemeToggle() {
 }
 
 /*
- * Selettore lingua EN | IT: la scelta persiste in cookie (letta dal server
- * al prossimo request) e la UI cambia subito, senza reload — la connessione
- * wallet e lo stato delle pagine non vengono toccati.
+ * Language selector EN | IT: the choice persists in a cookie (read by the
+ * server on the next request) and the UI changes immediately, without a reload
+ * — the wallet connection and the pages' state are not touched.
  */
 function LanguageToggle() {
   const { locale, setLocale, t } = useI18n();
@@ -80,9 +80,9 @@ function LanguageToggle() {
 }
 
 /*
- * MOBILE-FIRST (spec §8.6): sotto `sm` la barra contiene SOLO logo,
- * bottone wallet compatto e hamburger — lingua e tema vivono nel menu
- * hamburger come voci etichettate. Da `sm` in su tornano nella barra.
+ * MOBILE-FIRST (spec §8.6): below `sm` the bar contains ONLY the logo, the
+ * compact wallet button and the hamburger — language and theme live in the
+ * hamburger menu as labeled items. From `sm` up they return to the bar.
  */
 export function Header() {
   const { t } = useI18n();
@@ -115,7 +115,7 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Lingua e tema: solo da sm in su (su mobile stanno nel menu ☰) */}
+          {/* Language and theme: only from sm up (on mobile they live in the ☰ menu) */}
           <div className="hidden items-center gap-2 sm:flex">
             <LanguageToggle />
             <ThemeToggle />
@@ -132,7 +132,7 @@ export function Header() {
         </div>
       </div>
 
-      {/* Tra sm e md: espansione inline sotto la barra (come sempre). */}
+      {/* Between sm and md: inline expansion below the bar (as always). */}
       {open && !isMobile && (
         <nav className="border-t border-bordi px-4 py-2 md:hidden">
           {NAV.map((n) => (
@@ -150,7 +150,7 @@ export function Header() {
         </nav>
       )}
 
-      {/* Sotto sm: bottom sheet con navigazione + lingua + tema. */}
+      {/* Below sm: bottom sheet with navigation + language + theme. */}
       <BottomSheet open={open && isMobile} onClose={() => setOpen(false)} label={t("header.openMenu")}>
         <nav>
           {NAV.map((n) => (

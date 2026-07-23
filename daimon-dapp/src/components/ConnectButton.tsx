@@ -20,8 +20,8 @@ export function ConnectButton() {
   const { switchChain } = useSwitchChain();
 
   useEffect(() => setMounted(true), []);
-  // Chiusura al click fuori: SOLO per il dropdown desktop — il bottom sheet
-  // vive in un portal fuori da menuRef (chiude col suo backdrop).
+  // Close on outside click: ONLY for the desktop dropdown — the bottom sheet
+  // lives in a portal outside menuRef (it closes with its own backdrop).
   useEffect(() => {
     if (isMobile) return;
     function onClick(e: MouseEvent) {
@@ -38,7 +38,7 @@ export function ConnectButton() {
       await navigator.clipboard.writeText(address);
       ok = true;
     } catch {
-      // Fallback per contesti dove la Clipboard API e' negata.
+      // Fallback for contexts where the Clipboard API is denied.
       try {
         const ta = document.createElement("textarea");
         ta.value = address;
@@ -56,8 +56,8 @@ export function ConnectButton() {
     }
   }
 
-  // Apre il selettore account del wallet SENZA disconnettere: alla scelta
-  // di un altro account MetaMask emette accountsChanged e wagmi si aggiorna.
+  // Opens the wallet's account picker WITHOUT disconnecting: when another
+  // account is chosen MetaMask emits accountsChanged and wagmi updates.
   async function changeAccount() {
     setMenuOpen(false);
     try {
@@ -69,12 +69,12 @@ export function ConnectButton() {
         params: [{ eth_accounts: {} }],
       });
     } catch {
-      /* rifiuto dell'utente o wallet senza supporto: nessun errore */
+      /* user rejection or unsupported wallet: no error */
     }
   }
 
-  // Etichetta compatta sotto sm: "Connect"/"Connetti" su UNA riga — il
-  // testo esteso spaccava l'header a 360-428px (bug post-i18n).
+  // Compact label below sm: "Connect"/"Connetti" on ONE line — the full text
+  // broke the header at 360-428px (post-i18n bug).
   const connectLabel = (
     <>
       <span className="sm:hidden">{t("connect.connectShort")}</span>
@@ -83,8 +83,9 @@ export function ConnectButton() {
   );
 
   /*
-   * Contenuti dei due menu, condivisi tra dropdown (>=sm) e bottom sheet
-   * (<sm). Nel sheet i tap target salgono a >=44px (py-3, testo base).
+   * Contents of the two menus, shared between the dropdown (>=sm) and the
+   * bottom sheet (<sm). In the sheet the tap targets grow to >=44px (py-3,
+   * base text).
    */
   function accountMenuItems(sheet: boolean) {
     if (!address) return null;
@@ -141,7 +142,7 @@ export function ConnectButton() {
               try {
                 await connectAsync({ connector: c });
               } catch {
-                /* rifiuto dell'utente: nessun errore da mostrare */
+                /* user rejection: no error to show */
               }
             }}
           >
@@ -171,7 +172,7 @@ export function ConnectButton() {
   }
 
   if (isConnected && address) {
-    // Click esplorativo -> menu con le opzioni, MAI disconnessione diretta.
+    // Exploratory click -> options menu, NEVER a direct disconnect.
     return (
       <div className="relative" ref={menuRef}>
         <button

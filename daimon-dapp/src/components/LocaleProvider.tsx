@@ -19,11 +19,11 @@ type I18nContext = {
 const Ctx = createContext<I18nContext | null>(null);
 
 /*
- * initialLocale arriva dal server (cookie / Accept-Language letti nel root
- * layout): il primo render client usa la STESSA lingua dell'HTML server →
- * niente hydration mismatch. Il cambio lingua e' solo client-side: scrive
- * il cookie (persistenza a refresh/navigazioni successive) e aggiorna lo
- * stato → tutta la UI si ri-renderizza senza reload, wallet incluso.
+ * initialLocale comes from the server (cookie / Accept-Language read in the
+ * root layout): the first client render uses the SAME language as the server
+ * HTML → no hydration mismatch. Changing language is client-side only: it
+ * writes the cookie (persistence across later refreshes/navigations) and
+ * updates the state → the whole UI re-renders without a reload, wallet included.
  */
 export function LocaleProvider({
   initialLocale,
@@ -39,8 +39,8 @@ export function LocaleProvider({
     document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`;
   }, []);
 
-  // Dopo un cambio lingua client-side: <html lang> e <title> restano
-  // coerenti (i metadata server si aggiornano solo al prossimo request).
+  // After a client-side language change: <html lang> and <title> stay
+  // consistent (the server metadata only updates on the next request).
   useEffect(() => {
     document.documentElement.lang = locale;
     document.title = translate(locale, "meta.title");
@@ -57,6 +57,6 @@ export function LocaleProvider({
 
 export function useI18n(): I18nContext {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useI18n richiede LocaleProvider nel tree");
+  if (!ctx) throw new Error("useI18n requires LocaleProvider in the tree");
   return ctx;
 }

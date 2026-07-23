@@ -5,7 +5,7 @@ import { ADDRESSES } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { useI18n } from "@/components/LocaleProvider";
 
-/** true se il token e' in pausa di emergenza (poll ogni 30s). */
+/** true if the token is in emergency pause (polled every 30s). */
 export function usePaused(): boolean {
   const { data } = useReadContract({
     address: ADDRESSES.daimonV2,

@@ -15,7 +15,7 @@ function T(x, y, s, { size = 40, weight = 700, fill = CREAM, anchor = "start", o
   return `<text x="${x}" y="${y}" font-family="Inter" font-weight="${weight}" font-size="${size}" fill="${fill}" fill-opacity="${op}" text-anchor="${anchor}"${spacing ? ` letter-spacing="${spacing}"` : ""}>${esc(s)}</text>`;
 }
 
-// texture minima: anelli concentrici molto tenui (echo del logo)
+// minimal texture: very faint concentric rings (an echo of the logo)
 function faintRings(cx, cy, color = GOLD, op = 0.05) {
   let r = "";
   for (const rad of [120, 200, 290, 400]) {
@@ -35,9 +35,9 @@ function banner(lang) {
   return head(1500, 500) +
     `<rect width="1500" height="500" fill="${NAVY}"/>` +
     faintRings(230, 250, GOLD, 0.045) +
-    // medaglione a sinistra, alzato per lasciare libero l'angolo in basso a sx (avatar)
+    // medallion on the left, raised to keep the bottom-left corner free (avatar)
     coin(120, 78, 210, { coinFill: "#111b3a", glow: true }) +
-    // filo verticale di separazione, discreto
+    // discreet vertical separator line
     `<rect x="405" y="150" width="2" height="200" fill="${GOLD}" fill-opacity="0.35"/>` +
     T(455, 185, l1, { size: 54, weight: 600, fill: GOLD }) +
     T(455, 300, hero, { size: 96, weight: 900, fill: GOLD }) +
@@ -59,7 +59,7 @@ function statCard({ eyebrow, big, bigSize, caption, extra = "" }) {
     `</svg>`;
 }
 
-// barra di deflazione stilizzata per la card d
+// stylized deflation bar for the supply card
 const deflBar = (() => {
   const x = 400, y = 680, w = 800, h = 16;
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#111b3a" stroke="${GOLD}" stroke-opacity="0.25"/>` +
@@ -94,7 +94,7 @@ function githubPreview() {
 }
 
 /* ============ RENDER ============ */
-// Banner gestiti da banner.mjs (varianti A/B). Qui: card social + preview, EN.
+// Banners handled by banner.mjs (variants A/B). Here: social cards + preview, EN.
 const jobs = [
   ["stat-fee.png", statCard({ eyebrow: "FEE", big: "11% → 4%", bigSize: 175, caption: "decided by the DAO, not by a boss" })],
   ["stat-timelock.png", statCard({ eyebrow: "TIMELOCK", big: "604,800", bigSize: 185, caption: "seconds of timelock. Exact. Even for us." })],
@@ -109,4 +109,4 @@ for (const [name, svg] of jobs) {
   render(svg, `${OUT}/${name}`);
   console.log("ok", name);
 }
-console.log("TUTTO FATTO");
+console.log("ALL DONE");

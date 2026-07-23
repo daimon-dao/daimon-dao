@@ -8,9 +8,9 @@ import {DaimonGovernor} from "../src/DaimonGovernor.sol";
 import {DaimonTimelock} from "../src/DaimonTimelock.sol";
 
 /*
- * Test dei percorsi critici non coperti dalla suite principale, individuati
- * dalla rassegna di copertura: upgrade UUPS, allowance/transferFrom, i setter
- * amministrativi di Governor/Timelock e la gestione delle lock option.
+ * Tests for critical paths not covered by the main suite, identified by the
+ * coverage review: UUPS upgrade, allowance/transferFrom, the administrative
+ * setters of Governor/Timelock and lock-option management.
  */
 contract CoverageGaps is StackDeployer {
     address internal alice = address(0xA11CE);
@@ -21,37 +21,37 @@ contract CoverageGaps is StackDeployer {
     }
 
     // ============================================================
-    // UUPS upgrade — il percorso piu' sensibile (upgradeabilita')
+    // UUPS upgrade — the most sensitive path (upgradeability)
     // ============================================================
     function test_UpgradeOnlyByGovernance() public {
         DaimonV2 newImpl = new DaimonV2();
 
-        // Un indirizzo qualsiasi non puo' aggiornare.
+        // A random address cannot upgrade.
         vm.prank(alice);
         vm.expectRevert();
         token.upgradeToAndCall(address(newImpl), "");
 
-        // Nemmeno il guardian (ha solo la pausa).
+        // Not even the guardian (it only has the pause).
         vm.prank(guardian);
         vm.expectRevert();
         token.upgradeToAndCall(address(newImpl), "");
     }
 
     function test_UpgradeViaGovernancePreservesState() public {
-        // Stato pre-upgrade
+        // Pre-upgrade state
         uint256 supplyBefore = token.totalSupply();
         uint256 migBal = token.balanceOf(address(migration));
 
         DaimonV2 newImpl = new DaimonV2();
 
-        // Solo la governance (Timelock) puo' autorizzare l'upgrade.
+        // Only governance (Timelock) can authorize the upgrade.
         vm.prank(address(timelock));
         token.upgradeToAndCall(address(newImpl), "");
 
-        // Stato preservato: supply, saldi e ruoli invariati.
-        assertEq(token.totalSupply(), supplyBefore, "supply cambiata dall'upgrade");
-        assertEq(token.balanceOf(address(migration)), migBal, "saldo cambiato dall'upgrade");
-        assertTrue(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "governance persa");
+        // State preserved: supply, balances and roles unchanged.
+        assertEq(token.totalSupply(), supplyBefore, "supply changed by the upgrade");
+        assertEq(token.balanceOf(address(migration)), migBal, "balance changed by the upgrade");
+        assertTrue(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "governance lost");
     }
 
     function test_UpgradeRejectsZeroImplementation() public {
@@ -73,8 +73,8 @@ contract CoverageGaps is StackDeployer {
         vm.prank(bob);
         token.transferFrom(alice, bob, 40_000 ether);
 
-        // L'allowance finita scende dell'importo speso.
-        assertEq(token.allowance(alice, bob), 60_000 ether, "allowance non decrementata");
+        // The finite allowance drops by the amount spent.
+        assertEq(token.allowance(alice, bob), 60_000 ether, "allowance not decremented");
     }
 
     function test_InfiniteAllowanceNotDecremented() public {
@@ -86,7 +86,7 @@ contract CoverageGaps is StackDeployer {
         vm.prank(bob);
         token.transferFrom(alice, bob, 50_000 ether);
 
-        assertEq(token.allowance(alice, bob), type(uint256).max, "allowance infinita decrementata");
+        assertEq(token.allowance(alice, bob), type(uint256).max, "infinite allowance decremented");
     }
 
     function test_IncreaseAndDecreaseAllowance() public {
@@ -102,7 +102,7 @@ contract CoverageGaps is StackDeployer {
     }
 
     // ============================================================
-    // Governor: setter solo-timelock e cancel del guardian
+    // Governor: timelock-only setters and guardian cancel
     // ============================================================
     function test_GovernorSettersOnlyTimelock() public {
         vm.prank(alice);
@@ -125,7 +125,7 @@ contract CoverageGaps is StackDeployer {
     function test_GovernorQuorumFloorEnforced() public {
         vm.prank(address(timelock));
         vm.expectRevert("DaimonGovernor: below MIN_QUORUM_BPS");
-        governor.setQuorumBps(999); // sotto il 10% minimo
+        governor.setQuorumBps(999); // below the 10% minimum
     }
 
     function test_GuardianCanCancelProposal() public {
@@ -143,36 +143,36 @@ contract CoverageGaps is StackDeployer {
         governor.cancel(id);
         assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Canceled));
 
-        // Un non-guardian non puo' cancellare.
+        // A non-guardian cannot cancel.
         vm.prank(alice);
         vm.expectRevert(DaimonGovernor.NotGuardian.selector);
         governor.cancel(id);
     }
 
     // ============================================================
-    // Timelock: cancel del canceller (guardian)
+    // Timelock: canceller (guardian) cancel
     // ============================================================
     function test_TimelockCancellerCanCancel() public {
-        // Schedula un'operazione tramite un finto proposer per testare cancel.
-        // Il PROPOSER e' il governor; qui usiamo un id calcolato e verifichiamo
-        // che solo il CANCELLER (guardian) possa annullare.
+        // Schedule an operation via a fake proposer to test cancel.
+        // The PROPOSER is the governor; here we use a computed id and verify
+        // that only the CANCELLER (guardian) can cancel.
         bytes32 fakeId = keccak256("op");
         vm.prank(alice);
         vm.expectRevert();
-        timelock.cancel(fakeId); // alice non ha CANCELLER_ROLE
+        timelock.cancel(fakeId); // alice has no CANCELLER_ROLE
 
         vm.prank(guardian);
-        timelock.cancel(fakeId); // guardian = canceller: non reverte
+        timelock.cancel(fakeId); // guardian = canceller: does not revert
     }
 
     // ============================================================
-    // Staking: gestione lock option (governance)
+    // Staking: lock-option management (governance)
     // ============================================================
     function test_AddAndDisableLockOption() public {
         uint256 nBefore = staking.lockOptionsLength();
 
         vm.prank(address(timelock));
-        staking.addLockOption(730 days, 8000); // 2 anni, 8x
+        staking.addLockOption(730 days, 8000); // 2 years, 8x
         assertEq(staking.lockOptionsLength(), nBefore + 1);
 
         (uint256 dur, uint256 mult, bool active) = staking.lockOptions(nBefore);
@@ -185,14 +185,14 @@ contract CoverageGaps is StackDeployer {
         (,, bool activeAfter) = staking.lockOptions(nBefore);
         assertFalse(activeAfter);
 
-        // Un non-governance non puo' aggiungere opzioni.
+        // A non-governance address cannot add options.
         vm.prank(alice);
         vm.expectRevert(DaimonStaking.NotGovernance.selector);
         staking.addLockOption(1 days, 1000);
     }
 
     // ============================================================
-    // Token: setter parametrici con bound
+    // Token: parametric setters with bounds
     // ============================================================
     function test_ParametricSettersBounds() public {
         vm.startPrank(address(timelock));
@@ -204,7 +204,7 @@ contract CoverageGaps is StackDeployer {
         token.setStakingRewardShareBps(1001);
 
         vm.expectRevert("DaimonV2: maxTx too low");
-        token.setMaxTxAmount(1); // sotto lo 0.01% della supply
+        token.setMaxTxAmount(1); // below 0.01% of the supply
 
         token.setBuyBackUpperLimit(10 ether);
         assertEq(token.buyBackUpperLimit(), 10 ether);
@@ -213,17 +213,17 @@ contract CoverageGaps is StackDeployer {
     }
 
     // ============================================================
-    // Migration: sweep post-deadline verso la treasury
+    // Migration: post-deadline sweep to the treasury
     // ============================================================
     function test_SweepSendsRemainderToTreasury() public {
-        vm.warp(block.timestamp + 3651 days); // oltre la deadline (3650 giorni)
+        vm.warp(block.timestamp + 3651 days); // past the deadline (3650 days)
         uint256 remaining = token.balanceOf(address(migration));
         uint256 treasuryBefore = token.balanceOf(treasury);
 
         vm.prank(address(timelock));
         migration.sweepUnclaimed();
 
-        assertEq(token.balanceOf(address(migration)), 0, "migration non svuotata");
-        assertEq(token.balanceOf(treasury), treasuryBefore + remaining, "treasury non ha ricevuto il residuo");
+        assertEq(token.balanceOf(address(migration)), 0, "migration not emptied");
+        assertEq(token.balanceOf(treasury), treasuryBefore + remaining, "treasury did not receive the remainder");
     }
 }

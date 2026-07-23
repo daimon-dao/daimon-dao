@@ -1,7 +1,7 @@
 /*
- * ABI minimale della pair PancakeSwap V2 (solo lettura reserve/token0).
- * Non e' un contratto del monorepo, quindi non esiste un artifact Foundry
- * da cui generarlo: e' l'interfaccia standard UniswapV2Pair.
+ * Minimal ABI of the PancakeSwap V2 pair (read-only reserves/token0).
+ * It is not a monorepo contract, so there is no Foundry artifact to generate
+ * it from: it is the standard UniswapV2Pair interface.
  */
 export const pancakePairAbi = [
   {

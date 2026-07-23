@@ -4,10 +4,10 @@ import { useEffect } from "react";
 import { useI18n } from "@/components/LocaleProvider";
 
 /*
- * Error boundary di route (convenzione App Router): se un errore di render
- * sfugge a tutto il resto, l'utente vede questo pannello sobrio invece di
- * una pagina rotta o dell'overlay. I dettagli finiscono in console.
- * Renderizza dentro il root layout, quindi il LocaleProvider e' disponibile.
+ * Route error boundary (App Router convention): if a render error escapes
+ * everything else, the user sees this sober panel instead of a broken page or
+ * the overlay. The details go to the console. It renders inside the root
+ * layout, so the LocaleProvider is available.
  */
 export default function Error({
   error,

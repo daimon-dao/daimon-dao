@@ -7,16 +7,16 @@ import { ADDRESSES, IS_TESTNET } from "@/config/contracts";
 import { pancakePairAbi } from "@/config/abis/pancakePair";
 
 /*
- * Prezzo DMN (DAPP_SPEC.md §4): fonte primaria le reserve on-chain della
- * pair PancakeSwap (prezzo in BNB) x prezzo BNB/USD da API pubblica;
- * fallback DexScreener. Su testnet, se la pool non ha liquidita' sensata
- * (>= 0.1 BNB), si mostra "n/d (testnet)".
+ * DMN price (DAPP_SPEC.md §4): primary source is the PancakeSwap pair's
+ * on-chain reserves (price in BNB) x the BNB/USD price from a public API;
+ * DexScreener fallback. On testnet, if the pool has no sane liquidity
+ * (>= 0.1 BNB), it shows "n/a (testnet)".
  */
 const MIN_SANE_BNB_RESERVE = 0.1;
 
 export type PriceData = {
-  usd: number | null; // prezzo DMN in USD, null = non disponibile
-  bnbUsd: number | null; // prezzo BNB in USD (per i controvalori dei reward)
+  usd: number | null; // DMN price in USD, null = unavailable
+  bnbUsd: number | null; // BNB price in USD (for the reward valuations)
   loading: boolean;
 };
 
@@ -41,7 +41,7 @@ export function usePrice(): PriceData {
     query: { refetchInterval: 60_000 },
   });
 
-  // Prezzo BNB/USD da API pubblica (Binance), senza chiavi.
+  // BNB/USD price from a public API (Binance), no keys.
   useEffect(() => {
     let alive = true;
     fetch("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT")
@@ -71,10 +71,10 @@ export function usePrice(): PriceData {
     }
   }
 
-  // Fallback DexScreener solo se la fonte primaria non e' utilizzabile.
+  // DexScreener fallback only if the primary source is unusable.
   const primaryUnavailable = !isLoading && (priceBnb === null || bnbUsd === null);
   useEffect(() => {
-    if (!primaryUnavailable || IS_TESTNET) return; // su testnet: n/d, niente fallback
+    if (!primaryUnavailable || IS_TESTNET) return; // on testnet: n/a, no fallback
     let alive = true;
     fetch(`https://api.dexscreener.com/latest/dex/pairs/bsc/${ADDRESSES.pancakePair}`)
       .then((r) => r.json())

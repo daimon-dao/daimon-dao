@@ -2,10 +2,10 @@ import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } fr
 import { translate, type Locale } from "@/lib/i18n";
 
 /*
- * Mappa errori contratto -> messaggi comprensibili nella lingua della UI
- * (DAPP_SPEC.md §8.3: mai mostrare stringhe raw di revert). I testi vivono
- * in messages/{en,it}.json sotto "errors.<NomeErrore>": la mappatura esiste
- * per costruzione in entrambe le lingue (stesse chiavi, fallback inglese).
+ * Maps contract errors -> human-readable messages in the UI language
+ * (DAPP_SPEC.md §8.3: never show raw revert strings). The texts live in
+ * messages/{en,it}.json under "errors.<ErrorName>": the mapping exists by
+ * construction in both languages (same keys, English fallback).
  */
 const ERROR_NAMES = [
   // DaimonStaking
@@ -49,9 +49,9 @@ const ERROR_NAMES = [
 ] as const;
 
 /*
- * Il wallet e' su una chain diversa da quella della transazione: non e' un
- * errore del contratto ma un problema di rete, da trattare con un invito
- * neutro allo switch (mai un errore rosso).
+ * The wallet is on a chain different from the transaction's: this is not a
+ * contract error but a network issue, to be handled with a neutral prompt to
+ * switch (never a red error).
  */
 export function isChainMismatch(err: unknown): boolean {
   const e = err as { name?: string; message?: string; shortMessage?: string } | null;
@@ -60,8 +60,8 @@ export function isChainMismatch(err: unknown): boolean {
 }
 
 /*
- * Il rifiuto della firma nel wallet (EIP-1193 code 4001) e' un'azione
- * NORMALE dell'utente, non un errore: va distinta da revert e guasti.
+ * Rejecting the signature in the wallet (EIP-1193 code 4001) is a NORMAL user
+ * action, not an error: it must be distinguished from reverts and failures.
  */
 export function isUserRejection(err: unknown): boolean {
   if (err instanceof BaseError && err.walk((e) => e instanceof UserRejectedRequestError)) {
@@ -90,7 +90,7 @@ export function mapTxError(err: unknown, locale: Locale = "en"): string {
       if (revert.reason) return t("errors.contractRefusedReason", { reason: revert.reason });
     }
     if (err.shortMessage?.includes("User rejected")) return t("errors.rejected");
-    // Selector noto dentro il messaggio (alcuni nodi non decodificano)
+    // Known selector inside the message (some nodes don't decode)
     for (const name of ERROR_NAMES) {
       if (err.message.includes(name)) return t(`errors.${name}`);
     }

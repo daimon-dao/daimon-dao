@@ -12,10 +12,10 @@ import {MockOldDaimon} from "../../src/mocks/MockOldDaimon.sol";
 import {MockUniswapV2Factory, MockUniswapV2Router02, MockWETH} from "../../src/mocks/MockUniswap.sol";
 
 /*
- * Base di deploy condivisa da fuzz e invariant test.
- * Replica il wiring completo dello script di deploy (governance al Timelock,
- * supply nella migration, deployer senza ruoli) in modo autosufficiente per
- * i test, senza dipendere dalla suite esistente.
+ * Shared deploy base used by the fuzz and invariant tests.
+ * Replicates the full wiring of the deploy script (governance to the Timelock,
+ * supply in the migration, deployer with no roles) in a self-contained way for
+ * the tests, without depending on the existing suite.
  */
 abstract contract StackDeployer is Test {
     DaimonV2 internal token;
@@ -32,7 +32,7 @@ abstract contract StackDeployer is Test {
     address internal marketingWallet = address(0x3A);
     address internal treasury = address(0x74);
 
-    uint256 internal constant OLD_SUPPLY = 1_000_000_000_000 ether; // >= INITIAL_SUPPLY, per finanziare gli attori
+    uint256 internal constant OLD_SUPPLY = 1_000_000_000_000 ether; // >= INITIAL_SUPPLY, to fund the actors
 
     function deployStack() internal {
         vm.startPrank(deployer);
@@ -43,10 +43,10 @@ abstract contract StackDeployer is Test {
         vm.deal(address(router), 100_000 ether);
 
         oldToken = new MockOldDaimon(OLD_SUPPLY, deployer);
-        // Il deployer e' la sorgente dei vecchi token nei test: escluderlo
-        // dalla fee del vecchio contratto rende le distribuzioni verso gli
-        // attori 1:1 (senza, subirebbero la tax 5% e riceverebbero meno di
-        // quanto poi tentano di migrare).
+        // The deployer is the source of the old tokens in the tests:
+        // excluding it from the old contract's fee makes the distributions to
+        // the actors 1:1 (without it, they would suffer the 5% tax and receive
+        // less than what they then try to migrate).
         oldToken.excludeFromFee(deployer);
 
         DaimonV2 impl = new DaimonV2();
@@ -78,15 +78,15 @@ abstract contract StackDeployer is Test {
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
         timelock.renounceRole(timelock.ADMIN_ROLE(), deployer);
 
-        // La treasury azzera la fee del vecchio token verso di se' (passaggio
-        // preparatorio della migrazione).
+        // The treasury zeroes the old token's fee towards itself (preparatory
+        // migration step).
         vm.stopPrank();
         vm.prank(treasury);
         oldToken.excludeFromFee(treasury);
     }
 
-    /// Dota `to` di `amount` DMN nuovi tramite il canale di migrazione:
-    /// gli manda vecchi token, poi esegue claim per suo conto.
+    /// Endows `to` with `amount` of new DMN through the migration channel:
+    /// sends it old tokens, then executes claim on its behalf.
     function fundWithDmn(address to, uint256 amount) internal {
         if (amount == 0) return;
         vm.prank(deployer);

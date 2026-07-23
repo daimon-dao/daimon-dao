@@ -29,10 +29,10 @@ export default function Governance() {
   const { t } = useI18n();
   const { isConnected } = useAccount();
   const [showAdvanced, setShowAdvanced] = useState(false);
-  // true per qualche secondo dopo che proposalCount CRESCE: chiude il form,
-  // mostra il banner ed evidenzia la card appena nata. Guidato dal conteggio
-  // (non dal componente form) cosi' funziona anche se l'utente ha chiuso il
-  // form prima della conferma — lo scenario del bug della proposta #1.
+  // true for a few seconds after proposalCount GROWS: closes the form, shows
+  // the banner and highlights the just-created card. Driven by the count (not
+  // by the form component) so it works even if the user closed the form before
+  // confirmation — the proposal #1 bug scenario.
   const [justCreated, setJustCreated] = useState(false);
 
   const { data: countData, isLoading: countLoading } = useReadContracts({
@@ -46,7 +46,7 @@ export default function Governance() {
 
   const prevCount = useRef<number | null>(null);
   useEffect(() => {
-    if (countData?.[0]?.result === undefined) return; // conteggio non ancora letto
+    if (countData?.[0]?.result === undefined) return; // count not yet read
     if (prevCount.current === null) {
       prevCount.current = proposalCount;
       return;
@@ -63,7 +63,7 @@ export default function Governance() {
   const quorumBps = (countData?.[1]?.result as bigint | undefined) ?? 1000n;
   const threshold = countData?.[2]?.result as bigint | undefined;
 
-  // Ordina dalla piu' recente
+  // Sort from most recent
   const ids = useMemo(
     () => Array.from({ length: proposalCount }, (_, i) => BigInt(proposalCount - 1 - i)),
     [proposalCount]
@@ -132,8 +132,8 @@ function ProposalCard({
   const voteTx = useTx();
   const queueTx = useTx();
   const executeTx = useTx();
-  // Scelta espressa in QUESTA sessione (il contratto salva solo hasVoted,
-  // non il verso del voto: per i voti passati mostriamo il badge generico).
+  // Choice expressed in THIS session (the contract only stores hasVoted, not
+  // the vote direction: for past votes we show the generic badge).
   const [castChoice, setCastChoice] = useState<number | null>(null);
 
   const { data: proposal } = useReadContract({
@@ -151,7 +151,7 @@ function ProposalCard({
 
   const p = proposal as unknown as ProposalTuple | undefined;
 
-  // eta del timelock (solo se la proposta e' stata messa in coda)
+  // timelock eta (only if the proposal has been queued)
   const opId = p && p[14] ? timelockOperationId(p) : undefined;
   const { data: operation } = useReadContract({
     ...timelock,
@@ -161,7 +161,7 @@ function ProposalCard({
   });
   const readyTs = operation ? (operation as readonly [bigint, boolean, boolean])[0] : undefined;
 
-  // voting power dell'utente ALLO SNAPSHOT + hasVoted (spec §7)
+  // user's voting power AT THE SNAPSHOT + hasVoted (spec §7)
   const { data: voterData } = useReadContracts({
     contracts:
       address && p
@@ -182,7 +182,7 @@ function ProposalCard({
       </div>
     );
 
-  // (evidenziazione post-creazione: anello oro per qualche secondo)
+  // (post-creation highlight: gold ring for a few seconds)
 
   const phase = phaseOf(stateData as number | undefined, p, now, readyTs);
   const info = PROPOSAL_PHASE[phase.key];
@@ -190,9 +190,9 @@ function ProposalCard({
   const forVotes = p[9];
   const againstVotes = p[10];
   const abstainVotes = p[11];
-  const totalVotes = forVotes + againstVotes + abstainVotes; // solo per le % delle barre
-  // Quorum: for + abstain, ESCLUDENDO against (coerente col Governor —
-  // i voti contrari non concorrono al quorum).
+  const totalVotes = forVotes + againstVotes + abstainVotes; // only for the bars' %
+  // Quorum: for + abstain, EXCLUDING against (consistent with the Governor —
+  // against votes do not count toward quorum).
   const quorumVotes = forVotes + abstainVotes;
   const quorumNeeded = (p[6] * quorumBps) / 10000n;
   const quorumPct =
@@ -209,8 +209,8 @@ function ProposalCard({
     return totalVotes > 0n ? Number((v * 10000n) / totalVotes) / 100 : 0;
   }
 
-  // Il refetch post-conferma e' automatico (invalidazione in useTx).
-  // send() non rigetta mai: null = non inviata (es. firma rifiutata).
+  // The post-confirmation refetch is automatic (invalidation in useTx).
+  // send() never rejects: null = not sent (e.g. rejected signature).
   async function vote(support: number) {
     const h = await voteTx.send({ ...governor, functionName: "castVote", args: [id, support] });
     if (h) setCastChoice(support);
@@ -239,7 +239,7 @@ function ProposalCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-orochiaro">
-            {/* La descrizione e' contenuto on-chain del proposer: NON si traduce. */}
+            {/* The description is the proposer's on-chain content: NOT translated. */}
             #{id.toString()} — {p[4] || t("governance.noDescription")}
           </p>
           <p className="mt-1 text-xs text-secondario">
@@ -262,7 +262,7 @@ function ProposalCard({
         </div>
       </div>
 
-      {/* Barre voto */}
+      {/* Vote bars */}
       {(phase.key === "active" || totalVotes > 0n) && (
         <div className="mt-4 space-y-2 text-xs">
           <VoteBar label={t("governance.yes")} value={forVotes} pct={bar(forVotes)} color="bg-verde" />
@@ -299,7 +299,7 @@ function ProposalCard({
         <p className="mt-1 text-xs text-secondario">{t("governance.cantVote")}</p>
       )}
 
-      {/* Azioni per fase */}
+      {/* Actions per phase */}
       <div className="mt-4 flex flex-wrap gap-2">
         {phase.key === "active" && alreadyVoted && (
           <span className="rounded-full bg-verde/20 px-3 py-1.5 text-sm font-medium text-verde">
@@ -401,10 +401,10 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
   const enoughVp =
     myVp !== undefined && threshold !== undefined && (myVp as bigint) >= threshold;
 
-  // Nessun callback di conferma qui: la chiusura del form, il banner e
-  // l'evidenziazione sono guidati dall'aumento di proposalCount nel parent,
-  // cosi' funzionano anche se questo componente viene smontato prima della
-  // conferma on-chain.
+  // No confirmation callback here: closing the form, the banner and the
+  // highlight are driven by the increase of proposalCount in the parent, so
+  // they work even if this component is unmounted before the on-chain
+  // confirmation.
   async function submit() {
     let wei = 0n;
     try {

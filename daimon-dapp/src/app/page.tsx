@@ -90,7 +90,7 @@ export default function Dashboard() {
       ? Number((totalStaked * 100000000n) / totalSupply) / 1000000
       : undefined;
 
-  // Progresso deflazione: da INITIAL_SUPPLY (1000B) verso MIN_SUPPLY (21B)
+  // Deflation progress: from INITIAL_SUPPLY (1000B) toward MIN_SUPPLY (21B)
   const burnTarget =
     initialSupply !== undefined && minSupply !== undefined
       ? initialSupply - minSupply
@@ -105,7 +105,7 @@ export default function Dashboard() {
       ? price.usd * formatUnitsNumber(totalSupply)
       : null;
 
-  // Ultima proposta di governance
+  // Latest governance proposal
   const lastId =
     proposalCount !== undefined && proposalCount > 0n ? proposalCount - 1n : undefined;
   const { data: lastProposal } = useReadContract({
@@ -121,7 +121,7 @@ export default function Dashboard() {
     query: { enabled: lastId !== undefined, refetchInterval: 30_000 },
   });
 
-  // "Il tuo staking" — MAI zeri finti senza wallet (spec §8.1)
+  // "Your staking" — NEVER fake zeros without a wallet (spec §8.1)
   const { data: mine } = useReadContracts({
     contracts: address
       ? [
@@ -195,7 +195,7 @@ export default function Dashboard() {
         </MetricCard>
       </div>
 
-      {/* Barra di deflazione */}
+      {/* Deflation bar */}
       <div className="card">
         <div className="mb-2 flex items-baseline justify-between text-sm">
           <span className="font-medium text-orochiaro">{t("dashboard.deflationTitle")}</span>
@@ -272,10 +272,10 @@ export default function Dashboard() {
 
         <div className="card">
           <h2 className="font-medium text-orochiaro">{t("dashboard.governanceTitle")}</h2>
-          {/* Tre stati distinti: conteggio non ancora letto (skeleton, NON
-              il falso "nessuna proposta" — con RPC lento o giu' resterebbe
-              a schermo come un'informazione sbagliata), zero proposte
-              reali, oppure l'ultima proposta. */}
+          {/* Three distinct states: count not yet read (skeleton, NOT the
+              false "no proposals" — with a slow or down RPC it would stay on
+              screen as wrong information), zero real proposals, or the latest
+              proposal. */}
           {proposalCount === undefined || (lastId !== undefined && !lastProposal) ? (
             <div className="mt-3 space-y-2">
               <Skeleton className="h-4 w-3/4" />
@@ -317,7 +317,7 @@ function LatestProposal({
   return (
     <div className="mt-3 text-sm">
       <p className="font-medium">
-        {/* La descrizione e' contenuto on-chain del proposer: NON si traduce. */}
+        {/* The description is the proposer's on-chain content: NOT translated. */}
         #{id.toString()} — {proposal[4] || t("dashboard.noDescription")}
       </p>
       <p className="mt-1.5">

@@ -31,8 +31,8 @@ export function Footer() {
               {t(labelKey)} ↗
             </a>
           ))}
-          {/* Link discreto alla pool ufficiale: solo su mainnet (su testnet
-              PancakeSwap non ha una UI di swap). */}
+          {/* Discreet link to the official pool: only on mainnet (on testnet
+              PancakeSwap has no swap UI). */}
           {!IS_TESTNET && (
             <a
               href={`https://pancakeswap.finance/swap?outputCurrency=${ADDRESSES.daimonV2}`}

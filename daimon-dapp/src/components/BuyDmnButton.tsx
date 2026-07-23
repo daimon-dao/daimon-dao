@@ -6,16 +6,16 @@ import { shortAddress } from "@/lib/format";
 import { useI18n } from "@/components/LocaleProvider";
 
 /*
- * "Compra DMN": SOLO un link diretto a PancakeSwap con la pair giusta
- * preselezionata (outputCurrency dall'unica fonte di verita',
- * contracts.ts) — nessuno swap integrato (fase 2 DeFi, via proposta DAO).
- * Protegge l'utente dai token fake con nomi simili portandolo sulla pool
- * ufficiale in un click. Nessun parametro referral/tracking nell'URL.
+ * "Buy DMN": ONLY a direct link to PancakeSwap with the right pair preselected
+ * (outputCurrency from the single source of truth, contracts.ts) — no
+ * integrated swap (DeFi phase 2, via DAO proposal). It protects the user from
+ * fake tokens with similar names by taking them to the official pool in one
+ * click. No referral/tracking parameter in the URL.
  *
- * Su testnet (97) PancakeSwap non offre un'interfaccia di swap
- * affidabile: il bottone e' disabilitato con tooltip, ma il comportamento
- * e' gia' pronto per mainnet (56) — cambiando chain in contracts.ts
- * l'URL segue automaticamente il nuovo indirizzo.
+ * On testnet (97) PancakeSwap does not offer a reliable swap interface: the
+ * button is disabled with a tooltip, but the behavior is already ready for
+ * mainnet (56) — changing the chain in contracts.ts makes the URL follow the
+ * new address automatically.
  */
 const SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${ADDRESSES.daimonV2}`;
 

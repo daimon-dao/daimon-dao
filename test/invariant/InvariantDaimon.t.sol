@@ -5,9 +5,9 @@ import {StackDeployer} from "../base/StackDeployer.sol";
 import {DaimonHandler} from "./DaimonHandler.sol";
 
 /*
- * Invariant testing handler-based: il fuzzer martella il sistema con
- * sequenze casuali di azioni (transfer, stake, withdraw, migrate, notify,
- * claim, warp) e dopo OGNI sequenza verifica che gli invarianti reggano.
+ * Handler-based invariant testing: the fuzzer hammers the system with random
+ * sequences of actions (transfer, stake, withdraw, migrate, notify, claim,
+ * warp) and after EVERY sequence checks that the invariants hold.
  */
 contract InvariantDaimon is StackDeployer {
     DaimonHandler internal handler;
@@ -20,7 +20,7 @@ contract InvariantDaimon is StackDeployer {
         actors.push(address(0xB0B));
         actors.push(address(0xCA401));
 
-        // Ogni attore parte con vecchi token (per migrare) e un po' di DMN.
+        // Each actor starts with old tokens (to migrate) and some DMN.
         for (uint256 i = 0; i < actors.length; i++) {
             vm.prank(deployer);
             oldToken.transfer(actors[i], 50_000_000 ether);
@@ -29,19 +29,19 @@ contract InvariantDaimon is StackDeployer {
 
         handler = new DaimonHandler(token, staking, migration, oldToken, treasury, actors);
 
-        // Trasferisce agli attori i vecchi token residui? No: restano loro.
-        // Il target del fuzzing e' solo l'handler.
+        // Transfer the residual old tokens to the actors? No: they keep them.
+        // The fuzzing target is only the handler.
         targetContract(address(handler));
     }
 
-    // --- Supply entro i limiti immutabili ---
+    // --- Supply within the immutable bounds ---
     function invariant_SupplyWithinBounds() public view {
         uint256 s = token.totalSupply();
-        assertLe(s, token.INITIAL_SUPPLY(), "supply sopra INITIAL_SUPPLY (mint!)");
-        assertGe(s, token.MIN_SUPPLY(), "supply sotto il floor MIN_SUPPLY");
+        assertLe(s, token.INITIAL_SUPPLY(), "supply above INITIAL_SUPPLY (mint!)");
+        assertGe(s, token.MIN_SUPPLY(), "supply below the MIN_SUPPLY floor");
     }
 
-    // --- totalVotingPower == somma dei vp dei lock attivi ---
+    // --- totalVotingPower == sum of the vp of the active locks ---
     function invariant_VotingPowerMatchesActiveLocks() public view {
         uint256 n = staking.nextLockId();
         uint256 sum;
@@ -49,62 +49,63 @@ contract InvariantDaimon is StackDeployer {
             (,,,,, uint256 vpGranted, bool withdrawn) = staking.locks(i);
             if (!withdrawn) sum += vpGranted;
         }
-        assertEq(staking.totalVotingPower(), sum, "totalVotingPower != somma lock attivi");
+        assertEq(staking.totalVotingPower(), sum, "totalVotingPower != sum of active locks");
     }
 
-    // --- Somma dei vp per-utente == totalVotingPower ---
+    // --- Sum of per-user vp == totalVotingPower ---
     function invariant_PerUserVotingPowerSums() public view {
         uint256 sum;
         for (uint256 i = 0; i < actors.length; i++) {
             sum += staking.votingPower(actors[i]);
         }
-        assertEq(sum, staking.totalVotingPower(), "somma vp utenti != totalVotingPower");
+        assertEq(sum, staking.totalVotingPower(), "sum of user vp != totalVotingPower");
     }
 
-    // --- Migrazione: DMN distribuiti == vecchi token ricevuti ---
+    // --- Migration: DMN distributed == old tokens received ---
     function invariant_MigrationConservation() public view {
-        // Ogni vecchio token migrato atterra nella treasury 1:1 (il vecchio
-        // token non ha reflection e la treasury parte da zero): il saldo
-        // vecchi-token della treasury eguaglia esattamente totalMigrated,
-        // che a sua volta e' la somma dei DMN distribuiti (claim invia
-        // esattamente `amount` e incrementa totalMigrated dello stesso).
+        // Every migrated old token lands in the treasury 1:1 (the old token
+        // has no reflection and the treasury starts from zero): the treasury's
+        // old-token balance equals totalMigrated exactly, which in turn is the
+        // sum of the DMN distributed (claim sends exactly `amount` and
+        // increments totalMigrated by the same).
         assertEq(
             oldToken.balanceOf(treasury),
             migration.totalMigrated(),
-            "vecchi token in treasury != totalMigrated"
+            "old tokens in treasury != totalMigrated"
         );
-        // La migration non distribuisce MAI piu' DMN del dovuto: parte da
-        // INITIAL_SUPPLY e puo' solo guadagnare reflection (mai perdere oltre
-        // i claim), quindi il saldo residuo non scende sotto la quota attesa.
+        // The migration NEVER distributes more DMN than owed: it starts from
+        // INITIAL_SUPPLY and can only gain reflection (never lose beyond the
+        // claims), so the residual balance does not drop below the expected
+        // amount.
         assertGe(
             token.balanceOf(address(migration)),
             token.INITIAL_SUPPLY() - migration.totalMigrated(),
-            "la migration ha distribuito piu' DMN del dovuto"
+            "the migration distributed more DMN than owed"
         );
     }
 
-    // --- Reward: il contratto trattiene esattamente funded - claimed ---
+    // --- Reward: the contract retains exactly funded - claimed ---
     function invariant_StakingHoldsExactRewardBalance() public view {
         assertEq(
             address(staking).balance,
             handler.ghostBnbFunded() - handler.ghostBnbClaimed(),
-            "saldo BNB staking != versato - riscosso"
+            "staking BNB balance != funded - claimed"
         );
     }
 
-    // --- Nessun ruolo amministrativo in mani non autorizzate ---
+    // --- No administrative role in unauthorized hands ---
     function invariant_NoUnauthorizedAdminRoles() public view {
-        // Solo il Timelock governa token e staking; nessun attore/deployer.
-        assertTrue(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "timelock perde la governance");
-        assertFalse(token.hasRole(token.GOVERNANCE_ROLE(), deployer), "deployer ha la governance");
-        assertTrue(staking.isGovernance(address(timelock)), "timelock perde governance staking");
-        assertFalse(staking.isGovernance(deployer), "deployer governa lo staking");
-        assertFalse(timelock.hasRole(timelock.ADMIN_ROLE(), deployer), "deployer admin del timelock");
-        assertFalse(timelock.hasRole(timelock.PROPOSER_ROLE(), deployer), "deployer proposer");
+        // Only the Timelock governs the token and staking; no actor/deployer.
+        assertTrue(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "timelock loses governance");
+        assertFalse(token.hasRole(token.GOVERNANCE_ROLE(), deployer), "deployer has governance");
+        assertTrue(staking.isGovernance(address(timelock)), "timelock loses staking governance");
+        assertFalse(staking.isGovernance(deployer), "deployer governs staking");
+        assertFalse(timelock.hasRole(timelock.ADMIN_ROLE(), deployer), "deployer is timelock admin");
+        assertFalse(timelock.hasRole(timelock.PROPOSER_ROLE(), deployer), "deployer is proposer");
         for (uint256 i = 0; i < actors.length; i++) {
-            assertFalse(token.hasRole(token.GOVERNANCE_ROLE(), actors[i]), "attore ha la governance");
-            assertFalse(timelock.hasRole(timelock.ADMIN_ROLE(), actors[i]), "attore admin timelock");
-            assertFalse(staking.isGovernance(actors[i]), "attore governa lo staking");
+            assertFalse(token.hasRole(token.GOVERNANCE_ROLE(), actors[i]), "actor has governance");
+            assertFalse(timelock.hasRole(timelock.ADMIN_ROLE(), actors[i]), "actor is timelock admin");
+            assertFalse(staking.isGovernance(actors[i]), "actor governs staking");
         }
     }
 }

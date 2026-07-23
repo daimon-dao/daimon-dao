@@ -6,16 +6,16 @@ import {DaimonV2} from "../../src/DaimonV2.sol";
 import {DaimonGovernor} from "../../src/DaimonGovernor.sol";
 
 /*
- * Verifica che NESSUNA sequenza scorciatoia porti una proposta all'esecuzione
- * saltando quorum, queue o il delay del timelock. Ogni tentativo "fuori
- * ordine" deve revertire; solo il percorso completo esegue davvero.
+ * Verifies that NO shortcut sequence takes a proposal to execution while
+ * skipping quorum, queue or the timelock delay. Every "out of order" attempt
+ * must revert; only the complete path actually executes.
  */
 contract GovernanceSequence is StackDeployer {
     address internal whale = address(0xA11CE);
 
     function setUp() public {
         deployStack();
-        // whale: voting power alto ma non totale, per poter distinguere quorum
+        // whale: high but not total voting power, to be able to distinguish quorum
         fundWithDmn(whale, 3_000_000 ether);
         vm.startPrank(whale);
         token.approve(address(staking), 3_000_000 ether);
@@ -26,7 +26,7 @@ contract GovernanceSequence is StackDeployer {
     function _propose() internal returns (uint256 id, bytes memory data) {
         data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
         vm.prank(whale);
-        id = governor.propose(address(token), 0, data, "Riduzione fee");
+        id = governor.propose(address(token), 0, data, "Fee reduction");
     }
 
     function test_CannotExecuteBeforeVoting() public {
@@ -40,7 +40,7 @@ contract GovernanceSequence is StackDeployer {
         vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
         vm.prank(whale);
         governor.castVote(id, 1);
-        // ancora in votazione: queue deve fallire
+        // still voting: queue must fail
         vm.expectRevert(DaimonGovernor.ProposalNotSucceeded.selector);
         governor.queue(id);
     }
@@ -52,7 +52,7 @@ contract GovernanceSequence is StackDeployer {
         governor.castVote(id, 1);
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
         assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Succeeded));
-        // Approvata ma non messa in coda.
+        // Succeeded but not queued.
         vm.expectRevert(DaimonGovernor.ProposalNotQueued.selector);
         governor.execute(id);
     }
@@ -64,13 +64,13 @@ contract GovernanceSequence is StackDeployer {
         governor.castVote(id, 1);
         vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
         governor.queue(id);
-        // Delay del timelock non ancora trascorso.
+        // Timelock delay not yet elapsed.
         vm.expectRevert();
         governor.execute(id);
     }
 
     function test_DefeatedProposalCannotBeQueuedOrExecuted() public {
-        // whale vota CONTRO: la proposta e' bocciata, mai eseguibile.
+        // whale votes AGAINST: the proposal is defeated, never executable.
         (uint256 id,) = _propose();
         vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
         vm.prank(whale);
