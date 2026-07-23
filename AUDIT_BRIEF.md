@@ -1,91 +1,96 @@
 # Audit brief — Daimon DAO
 
-Documento di orientamento per l'auditor. Lo **scope congelato** è il tag
-**[`audit-scope-v1`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-scope-v1)**
-(tag annotato `980fd99` → commit `bd6d544`). Fai il checkout di quel tag: è
-lo stato definitivo dei contratti.
+Orientation document for the auditor. The **frozen scope** is the tag
+**[`audit-scope-v2`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-scope-v2)**
+— the same contracts as `audit-scope-v1` with **byte-identical bytecode**, and
+comments/natspec translated to English. Check out that tag: it is the
+definitive state of the contracts.
 
 ```sh
 git fetch --tags
-git checkout audit-scope-v1
+git checkout audit-scope-v2
 forge build && forge test
 ```
 
+> Note: `audit-scope-v1` remains as a historical marker. `v2` differs from
+> `v1` only in code comments/natspec — the compiled bytecode of all five
+> contracts is identical (verified with `bytecode_hash=none`).
+
 ## Scope (in audit)
 
-I cinque contratti in `src/`:
+The five contracts in `src/`:
 
-| Contratto | Descrizione |
+| Contract | Description |
 |---|---|
-| `DaimonV2.sol` | Token BEP-20 reflection (RFI), fee autonome + buyback&burn, floor 21B, UUPS upgradeable, AccessControl |
-| `DaimonStaking.sol` | Staking vote-escrow, voting power con checkpoint (ricerca binaria), reward in BNB stile MasterChef |
-| `DaimonGovernor.sol` | Governance: propose → vote → queue → execute, quorum su snapshot |
-| `DaimonTimelock.sol` | Timelock con `MIN_DELAY` = 7 giorni hardcodato |
-| `DaimonMigration.sol` | Migrazione 1:1 dal vecchio token, sweep post-deadline alla treasury |
+| `DaimonV2.sol` | Reflection BEP-20 token (RFI), autonomous fees + buyback&burn, 21B floor, UUPS upgradeable, AccessControl |
+| `DaimonStaking.sol` | Vote-escrow staking, checkpoint-based voting power (binary search), MasterChef-style BNB rewards |
+| `DaimonGovernor.sol` | Governance: propose → vote → queue → execute, snapshot-based quorum |
+| `DaimonTimelock.sol` | Timelock with a hardcoded `MIN_DELAY` = 7 days |
+| `DaimonMigration.sol` | 1:1 migration from the old token, post-deadline sweep to the treasury |
 
-Fuori scope: `src/mocks/`, `test/`, `script/`, la dApp (`daimon-dapp/`),
-le dipendenze `lib/` (OpenZeppelin v5.4.0, considerate corrette).
+Out of scope: `src/mocks/`, `test/`, `script/`, the dApp (`daimon-dapp/`),
+and the `lib/` dependencies (OpenZeppelin v5.4.0, assumed correct).
 
-## Vincoli di build
+## Build constraints
 
-- `via_ir = true` **obbligatorio** (la matematica reflection va in "stack too
-  deep" senza), `evm_version = shanghai` (BSC), `solc 0.8.26`. Vedi
+- `via_ir = true` is **required** (the reflection math hits "stack too deep"
+  without it), `evm_version = shanghai` (BSC), `solc 0.8.26`. See
   `foundry.toml`.
 
-## Modello di fiducia e limiti noti
+## Trust model and known limits
 
-Documento completo in **[THREAT_MODEL.md](THREAT_MODEL.md)**. In sintesi:
+Full document in **[THREAT_MODEL.md](THREAT_MODEL.md)**. In short:
 
-- **Nessun owner, nessun mint.** Il controllo è del Timelock (7 giorni di
-  delay); il deployer rinuncia a ogni ruolo (assert nello script + invariant
-  test). Nessun `DEFAULT_ADMIN_ROLE`; `GOVERNANCE_ROLE` auto-amministra.
-- **Floor 21B immutabile**, supply solo decrescente.
-- **Destinazioni fee** (`marketingWallet`, `stakingContract`, split) tutte
-  `onlyRole(GOVERNANCE_ROLE)`; `deadAddress` è `constant`, `treasury` della
-  migration è `immutable`. Nessun percorso EOA.
-- **Limite accettato — upgrade UUPS:** la DAO può sostituire la logica del
-  token (solo via Timelock + delay). Trade-off esplicito aggiornabilità vs
-  immutabilità.
+- **No owner, no mint.** Control belongs to the Timelock (7-day delay); the
+  deployer renounces every role (asserts in the script + invariant tests).
+  No `DEFAULT_ADMIN_ROLE`; `GOVERNANCE_ROLE` self-administers.
+- **Immutable 21B floor**, supply strictly decreasing.
+- **Fee destinations** (`marketingWallet`, `stakingContract`, split) are all
+  `onlyRole(GOVERNANCE_ROLE)`; `deadAddress` is `constant`, the migration
+  `treasury` is `immutable`. No EOA path.
+- **Accepted limit — UUPS upgrade:** the DAO can replace the token logic
+  (only via Timelock + delay). An explicit trade-off between upgradability
+  and absolute immutability.
 
-## Esito del giro avversariale pre-freeze
+## Result of the pre-freeze adversarial round
 
-Dettaglio in **[TESTNET_RESULTS.md](TESTNET_RESULTS.md)** (Test 10). Due
-finding di governance (nessuna perdita fondi):
+Details in **[TESTNET_RESULTS.md](TESTNET_RESULTS.md)** (Test 10). Two
+governance findings (no loss of funds):
 
-- **Finding 1 — CORRETTO.** Il quorum contava gli against
-  (`for+against+abstain`), creando un incentivo perverso: opporsi poteva far
-  raggiungere il quorum e passare la proposta. Ora quorum su `for+abstain`
-  (against escluso), allineato a OpenZeppelin `GovernorCountingSimple`.
-  Regressione coperta da test (`test/Adversarial.t.sol`).
-- **Finding 2 — ACCETTATO e documentato.** Il voting power non decade dopo la
-  scadenza del lock (premia i locker storici, differisce dai ve-token). Scelta
-  di design consapevole per la v1; un decay è materiale fase 2 via governance.
-  Vedi THREAT_MODEL §3.6.
+- **Finding 1 — FIXED.** Quorum counted against-votes
+  (`for+against+abstain`), creating a perverse incentive: opposing could push
+  a proposal over quorum and pass it. Quorum is now `for+abstain` (against
+  excluded), aligned with OpenZeppelin `GovernorCountingSimple`. Regression
+  covered by tests (`test/Adversarial.t.sol`).
+- **Finding 2 — ACCEPTED and documented.** Voting power does not decay after
+  lock expiry (rewards historical lockers, differs from ve-tokens). A
+  conscious v1 design choice; a decay is phase-2 governance material. See
+  THREAT_MODEL §3.6.
 
-## Copertura di test
+## Test coverage
 
-**74 test verdi** (`forge test`): unit, sequenze di governance, fuzz (512
-run), invariant handler-based (256 × 64), e la suite avversariale mirata
-(snapshot/whale, valori limite, incentivi, reflection edge). Analisi statica
-Slither eseguita — note sui finding in THREAT_MODEL §4.
+**74 tests green** (`forge test`): unit, governance sequences, fuzz (512
+runs), handler-based invariants (256 × 64), and the targeted adversarial
+suite (snapshot/whale, boundary values, incentives, reflection edge). Slither
+static analysis performed — notes on findings in THREAT_MODEL §4.
 
-## Aree su cui porre attenzione particolare
+## Areas deserving particular attention
 
-- Matematica reflection RFI (`_getRate`/`_getValues`/`_getCurrentSupply`),
-  dust e conservazione al wei; interazione con `deadAddress` (unico escluso
-  dai reward) e con il contratto stesso come holder.
-- Percorso fee-swap → distribuzione marketing/staking e buyback&burn con la
-  pool **reale** sotto slippage reale (su testnet esercitato in laboratorio).
-- Timing governance: snapshot del voting power, quorum su snapshot, delay del
-  Timelock ai boundary.
+- The RFI reflection math (`_getRate`/`_getValues`/`_getCurrentSupply`), dust
+  and wei-level conservation; interaction with `deadAddress` (the only
+  reward-excluded account) and with the contract itself as a holder.
+- The fee-swap → marketing/staking distribution and buyback&burn path against
+  the **real** pool under real slippage (exercised in the lab on testnet).
+- Governance timing: voting-power snapshot, snapshot-based quorum, Timelock
+  delay at the boundaries.
 
-## Stato
+## Status
 
-Deployato e verificato su **BSC testnet**; **non ancora** su mainnet — il
-deploy mainnet avverrà solo dopo questo audit (checklist in
+Deployed and verified on **BSC testnet**; **not yet** on mainnet — the
+mainnet deploy will happen only after this audit (checklist in
 [CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md)).
 
-## Segnalazioni
+## Reporting
 
-Vulnerabilità: canale privato GitHub (**Security → Report a vulnerability**),
-vedi [SECURITY.md](SECURITY.md). Non aprire issue pubbliche.
+Vulnerabilities: private GitHub channel (**Security → Report a
+vulnerability**), see [SECURITY.md](SECURITY.md). Do not open public issues.

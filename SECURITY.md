@@ -1,67 +1,65 @@
 # Security Policy — Daimon DAO
 
-Questa pagina spiega come segnalare vulnerabilità in modo responsabile.
-Per il modello di minaccia tecnico completo (attori, difese, limiti noti,
-assunzioni di fiducia) vedi [THREAT_MODEL.md](THREAT_MODEL.md).
+This page explains how to report vulnerabilities responsibly. For the full
+technical threat model (actors, defenses, known limits, trust assumptions)
+see [THREAT_MODEL.md](THREAT_MODEL.md).
 
-## Come segnalare una vulnerabilità
+## How to report a vulnerability
 
-Se pensi di aver trovato una vulnerabilità nei contratti, negli script di
-deploy o nella dApp, **non aprire una issue pubblica e non pubblicarla**:
-una vulnerabilità resa pubblica prima della correzione mette a rischio i
-fondi degli utenti.
+If you think you have found a vulnerability in the contracts, the deploy
+scripts, or the dApp, **do not open a public issue and do not disclose it**:
+a vulnerability made public before it is fixed puts users' funds at risk.
 
-Usa il canale privato di GitHub, direttamente da questo repository:
+Use the private GitHub channel, directly from this repository:
 
 > **Security → Report a vulnerability** (Private Vulnerability Reporting)
 
-La segnalazione arriva solo ai maintainer, che possono discuterla con te
-in privato. Una volta risolta, pubblichiamo un advisory coordinato e — se
-lo desideri — il tuo contributo viene accreditato pubblicamente.
+The report reaches only the maintainers, who can discuss it with you
+privately. Once fixed, we publish a coordinated advisory and — if you wish —
+credit your contribution publicly.
 
-### Cosa includere
+### What to include
 
-- descrizione del problema e contratto/file interessato;
-- impatto stimato (fondi a rischio? governance? DoS?);
-- passi per riprodurre — una PoC in Foundry (`forge test`) è l'ideale;
-- eventuale proposta di fix, se ne hai una.
+- a description of the issue and the affected contract/file;
+- the estimated impact (funds at risk? governance? DoS?);
+- reproduction steps — a Foundry PoC (`forge test`) is ideal;
+- a suggested fix, if you have one.
 
-## Tempi di risposta
+## Response times
 
-Progetto mantenuto attivamente ma da un team piccolo; tempi *best effort*:
+Actively maintained but by a small team; *best-effort* timelines:
 
-| Passo | Entro |
+| Step | Within |
 |---|---|
-| Conferma di ricezione | 72 ore |
-| Prima valutazione (severità, piano) | 7 giorni |
-| Fix o mitigazione per problemi critici | il prima possibile, con priorità assoluta |
+| Acknowledgement of receipt | 72 hours |
+| First assessment (severity, plan) | 7 days |
+| Fix or mitigation for critical issues | as soon as possible, top priority |
 
-Ti terremo aggiornato nel thread privato ad ogni passaggio. Chiediamo in
-cambio disclosure coordinata: nessuna pubblicazione prima del fix e
-dell'advisory (concordiamo insieme i tempi).
+We will keep you updated in the private thread at every step. In exchange we
+ask for coordinated disclosure: no publication before the fix and the
+advisory (we agree on the timing together).
 
 ## Scope
 
-**In scope:** i contratti in `src/` (`DaimonV2`, `DaimonStaking`,
-`DaimonGovernor`, `DaimonTimelock`, `DaimonMigration`), gli script di
-deploy in `script/` e la dApp (`daimon-dapp/`).
+**In scope:** the contracts in `src/` (`DaimonV2`, `DaimonStaking`,
+`DaimonGovernor`, `DaimonTimelock`, `DaimonMigration`), the deploy scripts in
+`script/`, and the dApp (`daimon-dapp/`).
 
-**Fuori scope:** siti terzi, RPC pubblici, dipendenze upstream (segnalale
-ai rispettivi progetti — es. OpenZeppelin ha un proprio programma su
-Immunefi), social engineering, e tutto ciò che riguarda esclusivamente
-la rete di test.
+**Out of scope:** third-party sites, public RPCs, upstream dependencies
+(report those to their respective projects — e.g. OpenZeppelin has its own
+program on Immunefi), social engineering, and anything concerning the test
+network only.
 
 ## Bug bounty
 
-Al momento **non esiste un programma di bug bounty formale**: arriverà
-con il lancio su mainnet. Le segnalazioni responsabili ricevute prima del
-lancio verranno comunque riconosciute pubblicamente nell'advisory e — a
-discrezione del progetto — potranno essere premiate retroattivamente
-all'avvio del programma.
+There is currently **no formal bug bounty program**: it will arrive with the
+mainnet launch. Responsible reports received before launch will still be
+publicly acknowledged in the advisory and — at the project's discretion — may
+be rewarded retroactively when the program starts.
 
-## Stato del progetto
+## Project status
 
-Contratti deployati e verificati su BSC **testnet**; suite di test
-(unit + fuzz + invariant) e analisi statica Slither eseguite. **Non
-ancora sottoposti ad audit professionale esterno.** Il deploy mainnet
-avverrà solo dopo l'audit.
+Contracts deployed and verified on BSC **testnet**; test suite (unit + fuzz +
+invariant) and Slither static analysis performed. **Not yet subjected to an
+external professional audit.** The mainnet deploy will happen only after the
+audit.
