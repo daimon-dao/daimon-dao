@@ -4,35 +4,32 @@ pragma solidity 0.8.26;
 /*
  * DaimonMigration
  * ---------------
- * Permette ai holder del vecchio Daimon di fare claim 1:1 dei nuovi
- * DaimonV2, inviando i vecchi token a un indirizzo di tesoreria della DAO
- * (non un dead address: resta una decisione futura della DAO cosa farne,
- * vedi spiegazione fornita in chat).
+ * Lets holders of the old Daimon claim new DaimonV2 tokens 1:1, sending the
+ * old tokens to a DAO treasury address (not a dead address: what to do with
+ * them stays a future DAO decision, see the explanation given in chat).
  *
- * Precondizione operativa (azione one-time richiesta all'owner del VECCHIO
- * contratto Daimon, PRIMA di aprire la migrazione):
+ * Operational precondition (one-time action required from the owner of the
+ * OLD Daimon contract, BEFORE opening the migration):
  *   oldDaimon.excludeFromFee(address(thisMigrationContract))
- * Senza questo passaggio, il transferFrom in entrata subirebbe la tax fee
- * del vecchio contratto e l'importo netto migrato sarebbe inferiore a
- * quanto dichiarato dall'utente, causando un revert protettivo (vedi sotto)
- * piuttosto che una perdita silenziosa di fondi.
+ * Without this step, the incoming transferFrom would incur the old
+ * contract's tax fee and the net migrated amount would be lower than what
+ * the user declared, causing a protective revert (see below) rather than a
+ * silent loss of funds.
  *
- * Sicurezza:
- *  - Pull, non push: l'utente avvia la propria claim, nessuna azione "di
- *    massa" che possa essere dirottata.
+ * Security:
+ *  - Pull, not push: the user initiates their own claim, no "mass" action
+ *    that could be hijacked.
  *  - Reentrancy guard.
- *  - Verifica ESPLICITA che il treasury abbia ricevuto esattamente
- *    l'importo dichiarato (balance prima/dopo) prima di accreditare i
- *    nuovi token: protegge sia da fee-on-transfer inattese sia da eventuali
- *    incongruenze nella reflection del vecchio contratto.
- *  - Cap totale: non puo' distribuire piu' della supply che gli e' stata
- *    assegnata al deploy (mintata una sola volta nel costruttore del
- *    token), quindi nessun rischio di "creare" nuova supply dal contratto
- *    di migrazione.
- *  - finalize/sweep: a fine periodo di migrazione, la DAO (via Timelock)
- *    puo' recuperare gli eventuali DaimonV2 non riscattati, ma SOLO dopo
- *    la deadline e SOLO verso la tesoreria della DAO (mai a un wallet
- *    privato).
+ *  - EXPLICIT check that the treasury received exactly the declared amount
+ *    (balance before/after) before crediting the new tokens: protects both
+ *    against unexpected fee-on-transfer and against any inconsistency in the
+ *    old contract's reflection.
+ *  - Total cap: it cannot distribute more than the supply assigned to it at
+ *    deploy (minted only once in the token's constructor), so there is no
+ *    risk of "creating" new supply from the migration contract.
+ *  - finalize/sweep: at the end of the migration period, the DAO (via
+ *    Timelock) can recover any unclaimed DaimonV2, but ONLY after the
+ *    deadline and ONLY to the DAO treasury (never to a private wallet).
  */
 
 interface IOldDaimon {
@@ -50,13 +47,13 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 contract DaimonMigration is ReentrancyGuard {
     IOldDaimon public immutable oldDaimon;
     INewDaimon public immutable newDaimon;
-    address public immutable treasury;     // tesoreria DAO, destinazione dei vecchi token
-    address public immutable governance;   // Timelock, unico abilitato a fare sweep post-deadline
+    address public immutable treasury;     // DAO treasury, destination of the old tokens
+    address public immutable governance;   // Timelock, the only one allowed to sweep post-deadline
 
     uint256 public immutable migrationDeadline;
     uint256 public totalMigrated;
 
-    mapping(address => uint256) public migratedAmount; // quanto ogni utente ha gia' migrato (informativo)
+    mapping(address => uint256) public migratedAmount; // how much each user has already migrated (informational)
 
     bool public sweepExecuted;
 
@@ -77,8 +74,8 @@ contract DaimonMigration is ReentrancyGuard {
     }
 
     constructor(address _oldDaimon, address _newDaimon, address _treasury, address _governance, uint256 _migrationDurationSeconds) {
-        // Tutti immutable: uno zero qui renderebbe il contratto inutilizzabile
-        // (o brucerebbe i vecchi token verso address(0)) senza rimedio.
+        // All immutable: a zero here would make the contract unusable
+        // (or burn the old tokens to address(0)) with no remedy.
         if (_oldDaimon == address(0) || _newDaimon == address(0) || _treasury == address(0) || _governance == address(0)) {
             revert ZeroAddress();
         }
@@ -89,8 +86,8 @@ contract DaimonMigration is ReentrancyGuard {
         migrationDeadline = block.timestamp + _migrationDurationSeconds;
     }
 
-    /// @param amount quanti vecchi Daimon vuoi migrare. Devi prima fare
-    /// oldDaimon.approve(migrationContractAddress, amount).
+    /// @param amount how many old Daimon you want to migrate. You must first
+    /// call oldDaimon.approve(migrationContractAddress, amount).
     function claim(uint256 amount) external nonReentrant {
         if (block.timestamp > migrationDeadline) revert MigrationEnded();
         if (amount == 0) revert ZeroAmount();
@@ -103,21 +100,20 @@ contract DaimonMigration is ReentrancyGuard {
         uint256 treasuryBalanceAfter = oldDaimon.balanceOf(treasury);
         uint256 actuallyReceived = treasuryBalanceAfter - treasuryBalanceBefore;
 
-        // Se il vecchio contratto applica una fee non azzerata (perche' il
-        // passaggio preparatorio excludeFromFee non e' stato fatto, o per
-        // qualunque altra causa), l'importo netto ricevuto sarebbe inferiore
-        // a "amount": invece di accreditare meno silenziosamente, blocchiamo
-        // la transazione a protezione dell'utente, che puo' riprovare dopo
-        // che il problema e' risolto.
+        // If the old contract applies a non-zeroed fee (because the
+        // preparatory excludeFromFee step was not done, or for any other
+        // reason), the net amount received would be lower than "amount":
+        // instead of silently crediting less, we block the transaction to
+        // protect the user, who can retry once the problem is fixed.
         if (actuallyReceived != amount) revert AmountMismatch();
 
         migratedAmount[msg.sender] += actuallyReceived;
         totalMigrated += actuallyReceived;
 
-        // Stesso controllo balance-before/after anche sul NUOVO token: se
-        // questo contratto non fosse escluso dalle fee di DaimonV2 (errore
-        // di wiring al deploy), l'utente riceverebbe silenziosamente meno
-        // del rapporto 1:1 promesso. Meglio revertire e correggere il setup.
+        // Same balance-before/after check on the NEW token: if this contract
+        // were not excluded from DaimonV2's fees (a deploy wiring error), the
+        // user would silently receive less than the promised 1:1 ratio.
+        // Better to revert and fix the setup.
         uint256 userNewBalanceBefore = newDaimon.balanceOf(msg.sender);
         bool ok2 = newDaimon.transfer(msg.sender, actuallyReceived);
         require(ok2, "DaimonMigration: new token transfer failed");
@@ -127,10 +123,10 @@ contract DaimonMigration is ReentrancyGuard {
         emit Claimed(msg.sender, actuallyReceived);
     }
 
-    /// @notice Dopo la deadline, la DAO (via Timelock) puo' recuperare i
-    /// DaimonV2 non riscattati e SOLO indirizzarli alla treasury della DAO,
-    /// per decisioni successive (es. nuovo round di migrazione, burn votato,
-    /// ecc). Eseguibile una sola volta.
+    /// @notice After the deadline, the DAO (via Timelock) can recover the
+    /// unclaimed DaimonV2 and route them ONLY to the DAO treasury, for later
+    /// decisions (e.g. a new migration round, a voted burn, etc). Executable
+    /// only once.
     function sweepUnclaimed() external onlyGovernance nonReentrant {
         if (block.timestamp <= migrationDeadline) revert MigrationStillOpen();
         if (sweepExecuted) revert AlreadySwept();

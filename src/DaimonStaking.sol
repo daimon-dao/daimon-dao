@@ -4,23 +4,23 @@ pragma solidity 0.8.26;
 /*
  * DaimonStaking
  * -------------
- * Stake-i DaimonV2 con un lock-time a scelta: piu' lungo il lock, piu'
- * voting power ottieni (stile vote-escrow / veCRV), oltre a un reward in
- * ETH proporzionale (finanziato dalla marketing fee del token).
+ * Stake DaimonV2 with a lock time of your choice: the longer the lock, the
+ * more voting power you get (vote-escrow / veCRV style), plus a proportional
+ * ETH reward (funded by the token's marketing fee).
  *
- * Il voting power NON deriva dal balance ERC20 generico (incompatibile con
- * la reflection del token, vedi spiegazione nel resto della conversazione),
- * ma esclusivamente da quanto e per quanto tempo hai bloccato qui.
+ * Voting power does NOT derive from the generic ERC20 balance (incompatible
+ * with the token's reflection, see the explanation elsewhere in the
+ * conversation), but exclusively from how much and for how long you have
+ * locked here.
  *
- * Sicurezza:
- *  - ReentrancyGuard su tutte le funzioni che muovono fondi
- *  - Checks-effects-interactions ovunque
- *  - Nessun loop su array di lunghezza utente-controllata in funzioni
- *    pubbliche (ogni lock e' un record indicizzato per id, non in array)
- *  - Cooldown per l'unstake proporzionale al lock scelto: chi sceglie lock
- *    lungo non puo' uscire prima della scadenza; al termine del lock,
- *    withdraw immediato (nessun cooldown aggiuntivo, il lock stesso E' il
- *    cooldown)
+ * Security:
+ *  - ReentrancyGuard on every function that moves funds
+ *  - Checks-effects-interactions everywhere
+ *  - No loop over user-controlled-length arrays in public functions (each
+ *    lock is a record indexed by id, not in an array)
+ *  - Unstake cooldown proportional to the chosen lock: whoever picks a long
+ *    lock cannot exit before expiry; at the end of the lock, withdraw is
+ *    immediate (no extra cooldown, the lock itself IS the cooldown)
  */
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -32,8 +32,8 @@ interface IDaimonV2Token {
 }
 
 contract DaimonStaking is ReentrancyGuard {
-    // ---- Governance (mapping bespoke: piu' indirizzi abilitabili, gestito
-    // dal Timelock della DAO; semantica diversa da OZ AccessControl) ----
+    // ---- Governance (bespoke mapping: multiple addresses can be enabled,
+    // managed by the DAO Timelock; semantics differ from OZ AccessControl) ----
     mapping(address => bool) private _governance;
 
     error NotGovernance();
@@ -53,8 +53,8 @@ contract DaimonStaking is ReentrancyGuard {
 
     IDaimonV2Token public immutable daimonToken;
 
-    // Lock options: durata in secondi => moltiplicatore voting power (x1000)
-    // Esempio: 30 giorni = peso 1.0x, 365 giorni = peso 4.0x
+    // Lock options: duration in seconds => voting power multiplier (x1000)
+    // Example: 30 days = 1.0x weight, 365 days = 4.0x weight
     struct LockOption {
         uint256 duration;
         uint256 multiplierX1000; // 1000 = 1x
@@ -69,9 +69,9 @@ contract DaimonStaking is ReentrancyGuard {
         uint256 start;
         uint256 unlockTime;
         uint256 multiplierX1000;
-        // Voting power accreditato allo stake: withdraw sottrae ESATTAMENTE
-        // questo valore, mai un ricalcolo (se la formula del vp cambiasse in
-        // un upgrade, un ricalcolo divergerebbe e corromperebbe i totali).
+        // Voting power credited at stake time: withdraw subtracts EXACTLY
+        // this value, never a recomputation (if the vp formula changed in an
+        // upgrade, a recomputation would diverge and corrupt the totals).
         uint256 votingPowerGranted;
         bool withdrawn;
     }
@@ -79,17 +79,17 @@ contract DaimonStaking is ReentrancyGuard {
     mapping(uint256 => Lock) public locks;
     uint256 public nextLockId;
 
-    mapping(address => uint256) public votingPower;     // somma pesata di tutti i lock attivi dell'utente
-    mapping(address => uint256) public totalStaked;     // somma capitale (non pesata) dell'utente
+    mapping(address => uint256) public votingPower;     // weighted sum of all the user's active locks
+    mapping(address => uint256) public totalStaked;     // (unweighted) capital sum of the user
 
     uint256 public totalVotingPower;
     uint256 public totalStakedAmount;
 
-    // ---- Checkpoint del voting power (stile OZ Votes) ----
-    // Ad ogni stake/withdraw viene registrato (timestamp, votingPower):
-    // il Governor legge il voting power allo snapshot della proposta via
-    // votingPowerAt(), cosi' token stakati DOPO la creazione di una
-    // proposta non possono votarla.
+    // ---- Voting power checkpoints (OZ Votes style) ----
+    // At each stake/withdraw a (timestamp, votingPower) pair is recorded:
+    // the Governor reads the voting power at the proposal snapshot via
+    // votingPowerAt(), so tokens staked AFTER a proposal's creation cannot
+    // vote on it.
     struct Checkpoint {
         uint256 timestamp;
         uint256 votingPower;
@@ -97,14 +97,15 @@ contract DaimonStaking is ReentrancyGuard {
 
     mapping(address => Checkpoint[]) private _vpCheckpoints;
 
-    // ---- Reward pool (finanziato in BNB dalla marketing fee del token) ----
-    // Scala 1e27: con voting power fino a ~4e30 (4x su supply da 1e12 token
-    // a 18 decimali) la scala 1e18 troncherebbe a zero i notify piccoli.
+    // ---- Reward pool (funded in BNB by the token's marketing fee) ----
+    // Scale 1e27: with voting power up to ~4e30 (4x on a supply of 1e12
+    // tokens at 18 decimals), a 1e18 scale would truncate small notifies to
+    // zero.
     uint256 private constant REWARD_PRECISION = 1e27;
 
-    uint256 public rewardPerVotingPowerStored; // accumulatore stile MasterChef, scalato per REWARD_PRECISION
-    // BNB ricevuti quando totalVotingPower == 0: vengono accodati e
-    // distribuiti al primo notify con staker presenti.
+    uint256 public rewardPerVotingPowerStored; // MasterChef-style accumulator, scaled by REWARD_PRECISION
+    // BNB received when totalVotingPower == 0: queued and distributed at the
+    // first notify with stakers present.
     uint256 public undistributedRewards;
     mapping(address => uint256) private _userRewardDebt;
     mapping(address => uint256) private _userPendingReward;
@@ -122,8 +123,8 @@ contract DaimonStaking is ReentrancyGuard {
     error NotLockOwner();
     error ZeroAmount();
 
-    // Il parametro si chiama initialGovernance (non _governance) per non
-    // fare shadowing del mapping omonimo dello stato.
+    // The parameter is named initialGovernance (not _governance) so it does
+    // not shadow the state mapping of the same name.
     constructor(address _daimonToken, address initialGovernance) {
         daimonToken = IDaimonV2Token(_daimonToken);
         _setGovernance(initialGovernance, true);
@@ -215,9 +216,9 @@ contract DaimonStaking is ReentrancyGuard {
         }
     }
 
-    /// @notice Voting power di `account` all'istante `timestamp` (ultimo
-    /// checkpoint con timestamp <= richiesto; 0 se nessuno). Ricerca binaria:
-    /// O(log n) anche con molti stake/withdraw.
+    /// @notice Voting power of `account` at instant `timestamp` (last
+    /// checkpoint with timestamp <= requested; 0 if none). Binary search:
+    /// O(log n) even with many stake/withdraw.
     function votingPowerAt(address account, uint256 timestamp) external view returns (uint256) {
         Checkpoint[] storage cps = _vpCheckpoints[account];
         uint256 len = cps.length;
@@ -243,14 +244,14 @@ contract DaimonStaking is ReentrancyGuard {
     // Reward (in BNB, finanziato dal token tramite notifyRewardAmount)
     // ============================================================
     function notifyRewardAmount(uint256 amount) external payable {
-        // Chiunque puo' finanziare il pool (in particolare il token DaimonV2),
-        // ma il valore contabilizzato e' sempre msg.value effettivamente
-        // ricevuto, non l'argomento amount (evita mismatch/manipolazione).
+        // Anyone can fund the pool (in particular the DaimonV2 token), but
+        // the accounted value is always the msg.value actually received, not
+        // the amount argument (avoids mismatch/manipulation).
         require(msg.value == amount, "DaimonStaking: value mismatch");
         if (totalVotingPower == 0) {
-            // Nessuno stakato: i fondi vengono accodati e distribuiti al
-            // primo notify con voting power > 0 (senza questo accumulo
-            // resterebbero per sempre non attribuiti nel contratto).
+            // Nobody staked: the funds are queued and distributed at the
+            // first notify with voting power > 0 (without this accrual they
+            // would stay forever unattributed in the contract).
             undistributedRewards += amount;
             emit RewardNotified(amount);
             return;
@@ -293,7 +294,7 @@ contract DaimonStaking is ReentrancyGuard {
     }
 
     // ============================================================
-    // Governance: gestione lock options (solo Timelock DAO)
+    // Governance: lock option management (DAO Timelock only)
     // ============================================================
     function addLockOption(uint256 duration, uint256 multiplierX1000) external onlyGovernance {
         require(duration > 0 && multiplierX1000 >= 1000 && multiplierX1000 <= 10000, "DaimonStaking: invalid params");

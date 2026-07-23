@@ -4,28 +4,28 @@ pragma solidity 0.8.26;
 /*
  * DaimonGovernor
  * --------------
- * Governor minimale, ispirato a OpenZeppelin Governor, che usa come fonte
- * di voting power lo SNAPSHOT del DaimonStaking al momento della creazione
- * della proposta (non il valore live, per evitare manipolazioni "vota e poi
- * unstake/restake" nello stesso blocco o flash-loan-style).
+ * Minimal Governor, inspired by OpenZeppelin Governor, that uses as its
+ * voting-power source the DaimonStaking SNAPSHOT at the time the proposal is
+ * created (not the live value, to prevent "vote then unstake/restake"
+ * manipulation in the same block or flash-loan-style attacks).
  *
- * Lo snapshot e' realizzato con i CHECKPOINT del DaimonStaking (stile OZ
- * Votes): alla creazione della proposta vengono salvati snapshotTimestamp
- * e snapshotTotalVotingPower; castVote() legge il voting power del votante
- * a quell'istante via staking.votingPowerAt(voter, snapshotTimestamp), e
- * il quorum in state() usa il totale allo snapshot. Ne segue che per
- * votare una proposta devi aver bloccato i token PRIMA (o nello stesso
- * blocco) della sua creazione: stake successivi non contano, ne' per i
- * voti ne' per il quorum — resistente sia a flash-loan sia ad acquisti
- * tardivi mirati a una proposta gia' visibile.
+ * The snapshot is realized with DaimonStaking's CHECKPOINTs (OZ Votes
+ * style): at proposal creation, snapshotTimestamp and snapshotTotalVotingPower
+ * are stored; castVote() reads the voter's voting power at that instant via
+ * staking.votingPowerAt(voter, snapshotTimestamp), and the quorum in state()
+ * uses the total at the snapshot. It follows that to vote on a proposal you
+ * must have locked the tokens BEFORE (or in the same block as) its creation:
+ * later stakes do not count, neither for votes nor for quorum — resistant
+ * both to flash-loans and to late purchases aimed at an already-visible
+ * proposal.
  *
- * Flusso: propose -> vote (durante votingPeriod) -> queue (su Timelock) ->
- * execute (dopo il delay del Timelock).
+ * Flow: propose -> vote (during votingPeriod) -> queue (on Timelock) ->
+ * execute (after the Timelock delay).
  *
- * NOTA: in produzione, sostituire con OpenZeppelin Governor +
- * GovernorTimelockControl, che e' piu' completo (vote with reason, clock
- * mode, ecc). Qui replichiamo la logica essenziale in modo minimale e
- * autosufficiente per l'ambiente sandbox senza accesso npm.
+ * NOTE: in production, replace with OpenZeppelin Governor +
+ * GovernorTimelockControl, which is more complete (vote with reason, clock
+ * mode, etc). Here we replicate the essential logic in a minimal,
+ * self-contained way for the sandbox environment without npm access.
  */
 
 interface IDaimonStakingVotes {
@@ -44,13 +44,13 @@ contract DaimonGovernor {
     IDaimonStakingVotes public immutable staking;
     ITimelockControllerMinimal public immutable timelock;
 
-    uint256 public constant VOTING_DELAY = 1 days;     // tempo prima che si possa iniziare a votare
-    uint256 public constant VOTING_PERIOD = 5 days;     // durata del voto
-    uint256 public quorumBps;                            // % minima di totalVotingPower richiesta, su 10000
-    uint256 public proposalThreshold;                    // voting power minimo per poter proporre
+    uint256 public constant VOTING_DELAY = 1 days;     // time before voting can begin
+    uint256 public constant VOTING_PERIOD = 5 days;     // voting duration
+    uint256 public quorumBps;                            // minimum % of totalVotingPower required, out of 10000
+    uint256 public proposalThreshold;                    // minimum voting power required to propose
 
-    // Quorum minimo assoluto: la governance non puo' scendere sotto il 10%.
-    // Protegge da attacchi in cui pochi holder controllano tutte le decisioni.
+    // Absolute minimum quorum: governance cannot go below 10%.
+    // Protects against attacks where a few holders control every decision.
     uint256 public constant MIN_QUORUM_BPS = 1000; // 10% su base 10000
 
     enum ProposalState { Pending, Active, Defeated, Succeeded, Queued, Executed, Canceled }
@@ -61,10 +61,10 @@ contract DaimonGovernor {
         uint256 value;
         bytes data;
         string description;
-        uint256 snapshotTimestamp; // i votanti devono aver acquisito voting power prima di questo momento concettuale (qui semplificato: blocco di creazione)
-        // totalVotingPower al momento della creazione: il quorum si calcola
-        // su questo snapshot, non sul valore live, cosi' stake/unstake
-        // successivi alla proposta non possono alterare la soglia.
+        uint256 snapshotTimestamp; // voters must have acquired voting power before this conceptual moment (here simplified: creation block)
+        // totalVotingPower at creation time: quorum is computed on this
+        // snapshot, not on the live value, so stake/unstake after the
+        // proposal cannot alter the threshold.
         uint256 snapshotTotalVotingPower;
         uint256 voteStart;
         uint256 voteEnd;
@@ -82,7 +82,7 @@ contract DaimonGovernor {
 
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
-    address public guardian; // multisig: solo potere di cancel su proposte malevole evidenti, mai di execute arbitrario
+    address public guardian; // multisig: only the power to cancel clearly malicious proposals, never arbitrary execute
 
     event ProposalCreated(uint256 indexed id, address indexed proposer, address target, string description);
     event VoteCast(uint256 indexed id, address indexed voter, uint8 support, uint256 weight);
@@ -147,8 +147,8 @@ contract DaimonGovernor {
         if (block.timestamp < p.voteStart || block.timestamp > p.voteEnd) revert VotingClosed();
         if (hasVoted[id][msg.sender]) revert AlreadyVoted();
 
-        // Peso allo SNAPSHOT della proposta, non live: chi staka dopo la
-        // creazione non puo' votare questa proposta.
+        // Weight at the proposal SNAPSHOT, not live: whoever stakes after
+        // creation cannot vote on this proposal.
         uint256 weight = staking.votingPowerAt(msg.sender, p.snapshotTimestamp);
         if (weight == 0) revert InsufficientVotingPower();
 
@@ -168,12 +168,11 @@ contract DaimonGovernor {
         if (block.timestamp < p.voteStart) return ProposalState.Pending;
         if (block.timestamp <= p.voteEnd) return ProposalState.Active;
 
-        // Quorum su for + abstain, ESCLUDENDO against (allineato a
-        // OpenZeppelin GovernorCountingSimple). Contare i voti contrari nel
-        // quorum creerebbe un incentivo perverso: opporsi potrebbe far
-        // raggiungere il quorum e passare la proposta, mentre tacere lo
-        // negherebbe. Escludendo against, votare contro non aiuta mai a
-        // superare la soglia.
+        // Quorum on for + abstain, EXCLUDING against (aligned with
+        // OpenZeppelin GovernorCountingSimple). Counting against-votes in the
+        // quorum would create a perverse incentive: opposing could push a
+        // proposal over quorum and pass it, while staying silent would deny
+        // it. By excluding against, voting no never helps clear the threshold.
         uint256 quorumVotes = p.forVotes + p.abstainVotes;
         uint256 quorumNeeded = (p.snapshotTotalVotingPower * quorumBps) / 10000;
 
@@ -197,9 +196,9 @@ contract DaimonGovernor {
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();
         if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
-        // execute() deve passare dal percorso queue() -> delay del Timelock:
-        // senza questo check una proposta mai schedulata arriverebbe a
-        // timelock.execute() saltando la finestra pubblica di reazione.
+        // execute() must go through the queue() path -> Timelock delay:
+        // without this check, a proposal that was never scheduled would reach
+        // timelock.execute() skipping the public reaction window.
         if (!p.queued) revert ProposalNotQueued();
 
         p.executed = true;
@@ -208,9 +207,9 @@ contract DaimonGovernor {
         emit ProposalExecuted(id);
     }
 
-    /// @notice Il guardian puo' SOLO cancellare proposte non ancora eseguite,
-    /// mai eseguirne o crearne. Pensato per emergenze (es. proposta che
-    /// sfrutta un bug scoperto dopo la creazione, prima del voto finale).
+    /// @notice The guardian can ONLY cancel proposals not yet executed, never
+    /// execute or create them. Meant for emergencies (e.g. a proposal that
+    /// exploits a bug discovered after creation, before the final vote).
     function cancel(uint256 id) external onlyGuardian {
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();

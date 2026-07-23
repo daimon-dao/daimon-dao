@@ -4,27 +4,27 @@ pragma solidity 0.8.26;
 /*
  * DaimonTimelock
  * --------------
- * Versione minimale di OpenZeppelin TimelockController: ogni azione
- * proveniente dal Governor deve essere schedulata e puo' essere eseguita
- * solo dopo minDelay secondi. Questo da' alla community una finestra
- * pubblica e garantita per accorgersi di azioni malevole/errate prima che
- * abbiano effetto, anche se la governance fosse compromessa.
+ * Minimal version of OpenZeppelin's TimelockController: every action coming
+ * from the Governor must be scheduled and can only be executed after
+ * minDelay seconds. This gives the community a public, guaranteed window to
+ * notice malicious or mistaken actions before they take effect, even if
+ * governance were compromised.
  *
- * Il controllo dei ruoli usa l'AccessControl ufficiale OpenZeppelin;
- * la logica di scheduling con MIN_DELAY hardcodato resta bespoke, motivo
- * per cui il contratto non e' stato sostituito integralmente con
- * TimelockController (che permetterebbe minDelay = 0 via governance).
+ * Role management uses OpenZeppelin's official AccessControl; the scheduling
+ * logic with a hardcoded MIN_DELAY stays bespoke, which is why the contract
+ * was not replaced outright with TimelockController (which would allow
+ * minDelay = 0 via governance).
  */
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract DaimonTimelock is AccessControl {
-    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE"); // il Governor
-    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE"); // chi puo' eseguire (puo' essere address(0)-equivalente "chiunque" se aperto)
-    bytes32 public constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE"); // guardian, solo cancel
-    // Gestisce i ruoli stessi, idealmente il Timelock stesso dopo il setup
-    // iniziale. Coincide con DEFAULT_ADMIN_ROLE di OZ AccessControl, che e'
-    // gia' l'admin di default di tutti gli altri ruoli.
+    bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE"); // the Governor
+    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE"); // who can execute (can be an open "anyone" role if opened up)
+    bytes32 public constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE"); // guardian, cancel only
+    // Manages the roles themselves, ideally the Timelock itself after the
+    // initial setup. Coincides with OZ AccessControl's DEFAULT_ADMIN_ROLE,
+    // which is already the default admin of every other role.
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
     uint256 public minDelay;
@@ -57,14 +57,14 @@ contract DaimonTimelock is AccessControl {
         _grantRole(PROPOSER_ROLE, proposer);
         _grantRole(EXECUTOR_ROLE, executor);
         _grantRole(CANCELLER_ROLE, canceller);
-        // Il timelock amministra se stesso: le rotazioni di ruolo passano
-        // da una proposta di governance che target-a il timelock stesso
+        // The timelock administers itself: role rotations go through a
+        // governance proposal that targets the timelock itself
         // (msg.sender = timelock in execute()).
         _grantRole(ADMIN_ROLE, address(this));
-        // Bootstrap TEMPORANEO per il wiring iniziale: l'admin di deploy
-        // DEVE chiamare renounceRole(ADMIN_ROLE) a fine setup, altrimenti
-        // resta un owner nascosto in grado di auto-assegnarsi
-        // PROPOSER/EXECUTOR e bypassare la governance. Verificato nei test.
+        // TEMPORARY bootstrap for the initial wiring: the deploy admin MUST
+        // call renounceRole(ADMIN_ROLE) at the end of setup, otherwise a
+        // hidden owner remains, able to self-assign PROPOSER/EXECUTOR and
+        // bypass governance. Verified in the tests.
         _grantRole(ADMIN_ROLE, admin);
     }
 
@@ -76,9 +76,9 @@ contract DaimonTimelock is AccessControl {
         return keccak256(abi.encode(target, value, data, predecessor, salt));
     }
 
-    // Delay minimo assoluto hardcodato: nessuna governance puo' scendere sotto 7 giorni.
-    // updateDelay() puo' solo aumentare il delay (o abbassarlo fino a questo floor),
-    // mai azzerarlo o renderlo inferiore a MIN_DELAY.
+    // Hardcoded absolute minimum delay: no governance can go below 7 days.
+    // updateDelay() can only raise the delay (or lower it down to this floor),
+    // never zero it out or make it lower than MIN_DELAY.
     uint256 public constant MIN_DELAY = 7 days;
 
     function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) external onlyRole(PROPOSER_ROLE) {
@@ -124,8 +124,8 @@ contract DaimonTimelock is AccessControl {
         minDelay = newDelay;
     }
 
-    // grantRole/revokeRole sono ereditati da OZ AccessControl e richiedono
-    // l'admin del ruolo (= ADMIN_ROLE/DEFAULT_ADMIN_ROLE per tutti i ruoli).
+    // grantRole/revokeRole are inherited from OZ AccessControl and require
+    // the role's admin (= ADMIN_ROLE/DEFAULT_ADMIN_ROLE for every role).
 
     receive() external payable {}
 }
