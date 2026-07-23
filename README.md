@@ -58,6 +58,21 @@ mainnet deploy will happen only after the audit.
 - [daimon-dapp/](daimon-dapp/) — the official dApp (Next.js + wagmi), with its
   own [README](daimon-dapp/README.md)
 
+## Official channels
+
+| Channel | Link |
+|---|---|
+| Telegram — announcements | https://t.me/Daimon_one |
+| Telegram — community group (EN) | https://t.me/Daimon_Official_Group |
+| Telegram — community group (IT) | https://t.me/Daimon_Official_Italian_Group |
+| GitHub | https://github.com/daimon-dao |
+
+Additional official channels will be listed here as they go live. Any channel
+not listed here is not official.
+
+**No admin will ever DM you first. Nobody will ever ask for your seed phrase or
+private key. Always verify contract addresses on-chain.**
+
 ## Security
 
 Found a vulnerability? **Do not open a public issue.** Use the private channel
