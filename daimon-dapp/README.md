@@ -1,105 +1,104 @@
 # Daimon dApp
 
-Frontend ufficiale Daimon DAO: dashboard on-chain, migrazione 1:1, staking
-vote-escrow e governance. Next.js 14 (App Router) + TypeScript + TailwindCSS
-+ wagmi v2/viem. Build statica compatibile con Vercel.
+Official Daimon DAO frontend: on-chain dashboard, 1:1 migration, vote-escrow
+staking and governance. Next.js 14 (App Router) + TypeScript + TailwindCSS +
+wagmi v2/viem. Static build compatible with Vercel.
 
-È una sottocartella del monorepo dei contratti (scelta motivata: gli ABI
-vengono generati direttamente dagli artifact Foundry in `../out`, stessa
-storia git, nessun rischio di ABI disallineati).
+It is a subfolder of the contracts monorepo (deliberate choice: the ABIs are
+generated directly from the Foundry artifacts in `../out`, same git history,
+no risk of mismatched ABIs).
 
-## Setup locale
+## Local setup
 
 ```sh
 cd daimon-dapp
 npm install
-npm run abis        # genera src/config/abis/ dagli artifact Foundry (../out)
+npm run abis        # generates src/config/abis/ from the Foundry artifacts (../out)
 npm run dev         # http://localhost:3000
 ```
 
-Se cambi i contratti: `forge build` nella root, poi `npm run abis`.
+If you change the contracts: `forge build` in the root, then `npm run abis`.
 
-## Variabili d'ambiente
+## Environment variables
 
-Copia `.env.example` in `.env.local`:
+Copy `.env.example` to `.env.local`:
 
-| Variabile | Default | Note |
+| Variable | Default | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_CHAIN_ID` | `97` | `97` = BSC testnet, `56` = BSC mainnet |
-| `NEXT_PUBLIC_WC_PROJECT_ID` | vuoto | Project id WalletConnect Cloud. Facoltativo: senza, restano MetaMask/Trust (injected). |
+| `NEXT_PUBLIC_WC_PROJECT_ID` | empty | WalletConnect Cloud project id. Optional: without it, only MetaMask/Trust (injected) remain. |
 
-## Lingue (EN/IT)
+## Languages (EN/IT)
 
-La dApp è bilingue: **inglese (default) + italiano**. Selettore EN|IT
-nell'header; la scelta persiste nel cookie `daimon-locale`. Al primo
-accesso senza cookie si parte in italiano solo se è la lingua primaria
-del browser (Accept-Language), altrimenti inglese.
+The dApp is bilingual: **English (default) + Italian**. EN|IT selector in the
+header; the choice persists in the `daimon-locale` cookie. On the first visit
+with no cookie it starts in Italian only if that is the browser's primary
+language (Accept-Language), otherwise English.
 
-Implementazione: dizionari leggeri in `src/messages/{en,it}.json` +
-provider React ([src/components/LocaleProvider.tsx](src/components/LocaleProvider.tsx),
-helper in [src/lib/i18n.ts](src/lib/i18n.ts)) — niente librerie i18n.
-Per aggiungere/modificare testi: stessa chiave in **entrambi** i file
-(il fallback è l'inglese; una chiave mancante appare letterale, così si
-nota subito). Non si traducono i dati on-chain né le descrizioni delle
-proposte; il formato numeri è identico nelle due lingue, date e
-countdown sono localizzati.
+Implementation: lightweight dictionaries in `src/messages/{en,it}.json` + a
+React provider ([src/components/LocaleProvider.tsx](src/components/LocaleProvider.tsx),
+helper in [src/lib/i18n.ts](src/lib/i18n.ts)) — no i18n libraries. To
+add/change text: same key in **both** files (the fallback is English; a
+missing key shows up literally, so it is noticed immediately). On-chain data
+and proposal descriptions are not translated; number formatting is identical
+in both languages, dates and countdowns are localized.
 
-## Cambiare chain (testnet → mainnet)
+## Switching chain (testnet → mainnet)
 
-Tutto in **un solo file**: [src/config/contracts.ts](src/config/contracts.ts).
+Everything in **one file**: [src/config/contracts.ts](src/config/contracts.ts).
 
-1. Compila `BSC_MAINNET` con gli indirizzi del deploy mainnet (inclusa la
-   pair PancakeSwap, leggila da `daimonV2.uniswapV2Pair()`).
-2. Imposta `NEXT_PUBLIC_CHAIN_ID=56`.
+1. Fill in `BSC_MAINNET` with the mainnet deploy addresses (including the
+   PancakeSwap pair, read it from `daimonV2.uniswapV2Pair()`).
+2. Set `NEXT_PUBLIC_CHAIN_ID=56`.
 
-Nessun altro file va toccato: RPC, explorer e chain wagmi seguono a cascata.
+No other file needs touching: RPC, explorer and the wagmi chain follow in
+cascade.
 
 ## Logo
 
-Il logo ufficiale (vettoriale, dal file .ai) è in `public/logo.svg`, usato
-da [src/components/Logo.tsx](src/components/Logo.tsx). In dark mode il
-componente aggiunge un anello oro sottile (`dark:ring-oro/60`) perché il
-disco navy del logo si fonderebbe con lo sfondo blu notte.
+The official logo (vector, from the .ai file) is in `public/logo.svg`, used by
+[src/components/Logo.tsx](src/components/Logo.tsx). In dark mode the component
+adds a thin gold ring (`dark:ring-oro/60`) because the logo's navy disc would
+blend into the night-blue background.
 
-Favicon e icona iOS sono gestite dalle convenzioni App Router di Next:
-`src/app/icon.svg` (favicon vettoriale) e `src/app/apple-icon.png`
-(180×180, quadrato blu notte opaco). Per aggiornare il logo: rigenerare
-questi tre file (SVG via `pdftocairo -svg`, vedi storia del repo).
+Favicon and iOS icon are handled by Next's App Router conventions:
+`src/app/icon.svg` (vector favicon) and `src/app/apple-icon.png` (180×180,
+opaque night-blue square). To update the logo: regenerate these three files
+(SVG via `pdftocairo -svg`, see repo history).
 
-## Deploy su Vercel (staging)
+## Deploy on Vercel (staging)
 
-La dApp è una sottocartella del monorepo: su Vercel va impostata
-**Root Directory = `daimon-dapp`**. Le pagine usano rendering dinamico
-(cookie wagmi letti server-side), pienamente supportato da Vercel —
-nessuna configurazione extra, niente `vercel.json`.
+The dApp is a subfolder of the monorepo: on Vercel set **Root Directory =
+`daimon-dapp`**. The pages use dynamic rendering (wagmi cookies read
+server-side), fully supported by Vercel — no extra configuration, no
+`vercel.json`.
 
-1. Push del monorepo su un repo **GitHub privato**, poi su
-   [vercel.com](https://vercel.com) → *Add New → Project* → importa il repo.
-2. In *Configure Project*: Root Directory `daimon-dapp` (Edit → seleziona
-   la cartella). Framework rilevato: Next.js; build command e output di
-   default.
-3. *Environment Variables*: aggiungi `NEXT_PUBLIC_WC_PROJECT_ID` con il
-   project id WalletConnect (obbligatoria per il QR su mobile;
-   `.env.local` non viene deployato). `NEXT_PUBLIC_CHAIN_ID` non serve:
-   il default è 97 (testnet).
-4. Deploy. L'URL `*.vercel.app` è raggiungibile ma non indicizzato/linkato.
-   Per renderlo davvero privato: *Settings → Deployment Protection →
-   Vercel Authentication* (gratuito) — richiede login Vercel per vedere
-   il sito. Nota per i test mobile: aprire l'URL nel browser del telefono
-   (dove si può fare login Vercel), NON nel browser in-app di MetaMask;
-   la connessione wallet passa comunque da WalletConnect via deep link.
-5. Su WalletConnect Cloud, aggiungi l'URL Vercel alla allowlist dei
-   domini del progetto (Settings del progetto WC), altrimenti il relay
-   può rifiutare le sessioni da quel dominio.
+1. Push the monorepo to a **private GitHub repo**, then on
+   [vercel.com](https://vercel.com) → *Add New → Project* → import the repo.
+2. In *Configure Project*: Root Directory `daimon-dapp` (Edit → select the
+   folder). Detected framework: Next.js; default build command and output.
+3. *Environment Variables*: add `NEXT_PUBLIC_WC_PROJECT_ID` with the
+   WalletConnect project id (required for the mobile QR; `.env.local` is not
+   deployed). `NEXT_PUBLIC_CHAIN_ID` is not needed: the default is 97
+   (testnet).
+4. Deploy. The `*.vercel.app` URL is reachable but not indexed/linked. To make
+   it truly private: *Settings → Deployment Protection → Vercel Authentication*
+   (free) — requires a Vercel login to view the site. Note for mobile testing:
+   open the URL in the phone browser (where you can log into Vercel), NOT in
+   MetaMask's in-app browser; the wallet connection still goes through
+   WalletConnect via deep link.
+5. On WalletConnect Cloud, add the Vercel URL to the project's domain
+   allowlist (WC project Settings), otherwise the relay may reject sessions
+   from that domain.
 
-Per il lancio mainnet: stessa procedura + `NEXT_PUBLIC_CHAIN_ID=56` e
-indirizzi mainnet in contracts.ts (vedi sopra).
+For the mainnet launch: same procedure + `NEXT_PUBLIC_CHAIN_ID=56` and mainnet
+addresses in contracts.ts (see above).
 
-## Note operative
+## Operational notes
 
-- La lista posizioni di staking scansiona i lock per id (fino a 400): su
-  mainnet con molti staker servirà un indexer di eventi (fase 2).
-- I countdown usano l'orologio del browser; lo stato "vero" è sempre
-  ricontrollato on-chain dai contratti al momento della transazione.
-- Nessun tracker/analytics. Nessun dato sensibile in localStorage (solo la
-  preferenza del tema).
+- The staking positions list scans locks by id (up to 400): on mainnet with
+  many stakers an event indexer will be needed (phase 2).
+- Countdowns use the browser clock; the "real" state is always re-checked
+  on-chain by the contracts at transaction time.
+- No tracker/analytics. No sensitive data in localStorage (only the theme
+  preference).

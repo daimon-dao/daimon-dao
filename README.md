@@ -10,55 +10,58 @@
 
 ---
 
-Daimon è un token BEP-20 con reflection, staking vote-escrow, governance
-on-chain e timelock pubblico, su BNB Chain / PancakeSwap. Nessun owner,
-nessuna funzione di mint, floor di supply immutabile a 21 miliardi: tutto è
-verificabile on-chain, il deployer rinuncia a ogni ruolo dopo il deploy.
+Daimon is a BEP-20 token with reflection, vote-escrow staking, on-chain
+governance and a public timelock, on BNB Chain / PancakeSwap. No owner, no
+mint function, an immutable supply floor at 21 billion: everything is
+verifiable on-chain, and the deployer renounces every role after deploy.
 
-## Proprietà chiave
+## Key properties
 
-- **Nessun owner, nessun mint.** Il controllo è della DAO via Timelock; il
-  deployer non trattiene alcun ruolo (verificato on-chain e dagli invariant).
-- **Floor immutabile 21B.** La supply può solo scendere (burn deflazionario)
-  e mai sotto `MIN_SUPPLY`, enforced a livello di codice.
-- **Timelock pubblico di 7 giorni** su ogni azione di governance — finestra
-  di reazione per la community, valida anche per la DAO stessa.
-- **Vote-escrow.** Il potere di voto deriva solo da token bloccati nel tempo,
-  fotografato allo snapshot della proposta (niente flash-loan governance).
+- **No owner, no mint.** Control belongs to the DAO via the Timelock; the
+  deployer holds no role after deploy (verified on-chain and by the
+  invariants).
+- **Immutable 21B floor.** The supply can only decrease (deflationary burn)
+  and never below `MIN_SUPPLY`, enforced at the code level.
+- **Public 7-day timelock** on every governance action — a reaction window
+  for the community, valid for the DAO itself too.
+- **Vote-escrow.** Voting power derives only from tokens locked over time,
+  snapshotted at the proposal's creation (no flash-loan governance).
 
-## Contratti (`src/`)
+## Contracts (`src/`)
 
-| Contratto | Ruolo |
+| Contract | Role |
 |---|---|
-| `DaimonV2` | Token BEP-20: reflection, fee autonome, buyback&burn, floor 21B (UUPS) |
-| `DaimonStaking` | Staking vote-escrow, voting power con checkpoint, reward in BNB |
-| `DaimonGovernor` | Governance: propose → voto → queue → execute, quorum su snapshot |
-| `DaimonTimelock` | Timelock hardcodato a 7 giorni su ogni esecuzione |
-| `DaimonMigration` | Migrazione 1:1 dal vecchio token, sweep post-deadline alla treasury |
+| `DaimonV2` | BEP-20 token: reflection, autonomous fees, buyback&burn, 21B floor (UUPS) |
+| `DaimonStaking` | Vote-escrow staking, checkpoint-based voting power, BNB rewards |
+| `DaimonGovernor` | Governance: propose → vote → queue → execute, snapshot-based quorum |
+| `DaimonTimelock` | Timelock hardcoded to 7 days on every execution |
+| `DaimonMigration` | 1:1 migration from the old token, post-deadline sweep to the treasury |
 
-## Stato
+## Status
 
-Contratti deployati e verificati su **BSC testnet**; suite di test (unit +
-fuzz + invariant + avversariali, **74 test verdi**) e analisi statica
-Slither eseguite. **Non ancora sottoposti ad audit professionale esterno** —
-il deploy mainnet avverrà solo dopo l'audit.
+Contracts deployed and verified on **BSC testnet**; test suite (unit + fuzz +
+invariant + adversarial, **74 tests green**) and Slither static analysis
+performed. **Not yet subjected to an external professional audit** — the
+mainnet deploy will happen only after the audit.
 
-## Documentazione
+## Documentation
 
-- [THREAT_MODEL.md](THREAT_MODEL.md) — modello di minaccia, attori, difese,
-  limiti noti e scelte di design
-- [SECURITY.md](SECURITY.md) — come segnalare vulnerabilità (responsible
+- [THREAT_MODEL.md](THREAT_MODEL.md) — threat model, actors, defenses, known
+  limits and design choices
+- [SECURITY.md](SECURITY.md) — how to report vulnerabilities (responsible
   disclosure)
-- [TESTNET_RESULTS.md](TESTNET_RESULTS.md) — risultati dei test end-to-end su
-  testnet reale
-- [DEPLOY.md](DEPLOY.md) — procedura di deploy
-- [daimon-dapp/](daimon-dapp/) — dApp ufficiale (Next.js + wagmi), con la sua
-  [README](daimon-dapp/README.md)
+- [TESTNET_RESULTS.md](TESTNET_RESULTS.md) — results of the end-to-end tests
+  on the live testnet
+- [AUDIT_BRIEF.md](AUDIT_BRIEF.md) — orientation for the auditor (frozen scope
+  tag)
+- [DEPLOY.md](DEPLOY.md) — deploy procedure
+- [daimon-dapp/](daimon-dapp/) — the official dApp (Next.js + wagmi), with its
+  own [README](daimon-dapp/README.md)
 
-## Sicurezza
+## Security
 
-Hai trovato una vulnerabilità? **Non aprire una issue pubblica.** Usa il
-canale privato (GitHub → Security → Report a vulnerability) — dettagli in
+Found a vulnerability? **Do not open a public issue.** Use the private channel
+(GitHub → Security → Report a vulnerability) — details in
 [SECURITY.md](SECURITY.md).
 
 ## Build & test
@@ -68,5 +71,5 @@ forge build
 forge test
 ```
 
-Il progetto richiede `via_ir = true` (la matematica reflection genera "stack
-too deep" senza), EVM `shanghai` per BSC. Vedi `foundry.toml`.
+The project requires `via_ir = true` (the reflection math hits "stack too
+deep" without it) and EVM `shanghai` for BSC. See `foundry.toml`.

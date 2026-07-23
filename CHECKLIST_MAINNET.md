@@ -1,57 +1,59 @@
-# Checklist deploy mainnet — Daimon DAO
+# Mainnet deploy checklist — Daimon DAO
 
-Da eseguire **solo dopo** l'audit professionale, sullo scope congelato al tag
-[`audit-scope-v1`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-scope-v1)
-(commit `bd6d544`, contratti in `src/`). Ogni riga è bloccante.
+To be executed **only after** the professional audit, on the scope frozen at
+tag [`audit-scope-v2`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-scope-v2)
+(English-commented contracts in `src/`, bytecode identical to `audit-scope-v1`).
+Every line is blocking.
 
-## Indirizzi (attenzione: alcuni sono IMMUTABLE)
+## Addresses (careful: some are IMMUTABLE)
 
-- [ ] **`marketingWallet` → MULTISIG.** Mai un EOA. Riceve la quota marketing
-      delle fee. Modificabile solo via governance/timelock, ma va impostato
-      giusto già al deploy (`initialize`).
-- [ ] **`treasury` della migration → MULTISIG scelto con cura.** ⚠️ È
-      **`immutable`**: si fissa nel costruttore di `DaimonMigration` e **non
-      si può più cambiare**, nemmeno via governance. Destinazione dei vecchi
-      token e dello sweep post-deadline. Sbagliarlo = irreversibile.
-- [ ] **`guardian` → Ledger dedicato o multisig.** Poteri solo difensivi
-      (pausa ≤36 mesi, cancel proposte). Non deve coincidere col deployer.
-- [ ] **`deployer` → Ledger dedicato.** Rinuncia a tutti i ruoli a fine
-      script; usare comunque un signer hardware, non una hot wallet.
-- [ ] **`_governance` (Timelock) = unico GOVERNANCE_ROLE.** Il deployer deve
-      risultare senza ruoli dopo il wiring.
+- [ ] **`marketingWallet` → MULTISIG.** Never an EOA. Receives the marketing
+      share of the fees. Modifiable only via governance/timelock, but it must
+      be set correctly already at deploy (`initialize`).
+- [ ] **Migration `treasury` → carefully chosen MULTISIG.** ⚠️ It is
+      **`immutable`**: fixed in the `DaimonMigration` constructor and **cannot
+      be changed** afterwards, not even via governance. Destination of the old
+      tokens and of the post-deadline sweep. Getting it wrong is irreversible.
+- [ ] **`guardian` → dedicated Ledger or multisig.** Defensive powers only
+      (pause ≤36 months, cancel proposals). Must not coincide with the
+      deployer.
+- [ ] **`deployer` → dedicated Ledger.** Renounces all roles at the end of the
+      script; use a hardware signer anyway, not a hot wallet.
+- [ ] **`_governance` (Timelock) = the only GOVERNANCE_ROLE.** The deployer
+      must end up with no roles after the wiring.
 
-Nota: su testnet marketing/treasury coincidono col deployer solo per test —
-su mainnet devono essere multisig distinti.
+Note: on testnet marketing/treasury coincide with the deployer for testing
+only — on mainnet they must be distinct multisigs.
 
-## Verifiche automatiche
+## Automatic checks
 
-- [ ] **`_assertDecentralized()` gira e passa su mainnet** (13 assert nello
-      script di deploy): timelock governa token/staking, deployer senza
-      ruoli, nessun `DEFAULT_ADMIN`, supply interamente nella migration, ecc.
-- [ ] Contratti **verificati su BscScan** (source + costruttori).
-- [ ] `MIN_DELAY` del Timelock = **7 giorni**; `MIN_SUPPLY` = **21B**;
-      cap fee 10% — confermati on-chain post-deploy.
+- [ ] **`_assertDecentralized()` runs and passes on mainnet** (13 asserts in
+      the deploy script): the timelock governs the token/staking, the deployer
+      has no roles, no `DEFAULT_ADMIN`, the entire supply in the migration,
+      etc.
+- [ ] Contracts **verified on BscScan** (source + constructors).
+- [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%
+      — confirmed on-chain post-deploy.
 
 ## dApp
 
-- [ ] **`NEXT_PUBLIC_CHAIN_ID=56`** nelle env di produzione Vercel: spegne
-      automaticamente `noindex` e il banner "ambiente di test", e fa seguire
-      a cascata RPC/explorer/indirizzi mainnet (compila `BSC_MAINNET` in
-      `daimon-dapp/src/config/contracts.ts`, inclusa la pair PancakeSwap letta
-      da `daimonV2.uniswapV2Pair()`).
-- [ ] Riattivare la Deployment Protection se l'URL deve restare privato in
-      staging; per il lancio pubblico, dominio ufficiale + allowlist
-      WalletConnect.
+- [ ] **`NEXT_PUBLIC_CHAIN_ID=56`** in the Vercel production env: automatically
+      turns off `noindex` and the "test environment" banner, and makes the
+      mainnet RPC/explorer/addresses cascade (fill in `BSC_MAINNET` in
+      `daimon-dapp/src/config/contracts.ts`, including the PancakeSwap pair
+      read from `daimonV2.uniswapV2Pair()`).
+- [ ] Re-enable Deployment Protection if the URL must stay private on staging;
+      for the public launch, official domain + WalletConnect allowlist.
 
-## Governance post-lancio
+## Post-launch governance
 
-- [ ] `marketingWallet` e `stakingContract` restano modificabili **solo** via
-      proposta → voto → queue → timelock 7g → execute (nessun percorso EOA).
-- [ ] Rinnovo/rotazione guardian prima della scadenza a 36 mesi, se voluto,
-      via governance.
+- [ ] `marketingWallet` and `stakingContract` remain modifiable **only** via
+      proposal → vote → queue → timelock 7d → execute (no EOA path).
+- [ ] Guardian renewal/rotation before the 36-month expiry, if desired, via
+      governance.
 
 ---
 
-**Freeze:** i contratti in `src/` sono congelati al tag `audit-scope-v1`.
-Qualsiasi modifica ai contratti prima del mainnet richiede un nuovo tag
-(`audit-scope-v2`, …) e la ri-esecuzione delle verifiche.
+**Freeze:** the contracts in `src/` are frozen at tag `audit-scope-v2`. Any
+change to the contracts before mainnet requires a new tag (`audit-scope-v3`,
+…) and re-running the checks.

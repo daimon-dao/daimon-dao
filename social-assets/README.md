@@ -1,41 +1,42 @@
 # Social assets — Daimon DAO
 
-Grafiche social generate dall'identità visiva della dApp (logo, font Inter,
-palette blu notte `#0a1128` · oro `#c9a227` · crema `#f5e9c8`). Stile sobrio,
-"istituzionale crypto": nessun effetto pump, nessun logo di terze parti,
-nessun grafico di prezzo. Font Inter (lo stesso della dApp), max 3 colori.
+Social graphics generated from the dApp visual identity (logo, Inter font,
+night-blue `#0a1128` · gold `#c9a227` · cream `#f5e9c8` palette). Sober,
+"institutional crypto" style: no pump effects, no third-party logos, no price
+charts. Inter font (the same as the dApp), at most 3 colors.
 
-Rigenerabili con lo script Node in `scripts/` (usa `@resvg/resvg-js` +
-i TTF statici di Inter; vedi commento in testa allo script).
+Regenerable with the Node script in `scripts/` (uses `@resvg/resvg-js` +
+Inter's static TTFs; see the comment at the top of the script).
 
-| File | Dimensioni | Uso |
+| File | Size | Use |
 |---|---|---|
-| **`banner-profilo-A-en.png`** | 1500×500 | ⭐ **BANNER UFFICIALE.** Header profilo X — variante A (senza logo), inglese. Il testo è protagonista, centrato, con sinistra e basso liberi per l'avatar. |
-| `banner-profilo-A-it.png` | 1500×500 | Alternativa — variante A (senza logo), italiano. |
-| `banner-profilo-B-en/it.png` | 1500×500 | Alternativa — variante B (filigrana): testo a sinistra, simbolo del logo come filigrana chiara tono-su-tono nell'angolo destro (non un secondo logo pieno). Utile per contesti diversi dal profilo X. |
-| `stat-fee.png` | 1600×900 | Post X — "11% → 4%", "decided by the DAO, not by a boss". |
-| `stat-timelock.png` | 1600×900 | Post X — "604,800" seconds of timelock. |
-| `stat-owner-mint.png` | 1600×900 | Post X — "0 owner · 0 mint". |
-| `stat-supply.png` | 1600×900 | Post X — "1000B → 21B" with deflation bar. |
-| `quote-codice.png` | 1600×900 | Post X — "Humans make mistakes. Code doesn't." |
-| `quote-verificate.png` | 1600×900 | Post X — "Don't trust us. Verify." |
-| `github-preview.png` | 1280×640 | Social preview del repository (Settings → Social preview). |
-| `logo-512.png` | 512×512 | Logo quadrato (disco + anello oro, angoli trasparenti): header del README root e avatar dell'organization GitHub. |
+| **`banner-profilo-A-en.png`** | 1500×500 | ⭐ **OFFICIAL BANNER.** X profile header — variant A (no logo), English. The text is the protagonist, centered, with the left and bottom kept clear for the avatar. |
+| `banner-profilo-A-it.png` | 1500×500 | Alternative — variant A (no logo), Italian. |
+| `banner-profilo-B-en/it.png` | 1500×500 | Alternative — variant B (watermark): text on the left, the logo symbol as a light tone-on-tone watermark in the right corner (not a second full logo). Useful for contexts other than the X profile. |
+| `stat-fee.png` | 1600×900 | X post — "11% → 4%", "decided by the DAO, not by a boss". |
+| `stat-timelock.png` | 1600×900 | X post — "604,800" seconds of timelock. |
+| `stat-owner-mint.png` | 1600×900 | X post — "0 owner · 0 mint". |
+| `stat-supply.png` | 1600×900 | X post — "1000B → 21B" with deflation bar. |
+| `quote-codice.png` | 1600×900 | X post — "Humans make mistakes. Code doesn't." |
+| `quote-verificate.png` | 1600×900 | X post — "Don't trust us. Verify." |
+| `github-preview.png` | 1280×640 | Repository social preview (Settings → Social preview). |
+| `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header and the GitHub organization avatar. |
 
-Le card social (stat/quote) e la GitHub preview sono in **inglese**, coerenti
-col banner ufficiale e col README root. I banner mantengono le varianti IT/EN.
+The social cards (stat/quote) and the GitHub preview are in **English**,
+consistent with the official banner and the root README. The banners keep the
+IT/EN variants.
 
-## Note
+## Notes
 
-- **Banner X**: l'avatar del profilo (che mostra già il logo Daimon) si
-  sovrappone in basso a sinistra e X ritaglia i bordi su mobile. Nessun
-  logo pieno nel banner (sarebbe un secondo cerchio identico all'avatar):
-  variante A senza logo, variante B con filigrana chiara a destra. Testo
-  tenuto nella fascia sicura, lontano dall'angolo in basso a sinistra.
-  Banner adottato: **variante A inglese** (`banner-profilo-A-en.png`).
-  Le altre tre (A-it, B-en, B-it) restano come alternative per contesti
-  diversi (profilo in italiano, header di altre piattaforme, ecc.).
-- **Social preview GitHub**: da caricare in *Settings → General → Social
-  preview* del repo (non viene applicata automaticamente dai file nel repo).
-- I template stat/quote sono riutilizzabili: per nuovi dati/frasi basta
-  cambiare il testo nello script e rigenerare.
+- **X banner**: the profile avatar (which already shows the Daimon logo)
+  overlaps the bottom-left and X crops the edges on mobile. No full logo in
+  the banner (it would be a second circle identical to the avatar): variant A
+  without logo, variant B with a light watermark on the right. Text kept in
+  the safe band, away from the bottom-left corner. Adopted banner: **variant A
+  English** (`banner-profilo-A-en.png`). The other three (A-it, B-en, B-it)
+  remain as alternatives for other contexts.
+- **GitHub social preview**: to be uploaded in *Settings → General → Social
+  preview* of the repo (it is not applied automatically from the files in the
+  repo).
+- The stat/quote templates are reusable: for new data/phrases just change the
+  text in the script and regenerate.
