@@ -1,219 +1,222 @@
-# DAPP_SPEC.md — Specifica dApp Daimon (DMN)
+# DAPP_SPEC.md — Daimon (DMN) dApp specification
 
-Specifica completa per la costruzione della dApp. Da leggere insieme al
-repository dei contratti (già deployati e verificati su BSC testnet) e a
-TESTNET_RESULTS.md per gli indirizzi.
+Complete specification for building the dApp. To be read together with the
+contracts repository (already deployed and verified on BSC testnet) and
+TESTNET_RESULTS.md for the addresses.
 
 ---
 
-## 1. Stack tecnico
+## 1. Technical stack
 
 ```
-Framework:        Next.js 14+ (App Router) + TypeScript
-Styling:          TailwindCSS
-Wallet/chain:     wagmi v2 + viem (NO web3.js, NO ethers)
-Wallet supportati: MetaMask, WalletConnect, Trust Wallet (via connectors wagmi)
-Chain:            BSC testnet (97) ora, BSC mainnet (56) predisposto
-                  → config chain e indirizzi contratti in un unico file
-                    src/config/contracts.ts con switch per chainId
-Deploy frontend:  build statica compatibile con Vercel
+Framework:         Next.js 14+ (App Router) + TypeScript
+Styling:           TailwindCSS
+Wallet/chain:      wagmi v2 + viem (NO web3.js, NO ethers)
+Supported wallets: MetaMask, WalletConnect, Trust Wallet (via wagmi connectors)
+Chain:             BSC testnet (97) now, BSC mainnet (56) prepared
+                   → chain config and contract addresses in a single file
+                     src/config/contracts.ts with a chainId switch
+Frontend deploy:   static build compatible with Vercel
 ```
 
-Gli indirizzi dei contratti testnet sono nel repo (TESTNET_RESULTS.md /
-broadcast JSON del deploy). Gli ABI vanno generati dagli artifact Foundry
-(out/) — non ricopiarli a mano.
+The testnet contract addresses are in the repo (TESTNET_RESULTS.md / the
+deploy broadcast JSON). The ABIs must be generated from the Foundry artifacts
+(out/) — do not copy them by hand.
 
 ## 2. Design system
 
 ```
-TEMA: dark mode di default (blu notte), light mode disponibile via toggle.
+THEME: dark mode by default (night blue), light mode available via toggle.
 
-Colori brand:
-  Blu notte (bg principale):    #0a1128
-  Blu notte chiaro (card):      #111b3a
-  Bordi:                        #2a3655
-  Oro (accent, CTA, valori):    #c9a227
-  Oro chiaro (testi titolo):    #f5e9c8
-  Testo secondario:             #8a94ad
-  Verde (successo/governance):  #5dcaa5
-  Rosso (solo errori):          #e24b4a
+Brand colors:
+  Night blue (main bg):        #0a1128
+  Light night blue (card):     #111b3a
+  Borders:                     #2a3655
+  Gold (accent, CTA, values):  #c9a227
+  Light gold (title text):     #f5e9c8
+  Secondary text:              #8a94ad
+  Green (success/governance):  #5dcaa5
+  Red (errors only):           #e24b4a
 
-Light mode: stessi accenti oro, superfici bianche/grigio caldo chiaro,
-testo blu notte.
+Light mode: same gold accents, white/warm-light-gray surfaces, night-blue
+text.
 
-Font: sans-serif pulito (Inter o simile). Numeri importanti: 500 weight.
-NO gradienti pesanti, NO effetti neon. Sobrio, professionale, "banca svizzera crypto".
+Font: clean sans-serif (Inter or similar). Important numbers: 500 weight.
+NO heavy gradients, NO neon effects. Sober, professional, "Swiss crypto bank".
 
-LOGO: non ancora disponibile. Predisporre un componente <Logo /> usato in
-header e favicon che ora mostra un cerchio con bordo oro tratteggiato e
-testo "LOGO"; verrà sostituito con il file definitivo (PNG/SVG) quando
-fornito. Prevedere che il file finale andrà in /public/logo.svg.
+LOGO: not yet available. Prepare a <Logo /> component used in the header and
+favicon that for now shows a circle with a dashed gold border and the text
+"LOGO"; it will be replaced with the final file (PNG/SVG) when provided. Plan
+for the final file to go in /public/logo.svg.
 ```
 
-## 3. Struttura pagine
+## 3. Page structure
 
 ```
 /            Dashboard (home)
-/migrazione  Migrazione 1:1 dal vecchio Daimon
-/staking     Stake, posizioni, reward
-/governance  Proposte, voto, queue/execute
+/migrazione  1:1 migration from the old Daimon
+/staking     Stake, positions, rewards
+/governance  Proposals, voting, queue/execute
 ```
 
-Header persistente: logo + nome DAIMON, nav (Dashboard, Migrazione,
-Staking, Governance), pulsante Connetti wallet (oro). Footer sobrio con
-link ai contratti su BscScan.
+Persistent header: logo + DAIMON name, nav (Dashboard, Migration, Staking,
+Governance), a Connect wallet button (gold). Sober footer with links to the
+contracts on BscScan.
 
-## 4. Dashboard (home) — priorità del progetto
+## 4. Dashboard (home) — project priority
 
-Funziona ANCHE senza wallet connesso (tutte letture pubbliche on-chain).
+Works EVEN without a connected wallet (all public on-chain reads).
 
-**Metric cards (griglia 4):**
-1. Supply attuale (totalSupply, formattata es. "987.4B DMN")
-2. Token bruciati (INITIAL_SUPPLY - totalSupply) con sottotitolo "verso il floor 21B"
-3. Totale stakato (totalStakedAmount dallo staking) con % della supply
-4. Prezzo DMN + market cap — NUMERO SOBRIO:
-   - solo il valore attuale, NIENTE variazione % 24h, NIENTE frecce
-     verdi/rosse, NIENTE grafici (decisione esplicita del proprietario)
-   - fonte primaria: lettura on-chain delle reserve della pair PancakeSwap
-     (getReserves → prezzo in BNB → USD via prezzo BNB da API pubblica)
-   - fallback: API DexScreener
-   - su testnet: mostrare "n/d (testnet)" se la pool non ha liquidità sensata
+**Metric cards (grid of 4):**
+1. Current supply (totalSupply, formatted e.g. "987.4B DMN")
+2. Tokens burned (INITIAL_SUPPLY - totalSupply) with the subtitle "towards the
+   21B floor"
+3. Total staked (totalStakedAmount from staking) with % of supply
+4. DMN price + market cap — SOBER NUMBER:
+   - only the current value, NO 24h % change, NO green/red arrows, NO charts
+     (explicit owner decision)
+   - primary source: on-chain read of the PancakeSwap pair reserves
+     (getReserves → price in BNB → USD via BNB price from a public API)
+   - fallback: DexScreener API
+   - on testnet: show "n/a (testnet)" if the pool has no sensible liquidity
 
-**Barra di deflazione (elemento centrale, full width):**
-- Progresso da 1000B verso 21B, riempimento oro
-- Etichette: "1000B → 21B", quantità bruciata
-- Sotto, la frase chiave sempre visibile:
-  "Quando il floor sarà raggiunto, il 100% della revenue andrà agli staker"
+**Deflation bar (central element, full width):**
+- Progress from 1000B toward 21B, gold fill
+- Labels: "1000B → 21B", the amount burned
+- Below, the key sentence always visible:
+  "Once the floor is reached, 100% of the revenue will go to stakers"
 
-**Card di accesso rapido (2):**
-- "Il tuo staking" → se wallet non connesso: "Connetti il wallet per
-  vedere posizioni e reward" (MAI mostrare zeri finti)
-- Proposta di governance più recente con stato e countdown → link a /governance
+**Quick-access cards (2):**
+- "Your staking" → if the wallet is not connected: "Connect your wallet to see
+  positions and rewards" (NEVER show fake zeros)
+- Most recent governance proposal with state and countdown → link to
+  /governance
 
-**Verificabilità:** ogni metric card ha una piccola icona/link che apre il
-contratto relativo su BscScan (testnet.bscscan.com per chain 97).
+**Verifiability:** each metric card has a small icon/link that opens the
+relevant contract on BscScan (testnet.bscscan.com for chain 97).
 
-**Bottone "Compra DMN"** (aggiunto 2026-07-19): nella card prezzo, bottone
-oro che apre PancakeSwap con `outputCurrency` = indirizzo DMN preso da
-contracts.ts (mai hardcodato: su mainnet segue il nuovo indirizzo da solo).
-NON è uno swap integrato — solo un link, per portare l'utente sulla pool
-ufficiale e proteggerlo dai token fake. Sotto il bottone: indirizzo
-troncato copiabile con invito a verificarlo. Su chain 97 il bottone è
-disabilitato con tooltip ("PancakeSwap non offre una UI di swap testnet"),
-pronto per chain 56. Link secondario discreto nel footer (solo mainnet).
-Niente parametri referral/tracking nell'URL.
+**"Buy DMN" button** (added 2026-07-19): in the price card, a gold button that
+opens PancakeSwap with `outputCurrency` = the DMN address taken from
+contracts.ts (never hardcoded: on mainnet it follows the new address on its
+own). It is NOT an integrated swap — just a link, to bring the user to the
+official pool and protect them from fake tokens. Below the button: a
+copyable truncated address with an invitation to verify it. On chain 97 the
+button is disabled with a tooltip ("PancakeSwap does not offer a testnet swap
+UI"), ready for chain 56. A discreet secondary link in the footer (mainnet
+only). No referral/tracking parameters in the URL.
 
-## 5. Migrazione — percorso guidato, non form
+## 5. Migration — a guided path, not a form
 
-Wizard in 3 passi visivi:
-
-```
-1. CONNETTI    → wallet connect; rileva automaticamente il balance di
-                 vecchi Daimon dell'utente e lo mostra
-2. APPROVA     → bottone "Approva la migrazione" (approve sul vecchio
-                 token verso DaimonMigration, importo = balance rilevato,
-                 modificabile). Stato tx visibile (pending/confermata).
-3. RICEVI DMN  → bottone "Migra ora" (claim). A successo: schermata di
-                 conferma con importo DMN ricevuto 1:1 e link alla tx.
-```
-
-- Mostrare deadline della migrazione (migrationDeadline) con countdown.
-- Se deadline passata: messaggio chiaro, wizard disabilitato.
-- Errori tradotti in italiano comprensibile (es. AmountMismatch →
-  "Il contratto ha rilevato una discrepanza negli importi. Riprova o
-  contatta il supporto — i tuoi fondi non sono stati toccati.")
-- Zero gergo tecnico nelle etichette.
-
-## 6. Staking — con simulatore
-
-**Simulatore (parte alta, funziona anche senza wallet):**
-- Slider importo + selezione lock (30/90/180/365 gg dalle lockOptions
-  on-chain, con i multiplier reali 1x/1.5x/2.2x/4x)
-- Anteprima live: "Otterrai X voting power" + controvalore ≈ $ dell'importo
-- Data di sblocco calcolata e mostrata in chiaro
-
-**Azione stake:** approve (se serve) + stake, con stati tx chiari.
-
-**Le tue posizioni (wallet connesso):**
-- Lista dei lock: importo, multiplier, voting power, data sblocco,
-  countdown, bottone "Ritira" attivo solo a scadenza (altrimenti
-  disabilitato con tooltip "Sbloccabile il …")
-- Reward maturati in BNB con controvalore ≈ $ e bottone "Riscuoti"
-
-## 7. Governance — con countdown visibili
-
-**Lista proposte** (leggere da eventi ProposalCreated + stato da state()):
-ogni card mostra: id, descrizione, proponente (troncato), fase corrente
-con countdown:
+A 3-step visual wizard:
 
 ```
-In attesa      → "Il voto apre tra …"
-In votazione   → barre Sì/No/Astenuti con pesi, "termina tra …", bottoni
-                 di voto (attivi solo con voting power allo snapshot > 0)
-Approvata      → bottone "Metti in coda" (queue)
-In timelock    → countdown 7 giorni, poi bottone "Esegui" (execute)
-Eseguita/Bocciata/Annullata → badge di stato
+1. CONNECT     → wallet connect; automatically detects the user's balance of
+                 old Daimon and shows it
+2. APPROVE     → "Approve the migration" button (approve on the old token
+                 towards DaimonMigration, amount = detected balance,
+                 editable). Visible tx state (pending/confirmed).
+3. RECEIVE DMN → "Migrate now" button (claim). On success: a confirmation
+                 screen with the amount of DMN received 1:1 and a link to the
+                 tx.
 ```
 
-- Mostrare il quorum: "Quorum: X / Y richiesto (10%)" con barra.
-- Il voting power dell'utente mostrato in alto: quello ALLO SNAPSHOT
-  della proposta selezionata (votingPowerAt), non quello live — con
-  tooltip che spiega perché ("il potere di voto è fotografato alla
-  creazione della proposta per impedire manipolazioni").
-- Creazione proposta: form avanzato (target, value, calldata, descrizione)
-  dietro un toggle "Modalità avanzata" — i più la useranno da multisig/
-  strumenti esterni, ma deve esserci.
-- Il flusso queue → execute della proposta #0 testnet è il TEST END-TO-END
-  della dApp: deve funzionare per il 21 luglio.
+- Show the migration deadline (migrationDeadline) with a countdown.
+- If the deadline has passed: a clear message, wizard disabled.
+- Errors translated into understandable language (e.g. AmountMismatch → "The
+  contract detected a mismatch in the amounts. Try again or contact support —
+  your funds have not been touched.")
+- Zero technical jargon in the labels.
 
-## 8. Regole trasversali (non negoziabili)
+## 6. Staking — with a simulator
 
-1. NIENTE dati finti: wallet non connesso → invito a connettere, non zeri.
-2. Ogni transazione: stato visibile (in attesa di firma → pending →
-   confermata/fallita) con link alla tx su BscScan.
-3. Errori dei contratti mappati su messaggi comprensibili nella lingua
-   della UI (LockStillActive, VotingClosed, ContractIsPaused,
-   AmountMismatch, GuardianExpired, ecc.). Mai mostrare stringhe raw di
-   revert. La mappatura esiste in entrambe le lingue (§8.8).
-4. Se paused() è true: banner globale "Il contratto è temporaneamente in
-   pausa di emergenza" e azioni disabilitate.
-5. Tutti gli importi formattati leggibili (1.5M, 20B) con valore esatto
-   in tooltip.
-6. Responsive: mobile-first, la maggioranza degli utenti BSC è da mobile.
-7. Nessun tracker/analytics di terze parti. Coerenza con la filosofia.
-8. Interfaccia BILINGUE inglese + italiano (aggiornato 2026-07-22, prima
-   solo italiano). Regole:
-   - Default INGLESE; italiano al primo accesso solo se è la lingua
-     primaria del browser (Accept-Language). Selettore EN|IT nell'header;
-     la scelta persiste in cookie (`daimon-locale`) e viene letta anche
-     dal server → HTML iniziale e primo render client coincidono (niente
-     hydration mismatch).
-   - Implementazione: dizionari custom leggeri (src/messages/en.json +
-     it.json, provider React in LocaleProvider.tsx, lookup con
-     interpolazione in lib/i18n.ts). NIENTE next-intl: 2 lingue e nessun
-     routing per-locale non lo giustificano.
-   - Si traduce TUTTA la UI: pagine, header/footer, banner, avvisi
-     transazione, errori mappati, tooltip, metadata.
-   - NON si traducono: dati on-chain (numeri, indirizzi, hash, simboli),
-     descrizioni delle proposte (contenuto scritto dai proposer).
-   - Formato numeri INVARIATO tra le lingue (floor-truncation incluso);
-     date e countdown localizzati (it-IT ↔ en-US, "3g" ↔ "3d").
+**Simulator (top part, works even without a wallet):**
+- Amount slider + lock selection (30/90/180/365 days from the on-chain
+  lockOptions, with the real 1x/1.5x/2.2x/4x multipliers)
+- Live preview: "You will get X voting power" + ≈ $ value of the amount
+- Unlock date computed and shown in the clear
 
-## 9. Cosa NON includere (decisioni esplicite)
+**Stake action:** approve (if needed) + stake, with clear tx states.
 
-- NIENTE grafici del prezzo (né candele né sparkline) — deciso.
-- NIENTE variazione % 24h o indicatori rossi/verdi sul prezzo — deciso.
-- NIENTE sezione lending/borrowing — arriverà in fase 2, non predisporre UI.
-- NIENTE localStorage per dati sensibili.
-- NIENTE swap integrato nella dApp — deciso 2026-07-19: rimandato alla
-  fase 2 DeFi, da attivare via proposta DAO. Soluzione ponte: il bottone
-  "Compra DMN" (§4) che apre PancakeSwap sulla pair ufficiale.
+**Your positions (connected wallet):**
+- List of locks: amount, multiplier, voting power, unlock date, countdown,
+  a "Withdraw" button active only at expiry (otherwise disabled with a tooltip
+  "Unlockable on …")
+- Accrued rewards in BNB with ≈ $ value and a "Claim" button
 
-## 10. Consegna
+## 7. Governance — with visible countdowns
 
-- Repo separato (cartella daimon-dapp) o sottocartella del monorepo, a
-  tua scelta motivata.
-- README con: setup locale, variabili d'ambiente, come cambiare chain
-  testnet→mainnet (un solo file di config), come sostituire il logo.
-- Verifica finale: connessione a BSC testnet reale, lettura dashboard,
-  e simulazione completa del flusso di voto sulla proposta #0.
+**Proposal list** (read from ProposalCreated events + state from state()):
+each card shows: id, description, proposer (truncated), current phase with a
+countdown:
+
+```
+Pending        → "Voting opens in …"
+Voting open    → Yes/No/Abstain bars with weights, "ends in …", vote buttons
+                 (active only with voting power at the snapshot > 0)
+Succeeded      → "Queue" button (queue)
+In timelock    → 7-day countdown, then an "Execute" button (execute)
+Executed/Defeated/Canceled → status badge
+```
+
+- Show the quorum: "Quorum: X / Y required (10%)" with a bar.
+- The user's voting power shown at the top: the one AT THE SNAPSHOT of the
+  selected proposal (votingPowerAt), not the live one — with a tooltip
+  explaining why ("voting power is snapshotted at proposal creation to prevent
+  manipulation").
+- Proposal creation: an advanced form (target, value, calldata, description)
+  behind an "Advanced mode" toggle — most will use it from multisig/external
+  tools, but it must exist.
+- The proposal #0 testnet queue → execute flow is the END-TO-END TEST of the
+  dApp: it must work by July 21.
+
+## 8. Cross-cutting rules (non-negotiable)
+
+1. NO fake data: wallet not connected → an invitation to connect, not zeros.
+2. Every transaction: visible state (waiting for signature → pending →
+   confirmed/failed) with a link to the tx on BscScan.
+3. Contract errors mapped to understandable messages in the UI language
+   (LockStillActive, VotingClosed, ContractIsPaused, AmountMismatch,
+   GuardianExpired, etc.). Never show raw revert strings. The mapping exists in
+   both languages (§8.8).
+4. If paused() is true: a global banner "The contract is temporarily paused
+   for emergency" and actions disabled.
+5. All amounts formatted readably (1.5M, 20B) with the exact value in a
+   tooltip.
+6. Responsive: mobile-first, the majority of BSC users are on mobile.
+7. No third-party tracker/analytics. Consistent with the philosophy.
+8. BILINGUAL interface English + Italian (updated 2026-07-22, previously
+   Italian only). Rules:
+   - Default ENGLISH; Italian on first visit only if it is the browser's
+     primary language (Accept-Language). EN|IT selector in the header; the
+     choice persists in a cookie (`daimon-locale`) and is read by the server
+     too → the initial HTML and the first client render match (no hydration
+     mismatch).
+   - Implementation: lightweight custom dictionaries (src/messages/en.json +
+     it.json, a React provider in LocaleProvider.tsx, lookup with
+     interpolation in lib/i18n.ts). NO next-intl: 2 languages and no
+     per-locale routing do not justify it.
+   - The WHOLE UI is translated: pages, header/footer, banners, transaction
+     notices, mapped errors, tooltips, metadata.
+   - NOT translated: on-chain data (numbers, addresses, hashes, symbols),
+     proposal descriptions (content written by the proposers).
+   - Number formatting UNCHANGED between languages (floor-truncation
+     included); dates and countdowns localized (it-IT ↔ en-US, "3g" ↔ "3d").
+
+## 9. What NOT to include (explicit decisions)
+
+- NO price charts (neither candles nor sparklines) — decided.
+- NO 24h % change or red/green indicators on the price — decided.
+- NO lending/borrowing section — it will arrive in phase 2, do not prepare UI.
+- NO localStorage for sensitive data.
+- NO integrated swap in the dApp — decided 2026-07-19: deferred to the phase-2
+  DeFi, to be activated via a DAO proposal. Bridge solution: the "Buy DMN"
+  button (§4) that opens PancakeSwap on the official pair.
+
+## 10. Delivery
+
+- Separate repo (daimon-dapp folder) or a subfolder of the monorepo, your
+  reasoned choice.
+- README with: local setup, environment variables, how to switch chain
+  testnet→mainnet (a single config file), how to replace the logo.
+- Final check: connection to the real BSC testnet, dashboard reading, and a
+  full simulation of the voting flow on proposal #0.

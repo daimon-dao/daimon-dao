@@ -1,78 +1,78 @@
-# Deploy su BSC Testnet — Daimon DAO
+# Deploy on BSC Testnet — Daimon DAO
 
-Guida passo passo per deployare l'intero stack (token DaimonV2 + staking +
-governor + timelock + migration + mock del vecchio Daimon) su BSC testnet
-(chain id 97) con Foundry.
+Step-by-step guide to deploy the entire stack (DaimonV2 token + staking +
+governor + timelock + migration + mock of the old Daimon) on BSC testnet
+(chain id 97) with Foundry.
 
-## Cosa fa lo script
+## What the script does
 
-[script/Deploy.s.sol](script/Deploy.s.sol) deploya, in un'unica esecuzione:
+[script/Deploy.s.sol](script/Deploy.s.sol) deploys, in a single run:
 
-1. **MockOldDaimon** — replica del vecchio token con fee 5%, l'intera
-   old-supply al deployer (per testare la migrazione). Saltato se imposti
-   `OLD_DAIMON` nell'ambiente.
-2. **DaimonV2** implementation + **proxy ERC1967** con `initialize()`
-   atomica. Il `_migrationContract` passato a initialize è la **vera
-   DaimonMigration**, il cui indirizzo viene precalcolato dal nonce CREATE
-   del deployer: l'intera supply nasce già nel contratto di migrazione,
-   escluso dalle fee, senza mai transitare da un EOA.
-3. **DaimonStaking**, **DaimonTimelock** (minDelay 7 giorni),
-   **DaimonGovernor** (quorum 10%, threshold 1000 DMN), **DaimonMigration**
-   (finestra 30 giorni, configurabile).
-4. **Wiring completo**: governor = proposer + executor del timelock,
-   timelock = governance di token e staking, e **rinuncia finale a tutti i
-   ruoli bootstrap del deployer** (inclusa l'ADMIN_ROLE del timelock).
-5. **Assert on-chain finali**: lo script fallisce se un EOA detiene ancora
-   un ruolo amministrativo o se la supply non è interamente nella migration.
+1. **MockOldDaimon** — replica of the old token with a 5% fee, the entire
+   old-supply to the deployer (to test the migration). Skipped if you set
+   `OLD_DAIMON` in the environment.
+2. **DaimonV2** implementation + **ERC1967 proxy** with an atomic
+   `initialize()`. The `_migrationContract` passed to initialize is the **real
+   DaimonMigration**, whose address is precomputed from the deployer's CREATE
+   nonce: the entire supply is born already inside the migration contract,
+   excluded from fees, without ever passing through an EOA.
+3. **DaimonStaking**, **DaimonTimelock** (minDelay 7 days), **DaimonGovernor**
+   (quorum 10%, threshold 1000 DMN), **DaimonMigration** (30-day window,
+   configurable).
+4. **Full wiring**: governor = proposer + executor of the timelock, timelock =
+   governance of the token and staking, and a **final renounce of all the
+   deployer's bootstrap roles** (including the timelock's ADMIN_ROLE).
+5. **Final on-chain asserts**: the script fails if an EOA still holds an
+   administrative role or if the supply is not entirely in the migration.
 
-> Il guardian conserva solo pausa (token) e cancel (timelock/governor), per
-> design. Su testnet può essere il deployer; **in produzione deve essere un
-> multisig**, e treasury/marketing wallet indirizzi dedicati.
+> The guardian keeps only pause (token) and cancel (timelock/governor), by
+> design. On testnet it can be the deployer; **in production it must be a
+> multisig**, and treasury/marketing wallet dedicated addresses.
 
-## 1. Prerequisiti
+## 1. Prerequisites
 
-- Foundry installato (`forge --version`). Se manca:
-  scarica `foundry_stable_win32_amd64.zip` dalle release di
-  https://github.com/foundry-rs/foundry e metti i binari nel PATH,
-  oppure su Linux/macOS: `curl -L https://foundry.paradigm.xyz | bash && foundryup`
-- Dipendenze del progetto già in `lib/` (`forge build` deve passare).
+- Foundry installed (`forge --version`). If missing: download
+  `foundry_stable_win32_amd64.zip` from the releases at
+  https://github.com/foundry-rs/foundry and put the binaries in the PATH, or
+  on Linux/macOS: `curl -L https://foundry.paradigm.xyz | bash && foundryup`
+- Project dependencies already in `lib/` (`forge build` must pass).
 
-## 2. BNB testnet dal faucet
+## 2. BNB testnet from the faucet
 
-1. Crea/usa un wallet **dedicato al deploy su testnet** (mai il wallet
-   principale).
-2. Vai al faucet ufficiale BNB Chain: **https://www.bnbchain.org/en/testnet-faucet**
-   (richiede login GitHub o un piccolo saldo BNB su mainnet a seconda del
-   periodo). In alternativa: https://faucet.quicknode.com/binance-smart-chain/bnb-testnet
-3. Richiedi tBNB per l'indirizzo del deployer. Il deploy completo usa
-   ~14.6M di gas (misurato in simulazione): da 0.0015 tBNB a 0.1 gwei
-   fino a ~0.15 tBNB se la testnet gira a 10 gwei. Con **0.5 tBNB** sei
-   ampiamente coperto.
-4. Verifica il saldo:
+1. Create/use a wallet **dedicated to the testnet deploy** (never the main
+   wallet).
+2. Go to the official BNB Chain faucet:
+   **https://www.bnbchain.org/en/testnet-faucet** (requires a GitHub login or
+   a small BNB balance on mainnet depending on the period). Alternatively:
+   https://faucet.quicknode.com/binance-smart-chain/bnb-testnet
+3. Request tBNB for the deployer address. The full deploy uses ~14.6M gas
+   (measured in simulation): from 0.0015 tBNB at 0.1 gwei up to ~0.15 tBNB if
+   the testnet runs at 10 gwei. With **0.5 tBNB** you are amply covered.
+4. Check the balance:
    ```sh
-   cast balance <INDIRIZZO_DEPLOYER> --rpc-url bsc_testnet
+   cast balance <DEPLOYER_ADDRESS> --rpc-url bsc_testnet
    ```
 
-## 3. Chiave privata in modo sicuro
+## 3. Private key, securely
 
-**La chiave non va MAI hardcodata in file versionati, né passata in chiaro
-nella riga di comando** (finirebbe nella history della shell).
+**The key must NEVER be hardcoded in versioned files, nor passed in the clear
+on the command line** (it would end up in the shell history).
 
-### Opzione A — keystore cifrato (raccomandata)
+### Option A — encrypted keystore (recommended)
 
 ```sh
 cast wallet import daimon-deployer --interactive
 ```
 
-Ti chiede la chiave privata (input nascosto) e una password; la salva
-cifrata in `~/.foundry/keystores/daimon-deployer`. Da qui in poi usi
-`--account daimon-deployer` e Foundry chiede la password al momento
-dell'uso. La chiave non tocca mai né file di progetto né history.
+It asks for the private key (hidden input) and a password; it saves it
+encrypted in `~/.foundry/keystores/daimon-deployer`. From then on you use
+`--account daimon-deployer` and Foundry asks for the password at use time. The
+key never touches project files or history.
 
-### Opzione B — variabile d'ambiente
+### Option B — environment variable
 
-Copia `.env.example` in `.env` (già in `.gitignore`), compila
-`PRIVATE_KEY=0x...`, poi caricala nella shell **solo per la sessione**:
+Copy `.env.example` to `.env` (already in `.gitignore`), fill in
+`PRIVATE_KEY=0x...`, then load it into the shell **for the session only**:
 
 ```powershell
 # PowerShell
@@ -83,30 +83,31 @@ Get-Content .env | Where-Object {$_ -match '^\w+='} | ForEach-Object { $k,$v = $
 source .env
 ```
 
-Poi userai `--private-key $env:PRIVATE_KEY` (PowerShell) o
-`--private-key $PRIVATE_KEY` (bash) al posto di `--account`.
+Then you will use `--private-key $env:PRIVATE_KEY` (PowerShell) or
+`--private-key $PRIVATE_KEY` (bash) instead of `--account`.
 
-### Configurazione ruoli (opzionale su testnet)
+### Role configuration (optional on testnet)
 
-Nella stessa `.env` (o come variabili d'ambiente) puoi impostare
+In the same `.env` (or as environment variables) you can set
 `GUARDIAN_ADDRESS`, `MARKETING_WALLET`, `TREASURY_ADDRESS`,
-`ETHERSCAN_API_KEY`, `OLD_DAIMON`, `MIGRATION_DURATION`. Se le lasci vuote
-lo script usa il deployer e logga un warning (accettabile solo su testnet).
+`ETHERSCAN_API_KEY`, `OLD_DAIMON`, `MIGRATION_DURATION`. If you leave them
+empty the script uses the deployer and logs a warning (acceptable on testnet
+only).
 
-## 4. Simulazione (consigliata prima del deploy)
+## 4. Simulation (recommended before deploy)
 
-Il comando senza `--broadcast` esegue tutto in simulazione contro la chain
-reale (incluse le chiamate al router PancakeSwap testnet e gli assert
-finali), **senza inviare nulla**:
+The command without `--broadcast` runs everything in simulation against the
+real chain (including the calls to the PancakeSwap testnet router and the
+final asserts), **without sending anything**:
 
 ```sh
 forge script script/Deploy.s.sol:Deploy --rpc-url bsc_testnet --account daimon-deployer -vvv
 ```
 
-Controlla nel log gli indirizzi previsti e che compaia
-"Tutti gli assert di decentralizzazione sono passati."
+Check in the log the expected addresses and that the confirmation that all
+decentralization asserts passed appears.
 
-## 5. Deploy reale
+## 5. Real deploy
 
 ```sh
 forge script script/Deploy.s.sol:Deploy `
@@ -117,30 +118,30 @@ forge script script/Deploy.s.sol:Deploy `
   -vvv
 ```
 
-(In bash sostituisci i backtick con `\`. Con l'opzione B usa
-`--private-key ...` al posto di `--account ...`.)
+(In bash replace the backticks with `\`. With option B use `--private-key ...`
+instead of `--account ...`.)
 
-- `--broadcast` invia le transazioni.
-- `--verify` verifica automaticamente tutti i contratti su BscScan testnet
-  al termine (richiede `ETHERSCAN_API_KEY` nell'ambiente, vedi sotto).
-- Gli indirizzi deployati vengono stampati a fine script e salvati in
+- `--broadcast` sends the transactions.
+- `--verify` automatically verifies all the contracts on BscScan testnet at
+  the end (requires `ETHERSCAN_API_KEY` in the environment, see below).
+- The deployed addresses are printed at the end of the script and saved in
   `broadcast/Deploy.s.sol/97/run-latest.json`.
 
-## 6. Verifica su BscScan testnet
+## 6. Verification on BscScan testnet
 
-### Automatica
+### Automatic
 
-Con `--verify` nel comando di deploy non serve altro. La chiave API è
-unica Etherscan V2 (vale anche per BscScan): creala su
-https://etherscan.io/apis e impostala come `ETHERSCAN_API_KEY`.
+With `--verify` in the deploy command nothing else is needed. The API key is a
+single Etherscan V2 key (valid for BscScan too): create it at
+https://etherscan.io/apis and set it as `ETHERSCAN_API_KEY`.
 
-### Manuale (se la verifica automatica fallisce)
+### Manual (if automatic verification fails)
 
-Le impostazioni compiler (solc 0.8.26, optimizer, `via_ir`, `evm_version
-shanghai`) vengono lette da foundry.toml automaticamente. Esempi:
+The compiler settings (solc 0.8.26, optimizer, `via_ir`, `evm_version
+shanghai`) are read from foundry.toml automatically. Examples:
 
 ```sh
-# Implementation del token (nessun constructor arg)
+# Token implementation (no constructor arg)
 forge verify-contract <IMPL_ADDRESS> src/DaimonV2.sol:DaimonV2 --chain 97 --watch
 
 # Proxy (constructor: implementation + initData)
@@ -148,38 +149,37 @@ forge verify-contract <PROXY_ADDRESS> lib/openzeppelin-contracts/contracts/proxy
   --chain 97 --watch `
   --constructor-args $(cast abi-encode "constructor(address,bytes)" <IMPL_ADDRESS> <INIT_DATA>)
 
-# Staking (constructor: token, governance temporanea = deployer)
+# Staking (constructor: token, temporary governance = deployer)
 forge verify-contract <STAKING_ADDRESS> src/DaimonStaking.sol:DaimonStaking --chain 97 --watch `
   --constructor-args $(cast abi-encode "constructor(address,address)" <PROXY_ADDRESS> <DEPLOYER>)
 ```
 
-`<INIT_DATA>` è la calldata di `initialize(...)`: la trovi nel campo
-`arguments`/`transaction.input` del proxy dentro
-`broadcast/Deploy.s.sol/97/run-latest.json`. Su BscScan, dopo la verifica
-del proxy usa "More Options → Is this a proxy?" per collegare l'ABI
-dell'implementation.
+`<INIT_DATA>` is the calldata of `initialize(...)`: you find it in the
+`arguments`/`transaction.input` field of the proxy inside
+`broadcast/Deploy.s.sol/97/run-latest.json`. On BscScan, after verifying the
+proxy use "More Options → Is this a proxy?" to link the implementation ABI.
 
-## 7. Smoke test post-deploy
+## 7. Post-deploy smoke test
 
 ```sh
-# La supply e' tutta nella migration?
+# Is the supply all in the migration?
 cast call <PROXY> "balanceOf(address)(uint256)" <MIGRATION> --rpc-url bsc_testnet
 cast call <PROXY> "totalSupply()(uint256)" --rpc-url bsc_testnet
 
-# Il deployer non ha piu' ruoli? (GOVERNANCE_ROLE)
+# Does the deployer no longer have roles? (GOVERNANCE_ROLE)
 cast call <PROXY> "hasRole(bytes32,address)(bool)" $(cast keccak "GOVERNANCE_ROLE") <DEPLOYER> --rpc-url bsc_testnet
 ```
 
-### Test della migrazione completa
+### Full migration test
 
-Il deployer detiene l'intera old-supply del MockOldDaimon:
+The deployer holds the entire old-supply of the MockOldDaimon:
 
 ```sh
-# 1. (facoltativo) distribuisci vecchi token a un wallet di test
+# 1. (optional) distribute old tokens to a test wallet
 cast send <OLD_DAIMON> "transfer(address,uint256)" <TESTER> 1000000000000000000000 `
   --rpc-url bsc_testnet --account daimon-deployer
 
-# 2. il tester approva la migration sul vecchio token
+# 2. the tester approves the migration on the old token
 cast send <OLD_DAIMON> "approve(address,uint256)" <MIGRATION> 1000000000000000000000 `
   --rpc-url bsc_testnet --account <TESTER_ACCOUNT>
 
@@ -187,20 +187,20 @@ cast send <OLD_DAIMON> "approve(address,uint256)" <MIGRATION> 100000000000000000
 cast send <MIGRATION> "claim(uint256)" 1000000000000000000000 `
   --rpc-url bsc_testnet --account <TESTER_ACCOUNT>
 
-# 4. verifica il saldo DaimonV2 ricevuto (deve essere esattamente 1:1)
+# 4. check the received DaimonV2 balance (must be exactly 1:1)
 cast call <PROXY> "balanceOf(address)(uint256)" <TESTER> --rpc-url bsc_testnet
 ```
 
-Nota: lo script ha già eseguito il passaggio preparatorio
-`oldToken.excludeFromFee(treasury)`; senza, `claim()` reverterebbe con
-`AmountMismatch` (protezione by-design contro fee inattese).
+Note: the script has already performed the preparatory step
+`oldToken.excludeFromFee(treasury)`; without it, `claim()` would revert with
+`AmountMismatch` (a by-design protection against unexpected fees).
 
-## Riferimenti rete
+## Network references
 
 | | |
 |---|---|
 | Chain id | 97 |
 | RPC | https://data-seed-prebsc-1-s1.binance.org:8545 (alias `bsc_testnet` in foundry.toml) |
 | Explorer | https://testnet.bscscan.com |
-| Router PancakeSwap V2 | `0xD99D1c33F9fC3444f8101754aBC46c52416550D1` |
+| PancakeSwap V2 Router | `0xD99D1c33F9fC3444f8101754aBC46c52416550D1` |
 | Faucet | https://www.bnbchain.org/en/testnet-faucet |
