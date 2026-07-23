@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
 /*
- * Colori brand da DAPP_SPEC.md §2, mappati su CSS variables (definite in
- * globals.css) cosi' il toggle dark/light cambia solo le variabili.
+ * Brand colors from DAPP_SPEC.md §2, mapped to CSS variables (defined in
+ * globals.css) so the dark/light toggle only changes the variables.
  */
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
