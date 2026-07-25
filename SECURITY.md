@@ -50,6 +50,37 @@ advisory (we agree on the timing together).
 program on Immunefi), social engineering, and anything concerning the test
 network only.
 
+## Known dependency advisories (dApp)
+
+The frontend in `daimon-dapp/` carries open npm advisories that Dependabot
+reports on this repository. They are listed here so a reviewer does not have to
+re-derive the analysis. **None of them affects the contracts**, which have no
+npm dependencies at runtime.
+
+What matters for the assessment: the dApp server is a **stateless public
+frontend**. It holds no keys, no funds, no database and no authenticated
+sessions; it never signs anything. All chain interaction happens client-side in
+the user's browser through their own wallet. The worst realistic outcome of a
+frontend compromise or outage is that the page is unavailable — users can
+always interact with the contracts directly via BscScan or `cast`.
+
+**Fixed** (overrides in `daimon-dapp/package.json`): `axios` ≥1.18.0,
+`postcss` ≥8.5.23, `ws` ≥8.21.1. The `ws` override alone cleared the whole
+WalletConnect / reown / viem chain, which was flagged only through that
+transitive dependency.
+
+**Open, accepted:**
+
+| Advisory | Why it stays open | Why it is not exploitable here |
+|---|---|---|
+| `next` 14.2.35 — several DoS / SSRF / cache-poisoning / XSS advisories | No fix exists in the 14.x line (14.2.35 is the last release); the fixed versions are 15.5.21+ / 16.x, a framework major upgrade. Deferred: it would destabilise a working dApp for no security gain here. | Every advisory requires a feature this app does not use. It has **no middleware, no Server Actions, no route handlers, no rewrites, no i18n routing, no `next/image`, no `images.remotePatterns`, no CSP nonces and no custom server** — `next.config.mjs` sets only `reactStrictMode`. The residue is DoS against server-side rendering of public, read-only pages. |
+| `uuid` <11.1.1 (via `@metamask/sdk` and the MetaMask utils chain) | The fix is uuid 11.x, a major bump forced onto MetaMask packages that expect the v8/v9 API — a real risk of breaking wallet connection. | The advisory is a missing bounds check in `v3`/`v5`/`v6` **when the caller passes a `buf` argument**. The MetaMask SDK uses `uuid.v4()` for request ids and never passes a buffer, so the vulnerable path is not reached. |
+| `@metamask/sdk`, `@metamask/utils`, `@metamask/rpc-errors`, `@metamask/sdk-communication-layer`, `@gemini-wallet/core`, `@wagmi/connectors`, `wagmi` | Flagged transitively because of the `uuid` entry above; they have no advisory of their own. Clearing them would mean `wagmi@3`, a major upgrade of the wallet layer. | Same as `uuid`: the vulnerable code path is never executed. |
+
+Re-check with `npm audit` inside `daimon-dapp/`. Note that `npm audit` counts
+one entry per affected package in the tree, so its totals are higher than the
+number of distinct advisories.
+
 ## Bug bounty
 
 There is currently **no formal bug bounty program**: it will arrive with the
