@@ -105,36 +105,59 @@ and one of 500,000 DMN at 365d (4x, lockId 1); early withdraw of lock 0.
 
 ---
 
-## Test 4 — Governance: propose now, vote/queue/execute on schedule ⏳
+## Test 4 — Governance: full cycle propose → vote → queue → execute ✅
 
-**What was tested**: immediate creation of proposal #0 — `setFees(10, 10, 20)`
-on the token (total fee from 5% to 4%) — to start the clock; an immediate vote
-attempt (must fail due to the voting delay).
+**What was tested**: the complete governance cycle on proposal #0 —
+`setFees(10, 10, 20)` on the token (total fee from 5% to 4%) — including an
+immediate vote attempt (which must fail because of the voting delay) and the
+enforcement of the 7-day timelock before the execute.
+
+On-chain description of proposal #0, written by the proposer (Italian in the
+original, **not translated** — it is immutable on-chain content):
+
+> Riduzione fee totale al 4% (tax 1%, buyback 1%, marketing 2%)
+
+**Timeline** (all values read back from chain; IT = Italian time, UTC+2):
+
+| Phase | Timestamp | UTC | IT |
+|---|---|---|---|
+| Created / snapshot | `1783467501` | 2026-07-07 23:38:21 | 2026-07-08 01:38:21 |
+| Voting opens | `1783553901` | 2026-07-08 23:38:21 | 2026-07-09 01:38:21 |
+| Voting closes | `1783985901` | 2026-07-13 23:38:21 | 2026-07-14 01:38:21 |
+| Queued | `1783991100` | 2026-07-14 01:05:00 | 2026-07-14 03:05:00 |
+| Executable from (timelock ready) | `1784595900` | 2026-07-21 01:05:00 | 2026-07-21 03:05:00 |
+| Executed | `1784596269` | 2026-07-21 01:11:09 | 2026-07-21 03:11:09 |
+
+Voting delay = 1 day and voting period = 5 days, both confirmed by the deltas.
+The queue happened 1h27m after voting closed, so the timelock `readyTimestamp`
+is 2026-07-21 01:05:00 UTC — 7 days after the queue, to the second. The execute
+landed 6m09s after that, i.e. the timelock was never bypassed.
 
 | Step | Tx |
 |---|---|
-| `propose(token, 0, setFees(10,10,20), "Fee reduction…")` from B (vp 3M ≥ threshold 1000) | `0xa6e465fb70da2b587f8ab7795a22cfc7c29bc984d571020260178b6af2cb5035` |
-| `castVote(0, 1)` immediate | no tx: revert `0x66b6cb4a` = **`VotingClosed()`** ✅ (1-day voting delay respected) |
+| `propose(token, 0, setFees(10,10,20), …)` from B (vp 3M ≥ threshold 1000) — block `117829872` | `0xa6e465fb70da2b587f8ab7795a22cfc7c29bc984d571020260178b6af2cb5035` |
+| `castVote(0, 1)` immediate, before the delay elapsed | no tx: revert `0x66b6cb4a` = **`VotingClosed()`** ✅ (1-day voting delay respected) |
+| `castVote(0, 1)` during the voting window, from B | tx hash not recorded at the time; the vote is proven on-chain by `forVotes` = 3,000,000 DMN (against 0, abstain 0) |
+| `queue(0)` from B — block `118991520`, nonce 9, calldata `0xddf0b009` | `0x3d5adeac84a205edd963af483de98bd0f40be0491532ed4dc9b0f2418fee2920` |
+| `execute(0)` from B — block `120335837` | `0x5aa519a9884d24037f0cb903f3565f1a9e5e87529e5d4c1baa3f0c054302fe5f` |
 
-Proposal #0 created at timestamp `1783467501` (2026-07-07 23:38:21 UTC).
-
-**Calendar** (Italian time = UTC+2):
-
-| Phase | From | Command |
-|---|---|---|
-| **Vote** | Jul 09 01:38 → Jul 14 01:38 | `cast send 0xe2445551f1d6c487e6cfb48f8621ccfb4d919c52 "castVote(uint256,uint8)" 0 1 --private-key (Get-Content .testwallets\walletB.key) --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545` |
-| **Queue** (anyone) | after Jul 14 01:38 | `cast send 0xe2445551f1d6c487e6cfb48f8621ccfb4d919c52 "queue(uint256)" 0 --private-key (Get-Content .testwallets\walletB.key) --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545` |
-| **Execute** | 7 days after the queue (≈ Jul 21 01:38) | `cast send 0xe2445551f1d6c487e6cfb48f8621ccfb4d919c52 "execute(uint256)" 0 --private-key (Get-Content .testwallets\walletB.key) --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545` |
-| **Final check** | after the execute | `cast call 0xf9a4d8b6ae6e37f198443e9855e3788119c94202 "taxFee()(uint256)" --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545` → expected 10 (and buybackFee 10, marketingFee 20) |
+**Final state** (verified on-chain):
+`state(0)` = `5` (Executed), timelock `operations(opId).executed` = `true` with
+`opId` = `0xd1f0afcb455c3a1e13ca0496435ac0c129e6247525913cce3a681957e202ef50`,
+and the token fees are `taxFee=10, buybackFee=10, marketingFee=20` — exactly
+what `setFees(10,10,20)` proposed.
 
 The proposal state is queryable at any time:
 `cast call 0xe2445551f1d6c487e6cfb48f8621ccfb4d919c52 "state(uint256)(uint8)" 0 --rpc-url …`
 (0 Pending, 1 Active, 2 Defeated, 3 Succeeded, 4 Queued, 5 Executed, 6 Canceled)
 
-**Partial result**: PASS (propose + delay enforcement). Vote/queue/execute to
-be completed on schedule.
+**Result**: PASS. The full cycle completed as designed; see Test 8 for the
+wei-exact economic proof that the execute changed real transfer behavior.
 
-**Anomalies**: none.
+**Anomalies**: none. The `castVote` tx hash was not written down while the test
+was running and could not be recovered afterwards: the public BSC testnet RPCs
+serve neither `eth_getLogs` nor historical state for these blocks (`missing
+trie node`), so the transaction cannot be located by event or by nonce.
 
 ---
 
@@ -425,7 +448,7 @@ no-decay); snapshot, boundary and reflection solid.
 | 1 | 1:1 migration with treasury | ✅ PASS |
 | 2 | 5% fee + reflection to idle holders | ✅ PASS (stale-RPC note) |
 | 3 | Voting power 1x/4x + lock | ✅ PASS |
-| 4 | Governance propose + delay | ✅ PASS — vote Jul 9, queue Jul 14, execute from Jul 21 |
+| 4 | Governance full cycle (propose → vote → queue → execute) | ✅ PASS — voting opened Jul 9, queued Jul 14 01:05 UTC, executed Jul 21 01:11 UTC |
 | 5 | Guardian pause | ✅ PASS |
 | 6 | Burn cycle (autonomous fee swap + supply burn) | ✅ PASS (Plan B) |
 | 7 | Multi-wallet reward claim + wei-exact reconciliation | ✅ PASS |
