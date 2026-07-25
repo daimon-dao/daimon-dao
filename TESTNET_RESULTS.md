@@ -123,6 +123,7 @@ original, **not translated** — it is immutable on-chain content):
 |---|---|---|---|
 | Created / snapshot | `1783467501` | 2026-07-07 23:38:21 | 2026-07-08 01:38:21 |
 | Voting opens | `1783553901` | 2026-07-08 23:38:21 | 2026-07-09 01:38:21 |
+| Vote cast (For, 3M vp) | `1783636602` | 2026-07-09 22:36:42 | 2026-07-10 00:36:42 |
 | Voting closes | `1783985901` | 2026-07-13 23:38:21 | 2026-07-14 01:38:21 |
 | Queued | `1783991100` | 2026-07-14 01:05:00 | 2026-07-14 03:05:00 |
 | Executable from (timelock ready) | `1784595900` | 2026-07-21 01:05:00 | 2026-07-21 03:05:00 |
@@ -137,7 +138,7 @@ landed 6m09s after that, i.e. the timelock was never bypassed.
 |---|---|
 | `propose(token, 0, setFees(10,10,20), …)` from B (vp 3M ≥ threshold 1000) — block `117829872` | `0xa6e465fb70da2b587f8ab7795a22cfc7c29bc984d571020260178b6af2cb5035` |
 | `castVote(0, 1)` immediate, before the delay elapsed | no tx: revert `0x66b6cb4a` = **`VotingClosed()`** ✅ (1-day voting delay respected) |
-| `castVote(0, 1)` during the voting window, from B | tx hash not recorded at the time; the vote is proven on-chain by `forVotes` = 3,000,000 DMN (against 0, abstain 0) |
+| `castVote(0, 1)` from B — block `118203796`, nonce 8, ~23h after voting opened; recorded `forVotes` = 3,000,000 DMN (against 0, abstain 0) | `0x90e22db141f83b1b9fb004faaabde852da721b55856594122c1f0cf9564e1480` |
 | `queue(0)` from B — block `118991520`, nonce 9, calldata `0xddf0b009` | `0x3d5adeac84a205edd963af483de98bd0f40be0491532ed4dc9b0f2418fee2920` |
 | `execute(0)` from B — block `120335837` | `0x5aa519a9884d24037f0cb903f3565f1a9e5e87529e5d4c1baa3f0c054302fe5f` |
 
@@ -154,10 +155,9 @@ The proposal state is queryable at any time:
 **Result**: PASS. The full cycle completed as designed; see Test 8 for the
 wei-exact economic proof that the execute changed real transfer behavior.
 
-**Anomalies**: none. The `castVote` tx hash was not written down while the test
-was running and could not be recovered afterwards: the public BSC testnet RPCs
-serve neither `eth_getLogs` nor historical state for these blocks (`missing
-trie node`), so the transaction cannot be located by event or by nonce.
+**Anomalies**: none. All four transactions of the cycle are recorded, and the
+wallet-B nonce sequence is contiguous across them (propose 6, castVote 8,
+queue 9), so no governance step is missing from this record.
 
 ---
 
@@ -355,8 +355,9 @@ never-claimed DMN to the treasury.
 - `sweepExecuted` = false; the migration contract holds **~999.12B unclaimed
   DMN** (the amount that will end up in the treasury). ✓
 - `sweepUnclaimed()` reverts with `MigrationStillOpen()` while
-  `block.timestamp <= migrationDeadline` → the execute can only fall **after**
-  07/08 01:08:39. ✓ (a contract-level guarantee, not just a schedule)
+  `block.timestamp <= migrationDeadline` (`migrationDeadline` = `1786057719`,
+  2026-08-06 23:08:39 UTC = 08/07 01:08:39 IT) → the execute can only fall
+  **after** 08/07 01:08:39. ✓ (a contract-level guarantee, not just a schedule)
 
 **Exact calendar** (VOTING_DELAY 1d, VOTING_PERIOD 5d, timelock 7d):
 
@@ -365,16 +366,23 @@ never-claimed DMN to the treasury.
 | Creation | **2026-07-22 19:00:32** | done (state = Pending) |
 | Vote OPENS (voteStart) | **2026-07-23 19:00:32** | before this, `castVote` reverts `VotingClosed` |
 | Vote CLOSES (voteEnd) | **2026-07-28 19:00:32** | 5-day window |
-| Queue (after voteEnd) | **07/28 → 07/31 01:08:39** | must be done by 07/31 01:08 to align the timelock with the deadline |
-| Timelock ready | queue + 7d | if queued 07/28 → 08/04; if queued 07/31 01:08 → 08/07 01:08 |
-| **Execute (sweep)** | **right after 08/07 01:08:39** | possible only once the migration deadline has passed |
+| Queue (after voteEnd) | **any time from 07/28 19:00:32** | earlier is strictly safer, see the note below |
+| Timelock ready | queue + 7d | if queued 07/28 → 08/04 19:00:32; if queued 07/31 01:08 → 08/07 01:08 |
+| **Execute (sweep)** | **from 08/07 01:08:40**, no upper bound | possible only once the migration deadline has passed |
 
 Note on the margin: the execute falls **after 08/07 01:08:39 in any case**
-(gated by the contract). If queued by 07/31 01:08:39 the timelock is ready
-exactly at the deadline → margin ≈ 0. If queued earlier (e.g. right at the end
-of voting, 07/28), the timelock is ready a few days early but the sweep stays
-blocked until the deadline: the execute date does not change (08/07), only the
-"In timelock" countdown shows ready ahead of time.
+(gated by the contract, not by the schedule). Queueing early does not waste the
+operation: `DaimonTimelock.execute()` checks only `executed`, `canceled` and
+`block.timestamp < readyTimestamp` — there is **no grace period and no expiry**,
+so a ready operation stays executable indefinitely until executed or canceled.
+Queueing as soon as voting closes is therefore the safest choice: the timelock
+becomes ready on 08/04 and simply waits for the migration deadline.
+
+An execute attempted between the timelock ready time and the migration deadline
+is harmless: `sweepUnclaimed()` reverts with `MigrationStillOpen()`, the
+timelock propagates `ExecutionFailed()`, and the whole transaction reverts —
+including `p.executed = true` in the Governor. The proposal is not consumed and
+the call can simply be retried after the deadline.
 
 ### ⚠️ REQUIRED FUTURE ACTIONS (on schedule)
 
@@ -382,8 +390,11 @@ blocked until the deadline: the execute date does not change (08/07), only the
    from wallet B. **Without this vote proposal #2 does not reach quorum**
    (630K out of ~6.3M vp at the snapshot) and the sweep is skipped. Wallet B
    alone (3M) is enough.
-2. **QUEUE — after 07/28 19:00, by 07/31 01:08**: `queue(2)` (anyone).
-3. **EXECUTE — after 08/07 01:08:39**: `execute(2)` → sweep to the treasury.
+2. **QUEUE — any time after 07/28 19:00:32**: `queue(2)` (anyone). Do it as
+   soon as voting closes: there is no grace period, so the queued operation
+   cannot expire while it waits for the migration deadline.
+3. **EXECUTE — from 08/07 01:08:40**: `execute(2)` → sweep to the treasury. No
+   upper bound; an earlier attempt just reverts harmlessly.
 
 **Current state**: PENDING (voting not yet open). To be completed per the
 calendar above.
