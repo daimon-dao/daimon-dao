@@ -6,6 +6,8 @@
 
 **No owner. No mint. Floor 21B. — DAO on BNB Chain**
 
+**[📄 Whitepaper v0.1 (EN)](docs/whitepaper/Daimon_Whitepaper_EN_v0.1.pdf)** · [versione italiana](docs/whitepaper/Daimon_Whitepaper_IT_v0.1.pdf)
+
 </div>
 
 ---
@@ -46,6 +48,8 @@ mainnet deploy will happen only after the audit.
 
 ## Documentation
 
+- [docs/whitepaper/](docs/whitepaper/) — the whitepaper (EN primary, IT
+  translation), with versioning policy and changelog
 - [THREAT_MODEL.md](THREAT_MODEL.md) — threat model, actors, defenses, known
   limits and design choices
 - [SECURITY.md](SECURITY.md) — how to report vulnerabilities (responsible
