@@ -6,7 +6,7 @@
 
 **No owner. No mint. Floor 21B. — DAO on BNB Chain**
 
-**[📄 Whitepaper v0.1 (EN)](docs/whitepaper/Daimon_Whitepaper_EN_v0.1.pdf)** · [versione italiana](docs/whitepaper/Daimon_Whitepaper_IT_v0.1.pdf)
+**[📄 Whitepaper v0.1 (EN)](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_EN_v0.1.pdf)** · [versione italiana](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_IT_v0.1.pdf) · [release](https://github.com/daimon-dao/daimon-dao/releases/tag/whitepaper-v0.1)
 
 </div>
 
