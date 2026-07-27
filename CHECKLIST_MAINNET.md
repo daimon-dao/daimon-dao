@@ -45,6 +45,44 @@ only — on mainnet they must be distinct multisigs.
 - [ ] Re-enable Deployment Protection if the URL must stay private on staging;
       for the public launch, official domain + WalletConnect allowlist.
 
+## Domain and dApp distribution
+
+**Primary — traditional domain + Vercel**
+
+- [ ] Register a conventional domain (.io / .com / .xyz)
+- [ ] Point it to the Vercel deployment
+- [ ] Set `NEXT_PUBLIC_CHAIN_ID=56` (this alone removes the noindex tag and
+      the testnet banner)
+- [ ] Add the new domain to the WalletConnect/Reown allowlist
+- [ ] Update every link: README, org profile, whitepaper, social channels
+- [ ] Announce the official domain explicitly and repeatedly: at launch,
+      clone sites will appear
+
+**Mirror — decentralised, censorship-resistant**
+
+- [ ] Register a blockchain domain (Unstoppable Domains: .crypto, .x)
+- [ ] Export the dApp as a static site and publish it to IPFS
+- [ ] Pin the content (Pinata, Web3.Storage or equivalent) — unpinned IPFS
+      content becomes unavailable
+- [ ] Point the blockchain domain to the IPFS hash
+- [ ] Verify the static export does not break: the i18n cookie and the wagmi
+      SSR state currently rely on server-side rendering, which a static
+      export removes
+
+**Why both**
+
+The primary domain is fast, updates automatically and works in every browser.
+The mirror cannot be seized or taken offline, and requires no hosting
+provider. They are redundancy, not alternatives — the same reasoning that
+keeps the contracts usable through a block explorer if the interface
+disappears.
+
+**Known limitation of the mirror**
+
+Blockchain domains do not resolve in Chrome or Safari without an extension or
+a gateway. A portion of users will not reach it directly. It is a fallback
+and a statement of intent, not the main channel.
+
 ## Post-launch governance
 
 - [ ] `marketingWallet` and `stakingContract` remain modifiable **only** via
