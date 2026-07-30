@@ -31,6 +31,24 @@ The five contracts in `src/`:
 Out of scope: `src/mocks/`, `test/`, `script/`, the dApp (`daimon-dapp/`),
 and the `lib/` dependencies (OpenZeppelin v5.4.0, assumed correct).
 
+### Size (nSLOC)
+
+Measured with `solidity-code-metrics` on the five in-scope contracts at tag
+`audit-scope-v2` (`src/mocks/` excluded). nSLOC = normalized source lines of
+code: no comments, no blank lines, multi-line statements collapsed.
+
+| Contract | Lines | nSLOC | Comment lines |
+|---|---|---|---|
+| `DaimonV2.sol` | 680 | 395 | 173 |
+| `DaimonStaking.sol` | 320 | 254 | 68 |
+| `DaimonGovernor.sol` | 240 | 150 | 54 |
+| `DaimonTimelock.sol` | 131 | 76 | 33 |
+| `DaimonMigration.sol` | 143 | 66 | 51 |
+| **Total** | **1514** | **941** | **379** |
+
+Any raw line count (`wc -l`) will land near 1514 for the same files — the
+difference is comments (25% of the source) and blank lines, not code.
+
 ## Build constraints
 
 - `via_ir = true` is **required** (the reflection math hits "stack too deep"
