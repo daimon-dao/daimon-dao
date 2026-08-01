@@ -27,13 +27,49 @@ only — on mainnet they must be distinct multisigs.
 
 ## Automatic checks
 
-- [ ] **`_assertDecentralized()` runs and passes on mainnet** (13 asserts in
+- [ ] **`_assertDecentralized()` runs and passes on mainnet** (14 asserts in
       the deploy script): the timelock governs the token/staking, the deployer
       has no roles, no `DEFAULT_ADMIN`, the entire supply in the migration,
       etc.
 - [ ] Contracts **verified on BscScan** (source + constructors).
 - [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%
       — confirmed on-chain post-deploy.
+
+## Liquidity
+
+**One pool only: DMN/WBNB on PancakeSwap V2**
+
+- [ ] Create a single DMN/WBNB pair — this is the pair the fee-swap and
+      buyback mechanisms operate on
+- [ ] Do NOT create additional pools (DMN/USDT, DMN/BUSD or others). They
+      would fragment liquidity, and the automated swap only operates on one
+      pair. Routing through WBNB already lets anyone buy with any token.
+- [ ] Verify the pair address stored in the contracts matches the pair
+      actually created on mainnet — on testnet it was
+      `0x9b44521E5643dD0E393C584E770598deC644a8B5`; a wrong address breaks
+      fee-swap and buyback silently
+
+**Decisions to make and document before launch**
+
+- [ ] Initial liquidity amount — it determines slippage and how easily the
+      price can be manipulated. Thin liquidity also makes the buyback
+      mechanism behave poorly.
+- [ ] What happens to the LP tokens: locked (verifiable, with a stated
+      duration and platform), burned (permanent, irreversible), or held. For
+      a project whose stated position is "don't trust, verify", a verifiable
+      lock is the coherent choice — and the lock transaction should be
+      published.
+- [ ] Sequence relative to the migration window: opening trading before
+      holders have migrated means the price forms on minimal volume. Decide
+      and announce the order.
+
+**After deployment**
+
+- [ ] Verify a small test swap triggers the fee correctly (4%) and that
+      accumulated fees reach the threshold path as expected
+- [ ] Confirm the buyback path executes on a real pool with real slippage —
+      this is the least-proven surface, flagged in the whitepaper and to
+      every auditor
 
 ## dApp
 
