@@ -119,6 +119,26 @@ Blockchain domains do not resolve in Chrome or Safari without an extension or
 a gateway. A portion of users will not reach it directly. It is a fallback
 and a statement of intent, not the main channel.
 
+## Legal (before mainnet)
+
+- [ ] Consult a crypto-specialised lawyer before mainnet deployment — not to
+      incorporate, but to understand exposure, obligations and token
+      classification under local and EU regulation (MiCA)
+- [ ] Revisit the question of a legal structure once the protocol is live and
+      the treasury can fund it. A structure decided by DAO vote and paid from
+      protocol revenue is more coherent with the project than one funded
+      personally in advance.
+- [ ] Confirm the whitepaper disclaimer (Section 14) is adequate for the
+      jurisdictions where the interface is accessible
+- [ ] Review tax obligations arising from protocol operations and treasury
+      holdings
+
+Contracts requiring an identifiable counterparty — audits, listings, service
+agreements — are signed by an individual member of the DAO. That is normal
+for unincorporated projects, and the data stays with the counterparty. It
+does not make the protocol any less ownerless: no signer holds any privileged
+role on-chain.
+
 ## Post-launch governance
 
 - [ ] `marketingWallet` and `stakingContract` remain modifiable **only** via
