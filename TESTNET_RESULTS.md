@@ -333,7 +333,7 @@ effect** cycle is proven to the wei.
 
 ---
 
-## Test 9 — Proposal #2: sweep of unclaimed DMN (in progress) ⏳
+## Test 9 — Proposal #2: sweep of unclaimed DMN to the treasury ✅
 
 **Goal**: a REAL governance cycle with a post-deadline effect — after the
 migration closes (2026-08-07 01:08:39) the DAO, via the Timelock, recovers the
@@ -359,16 +359,54 @@ never-claimed DMN to the treasury.
   2026-08-06 23:08:39 UTC = 08/07 01:08:39 IT) → the execute can only fall
   **after** 08/07 01:08:39. ✓ (a contract-level guarantee, not just a schedule)
 
-**Exact calendar** (VOTING_DELAY 1d, VOTING_PERIOD 5d, timelock 7d):
+**Executed timeline** (VOTING_DELAY 1d, VOTING_PERIOD 5d, timelock 7d; every
+value read back from chain):
 
-| Phase | Date/time (IT) | Notes |
-|---|---|---|
-| Creation | **2026-07-22 19:00:32** | done (state = Pending) |
-| Vote OPENS (voteStart) | **2026-07-23 19:00:32** | before this, `castVote` reverts `VotingClosed` |
-| Vote CLOSES (voteEnd) | **2026-07-28 19:00:32** | 5-day window |
-| Queue (after voteEnd) | **any time from 07/28 19:00:32** | earlier is strictly safer, see the note below |
-| Timelock ready | queue + 7d | if queued 07/28 → 08/04 19:00:32; if queued 07/31 01:08 → 08/07 01:08 |
-| **Execute (sweep)** | **from 08/07 01:08:40**, no upper bound | possible only once the migration deadline has passed |
+| Phase | Timestamp | UTC | IT |
+|---|---|---|---|
+| Creation | `1784739632` | 2026-07-22 17:00:32 | 2026-07-22 19:00:32 |
+| Voting opens | `1784826032` | 2026-07-23 17:00:32 | 2026-07-23 19:00:32 |
+| Voting closes | `1785258032` | 2026-07-28 17:00:32 | 2026-07-28 19:00:32 |
+| Queued | `1785278408` | 2026-07-28 22:40:08 | 2026-07-29 00:40:08 |
+| Timelock ready (queue + 7d) | `1785883208` | 2026-08-04 22:40:08 | 2026-08-05 00:40:08 |
+| Migration deadline | `1786057719` | 2026-08-06 23:08:39 | 2026-08-07 01:08:39 |
+| **Executed (sweep)** | `1786057900` | 2026-08-06 23:11:40 | **2026-08-07 01:11:40** |
+
+**Vote result**: for **3,301,190 DMN**, against 0, abstain 0. Quorum: 10% of
+the 7,301,190 DMN snapshot voting power = 730,119 DMN — reached 4.5× over.
+
+**Transactions** (all status success):
+
+| Step | Tx |
+|---|---|
+| `propose` from B — block `120654407` | `0x67b41be1ac4ab7ce3804ae24b6e1b1b50dfcb427834840286f3b9a14f3aceaa2` |
+| `castVote(2, 1)` | hash not captured while running the test; the vote is proven by the on-chain tally above |
+| `queue(2)` from the **deployer wallet** (`0x3863…3A50`, nonce 39) — block `121851145`, calldata `0xddf0b009…0002` | `0xb8ae0b812ab5df622a0c387b52d61100bf968158869c3d63152b32af47286bc7` |
+| `execute(2)` from B (nonce 24) — block `123581307`, calldata `0xfe0d94c1…0002` | `0x7429ad56b164ef1317794edab2147048f8c942c073fa1eabead377137208173e` |
+
+The queue was deliberately sent from a different wallet than the proposer:
+`queue()` is permissionless by design, and this run proves it on-chain. The
+execute landed 3m01s after the first valid second (the deadline check is
+strict `>`), and 66.8 hours after the timelock ready time — the operation
+waited in the timelock with no expiry, exactly as designed.
+
+**Post-execute verification** (every item read fresh from chain):
+
+- `state(2)` = `5` (Executed); struct: `executed = true`, `canceled = false`. ✓
+- `sweepExecuted` = `true`. ✓
+- **Transfer event in the execute receipt: migration → treasury
+  `999121813473639468700768630279` wei = 999,121,813,473 DMN** — wei-identical
+  to the migration balance read before the execute (no taxed transfers
+  happened in between, so no further reflection accrued). ✓
+- Migration balance after: **exactly 0**. ✓
+- Treasury balance after: 999,121,882,287 DMN = swept amount + the ~68,814 DMN
+  the treasury wallet already held from earlier tests. ✓
+- `totalSupply` **unchanged**: `999955214188332986683725989731` before and
+  after — the sweep is a transfer, not a burn. ✓
+- Re-calling `sweepUnclaimed()` (simulated from the Timelock) reverts with
+  `0xb05f1fbf` = **`AlreadySwept()`**: the sweep is one-shot. ✓
+- The receipt carries the full event chain: migration sweep event, timelock
+  `CallExecuted`, governor `ProposalExecuted`. ✓
 
 Note on the margin: the execute falls **after 08/07 01:08:39 in any case**
 (gated by the contract, not by the schedule). Queueing early does not waste the
@@ -384,20 +422,21 @@ timelock propagates `ExecutionFailed()`, and the whole transaction reverts —
 including `p.executed = true` in the Governor. The proposal is not consumed and
 the call can simply be retried after the deadline.
 
-### ⚠️ REQUIRED FUTURE ACTIONS (on schedule)
+**Result**: PASS. A full governance cycle with a real economic effect gated
+by a contract-level deadline: propose → vote → permissionless queue → 7-day
+timelock → execute, with the sweep blocked by `MigrationStillOpen()` until
+the migration deadline and one-shot afterwards (`AlreadySwept()`).
 
-1. **VOTE — ~2026-07-23 19:00** (as soon as it opens): `castVote(2, 1)` (Yes)
-   from wallet B. **Without this vote proposal #2 does not reach quorum**
-   (630K out of ~6.3M vp at the snapshot) and the sweep is skipped. Wallet B
-   alone (3M) is enough.
-2. **QUEUE — any time after 07/28 19:00:32**: `queue(2)` (anyone). Do it as
-   soon as voting closes: there is no grace period, so the queued operation
-   cannot expire while it waits for the migration deadline.
-3. **EXECUTE — from 08/07 01:08:40**: `execute(2)` → sweep to the treasury. No
-   upper bound; an earlier attempt just reverts harmlessly.
+With this cycle, the governance lifecycle has been exercised end-to-end
+on-chain in every reachable outcome: proposal executed after timelock (#0),
+proposal defeated by quorum (#1), and proposal executed against a
+time-gated target (#2) — plus permissionless queue and execute-retry
+semantics. The paths not exercised on-chain (guardian `cancel`, UUPS
+upgrade, the remaining governance setters) are covered by the Foundry suite.
 
-**Current state**: PENDING (voting not yet open). To be completed per the
-calendar above.
+**Anomalies**: none. The `castVote` tx hash was not written down while the
+test was running (same gap as Test 4); the vote itself is proven by the
+final on-chain tally.
 
 ---
 
@@ -464,9 +503,14 @@ no-decay); snapshot, boundary and reflection solid.
 | 6 | Burn cycle (autonomous fee swap + supply burn) | ✅ PASS (Plan B) |
 | 7 | Multi-wallet reward claim + wei-exact reconciliation | ✅ PASS |
 | 8 | Economic proof after execute (4% fee) | ✅ PASS |
-| 9 | Proposal #2 sweep (post-deadline governance cycle) | ⏳ IN PROGRESS — created, vote opens 07/23 19:00 |
+| 9 | Proposal #2 sweep (post-deadline governance cycle) | ✅ PASS — queued Jul 29 00:40 IT, executed Aug 7 01:11:40 IT, 999.12B DMN swept to the treasury |
 | 10 | Adversarial round (snapshot, boundary, incentives, reflection) | ✅ PASS — Finding 1 fixed, Finding 2 accepted |
 
-The test wallet keys B and C are in `.testwallets/` (excluded from git): they
-are still needed for the future actions of proposal #2 (vote 07/23, queue
-after 07/28, execute after 08/07) — **do not delete them before then**.
+All ten scheduled tests are complete. On-chain, the governance lifecycle has
+been exercised in every reachable outcome (executed #0, defeated #1,
+time-gated executed #2); guardian cancel, the UUPS upgrade and the remaining
+governance setters stay covered by the Foundry suite only.
+
+The test wallet keys B and C are in `.testwallets/` (excluded from git). No
+scheduled action needs them anymore; they are kept only for possible future
+ad-hoc tests on the testnet stack.
