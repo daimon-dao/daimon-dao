@@ -38,13 +38,24 @@ contract DaimonStaking is ReentrancyGuard {
 
     error NotGovernance();
 
+    /// Emitted on every effective change of governance privilege, including
+    /// the one granted in the constructor. Indexed on the account so a
+    /// monitor can subscribe per address, and the full set of current holders
+    /// can be reconstructed from the log history — the private mapping is not
+    /// enumerable.
+    event GovernanceSet(address indexed account, bool enabled);
+
     modifier onlyGovernance() {
         if (!_governance[msg.sender]) revert NotGovernance();
         _;
     }
 
     function _setGovernance(address account, bool enabled) internal {
+        // No-op writes emit nothing: an observer must be able to treat every
+        // GovernanceSet as a real transition, without filtering duplicates.
+        if (_governance[account] == enabled) return;
         _governance[account] = enabled;
+        emit GovernanceSet(account, enabled);
     }
 
     function isGovernance(address account) public view returns (bool) {
