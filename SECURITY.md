@@ -52,10 +52,36 @@ network only.
 
 ## Known dependency advisories (dApp)
 
+*Last reviewed: 2026-08-13.*
+
 The frontend in `daimon-dapp/` carries open npm advisories that Dependabot
 reports on this repository. They are listed here so a reviewer does not have to
-re-derive the analysis. **None of them affects the contracts**, which have no
-npm dependencies at runtime.
+re-derive the analysis. **Every one of them is in the dApp — Next.js and its
+dependency tree. Zero are in the Solidity contracts**, which have no npm
+dependencies at all: they build with Foundry against `lib/` (OpenZeppelin) and
+ship as bytecode. No npm advisory can reach them.
+
+### Reading the alert count
+
+At the last review Dependabot reported **29 alerts** (11 high, 17 moderate,
+1 low) while `npm audit` inside `daimon-dapp/` reported **12 entries**
+(3 high, 9 moderate). Both are correct: they count different things.
+
+- **Dependabot counts one alert per advisory.** Next.js alone accounts for 21
+  of them — one per CVE against a single installed version.
+- **`npm audit` counts one entry per affected package** in the tree, so those
+  same 21 Next.js advisories collapse into a single `next` entry.
+
+Resolving on the distinct-advisory axis: 28 unique advisories, of which
+`next` 21, `hono` 4, and one each for `nanoid`, `socket.io-parser` and `uuid`.
+
+The count rose sharply from the ~5 reported in mid-2026. That is **not a
+regression and not new exposure in our code**: the overrides below are still
+in place and still effective. It is the sum of two effects — Dependabot
+reprocessing the lockfile and surfacing the full Next.js advisory set it had
+not yet expanded, plus a handful of advisories published upstream in the
+meantime (`hono`, `nanoid`, `socket.io-parser`). The per-advisory analysis
+below is unchanged; only the arithmetic moved.
 
 What matters for the assessment: the dApp server is a **stateless public
 frontend**. It holds no keys, no funds, no database and no authenticated
@@ -77,9 +103,22 @@ transitive dependency.
 | `uuid` <11.1.1 (via `@metamask/sdk` and the MetaMask utils chain) | The fix is uuid 11.x, a major bump forced onto MetaMask packages that expect the v8/v9 API — a real risk of breaking wallet connection. | The advisory is a missing bounds check in `v3`/`v5`/`v6` **when the caller passes a `buf` argument**. The MetaMask SDK uses `uuid.v4()` for request ids and never passes a buffer, so the vulnerable path is not reached. |
 | `@metamask/sdk`, `@metamask/utils`, `@metamask/rpc-errors`, `@metamask/sdk-communication-layer`, `@gemini-wallet/core`, `@wagmi/connectors`, `wagmi` | Flagged transitively because of the `uuid` entry above; they have no advisory of their own. Clearing them would mean `wagmi@3`, a major upgrade of the wallet layer. | Same as `uuid`: the vulnerable code path is never executed. |
 
-Re-check with `npm audit` inside `daimon-dapp/`. Note that `npm audit` counts
-one entry per affected package in the tree, so its totals are higher than the
-number of distinct advisories.
+**Open, non-breaking fix available — queued, not yet applied:**
+
+| Advisory | Where it comes from | Assessment |
+|---|---|---|
+| `hono` <4.12.34 (ReDoS in CORS middleware, `memo()` SSR cross-request retention, proxy header handling, language-middleware DoS) | `wagmi` → `@wagmi/connectors` → `porto` → `hono` | Hono is a server framework pulled in by a wallet connector. This dApp runs no Hono server and never mounts its CORS, proxy or language middleware, so none of the vulnerable paths is reachable. |
+| `nanoid` <3.3.18 (infinite loop in custom generators when size is zero) | `postcss` → `nanoid` — i.e. build-time only | Reached only through PostCSS during `next build`, with our own CSS as input. Not shipped to the browser and not reachable at runtime. |
+| `socket.io-parser` <4.2.7 (zero-attachment memory exhaustion) | `@metamask/sdk` → `socket.io-client` → `socket.io-parser` | Client-side parser, used only if the user connects through the MetaMask SDK relay. Exploiting it requires the relay server the user's own wallet chose to send hostile frames. |
+
+Unlike `next` and `uuid`, these three have fixes inside the same major version
+(`npm audit` reports `fixAvailable: true`), so they are override candidates in
+the same low-risk pattern as `postcss` and `ws` above.
+
+Re-check with `npm audit` inside `daimon-dapp/`. Note the two axes described
+under *Reading the alert count*: `npm audit` totals are **lower** than
+Dependabot's, because many advisories against one package collapse into a
+single entry.
 
 ## Bug bounty
 
