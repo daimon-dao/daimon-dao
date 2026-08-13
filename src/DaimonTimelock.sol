@@ -48,6 +48,8 @@ contract DaimonTimelock is AccessControl {
     error OperationNotReady();
     error OperationAlreadyExecuted();
     error OperationAlreadyScheduled();
+    error OperationNotScheduled();
+    error OperationAlreadyCanceled();
     error DelayTooShort();
     error ExecutionFailed();
 
@@ -110,8 +112,16 @@ contract DaimonTimelock is AccessControl {
         emit CallExecuted(id, target, value, data);
     }
 
+    /// @notice Cancels a SCHEDULED operation. An unknown id resolves to an
+    /// empty Operation, so without the readyTimestamp check it would pass the
+    /// executed check, be marked canceled and emit Cancelled(id) for something
+    /// that was never scheduled — polluting the event stream that monitoring
+    /// relies on, and pre-canceling an id before it is ever scheduled (its
+    /// canceled flag would survive into schedule(), which does not reset it).
     function cancel(bytes32 id) external onlyRole(CANCELLER_ROLE) {
         Operation storage op = operations[id];
+        if (op.readyTimestamp == 0) revert OperationNotScheduled();
+        if (op.canceled) revert OperationAlreadyCanceled();
         require(!op.executed, "DaimonTimelock: already executed");
         op.canceled = true;
         emit Cancelled(id);

@@ -150,19 +150,73 @@ contract CoverageGaps is StackDeployer {
     }
 
     // ============================================================
-    // Timelock: cancel del canceller (guardian)
+    // Timelock: cancel del canceller (guardian) — finding #2
     // ============================================================
-    function test_TimelockCancellerCanCancel() public {
-        // Schedula un'operazione tramite un finto proposer per testare cancel.
-        // Il PROPOSER e' il governor; qui usiamo un id calcolato e verifichiamo
-        // che solo il CANCELLER (guardian) possa annullare.
-        bytes32 fakeId = keccak256("op");
+
+    /// Legitimate path: an operation actually scheduled through governance can
+    /// be canceled by the CANCELLER, and only once.
+    function test_TimelockCancellerCanCancelScheduledOperation() public {
+        fundWithDmn(alice, 3_000_000 ether);
+        vm.startPrank(alice);
+        token.approve(address(staking), 3_000_000 ether);
+        staking.stake(3_000_000 ether, 3);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+
+        // Literal timestamps: with via-ir, block.timestamp must not be
+        // re-read after a vm.warp (same caution as in DaimonDAO.t.sol).
+        uint256 tPropose = 1_000_000;
+        vm.warp(tPropose);
         vm.prank(alice);
-        vm.expectRevert();
-        timelock.cancel(fakeId); // alice non ha CANCELLER_ROLE
+        uint256 id = governor.propose(address(token), 0, data, "cancellable");
+
+        vm.warp(tPropose + governor.VOTING_DELAY() + 1);
+        vm.prank(alice);
+        governor.castVote(id, 1);
+
+        vm.warp(tPropose + governor.VOTING_DELAY() + governor.VOTING_PERIOD() + 2);
+        governor.queue(id);
+
+        // Same salt the Governor derives in propose().
+        bytes32 salt = keccak256(abi.encode(id, tPropose));
+        bytes32 opId = timelock.hashOperation(address(token), 0, data, bytes32(0), salt);
+
+        (uint256 readyBefore,,) = timelock.operations(opId);
+        assertGt(readyBefore, 0, "operation was not scheduled");
 
         vm.prank(guardian);
-        timelock.cancel(fakeId); // guardian = canceller: non reverte
+        timelock.cancel(opId);
+        (,, bool canceled) = timelock.operations(opId);
+        assertTrue(canceled, "scheduled operation not canceled");
+
+        // Canceling twice must revert: no duplicate Cancelled events.
+        vm.prank(guardian);
+        vm.expectRevert(DaimonTimelock.OperationAlreadyCanceled.selector);
+        timelock.cancel(opId);
+    }
+
+    /// Finding #2: an unknown id resolves to an empty Operation. Before the
+    /// fix it passed the executed check, was marked canceled and emitted
+    /// Cancelled(id) for something that was never scheduled — and the stale
+    /// canceled flag would have survived into a later schedule() of the same
+    /// id, which does not reset it. It must revert and write nothing.
+    function test_TimelockCancelRevertsOnUnknownId() public {
+        bytes32 unknownId = keccak256("never-scheduled");
+
+        // The role check still comes first.
+        vm.prank(alice);
+        vm.expectRevert();
+        timelock.cancel(unknownId);
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonTimelock.OperationNotScheduled.selector);
+        timelock.cancel(unknownId);
+
+        (uint256 ready, bool executed, bool canceled) = timelock.operations(unknownId);
+        assertEq(ready, 0, "phantom readyTimestamp");
+        assertFalse(executed, "phantom executed flag");
+        assertFalse(canceled, "phantom canceled flag");
     }
 
     // ============================================================
