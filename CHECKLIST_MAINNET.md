@@ -5,6 +5,28 @@ tag [`audit-scope-v2`](https://github.com/daimon-dao/daimon-dao/releases/tag/aud
 (English-commented contracts in `src/`, bytecode identical to `audit-scope-v1`).
 Every line is blocking.
 
+## ⚠️ Predecessor token configuration (Zenith #29)
+
+BLOCKING: migration cannot work without this, and the deadline is immutable
+once Migration is deployed.
+
+The Migration contract is only the allowance spender. The actual old token
+transfer is claimant → treasury. DMX disables fees only when `from` or `to`
+is exempt, so exempting Migration has no effect.
+
+- [ ] Call `oldDaimon.excludeFromFee(TREASURY_ADDRESS)` — the treasury, NOT
+      the Migration contract
+- [ ] Verify on-chain that the exemption is active
+- [ ] Confirm the DMX owner still has authority to set exemptions (ownership
+      was never renounced — verify it is still the case)
+- [ ] Simulate a transfer from a non-exempt holder to treasury and confirm
+      exact receipt, no fee deducted
+- [ ] Only after all of the above: deploy Migration.
+      Do NOT start the immutable deadline before this is confirmed
+
+Correct the misleading comment in `DaimonMigration.sol` that instructs
+exempting the Migration contract.
+
 ## Addresses (careful: some are IMMUTABLE)
 
 - [ ] **`marketingWallet` → MULTISIG.** Never an EOA. Receives the marketing
@@ -36,6 +58,39 @@ only — on mainnet they must be distinct multisigs.
       — confirmed on-chain post-deploy.
 
 ## Liquidity
+
+**Before deployment (Zenith #25)**
+
+- [ ] Check whether a DMN/WBNB pair already exists on the target factory.
+      `initialize()` calls `createPair()` unconditionally and reverts if one
+      exists — an observer can predict the proxy address and pre-create the
+      pair to block the deploy
+- [ ] The fix (using `getPair()` first) must be in the deployed
+      implementation
+- [ ] Consider private transaction submission as defence in depth
+
+**Initial liquidity pricing (Zenith #17)**
+
+The pair is not fee-exempt, so it receives the NET amount while the router
+calculates from the gross. Computing the BNB contribution from the gross DMN
+input initializes the pool at the wrong price.
+
+- [ ] Calculate the BNB contribution from the DMN the pair ACTUALLY
+      receives, not from the amount sent
+- [ ] Verify the resulting reserve ratio matches the intended opening price
+      before proceeding
+- [ ] Do NOT blanket-exempt the pair or the router as a workaround — it
+      would disable fees on all buys and sells, and enable fee-free
+      transfers through liquidity removal
+
+**Automation state at launch (Zenith #27)**
+
+- [ ] Automation (fee swap and buyback) must be DISABLED or the fail-open
+      fix deployed before the pair has reserves. An attacker can donate
+      ~1 BNB to the token contract before initial liquidity and block the
+      launch
+- [ ] Verify both reserves are non-zero and all recipients functional before
+      enabling automation
 
 **One pool only: DMN/WBNB on PancakeSwap V2**
 
@@ -151,3 +206,13 @@ role on-chain.
 **Freeze:** the contracts in `src/` are frozen at tag `audit-scope-v2`. Any
 change to the contracts before mainnet requires a new tag (`audit-scope-v3`,
 …) and re-running the checks.
+
+## Contract upgradeability — read before planning any fix
+
+DaimonV2 is behind a UUPS proxy and can be upgraded by governance.
+DaimonGovernor, DaimonTimelock and DaimonStaking are NOT upgradeable.
+
+Any correction to the non-upgradeable contracts must be deployed before
+mainnet. Afterwards it would require redeploying them and rewiring every
+role and immutable reference — DaimonGovernor stores the Staking address
+immutably.
