@@ -99,6 +99,7 @@ contract DaimonGovernor {
     error AlreadyVoted();
     error ProposalNotSucceeded();
     error ProposalNotQueued();
+    error ProposalAlreadyQueued();
     error NotGuardian();
     error AlreadyExecuted();
     error InvalidSupport();
@@ -182,9 +183,15 @@ contract DaimonGovernor {
         return ProposalState.Succeeded;
     }
 
+    /// @dev state() has no Queued branch: a queued proposal still reads as
+    /// Succeeded, so without the p.queued guard a second queue() would reach
+    /// the Timelock and only be stopped there by OperationAlreadyScheduled.
+    /// The Governor must reject it itself, at its own level, rather than
+    /// depending on an implementation detail of the contract it calls.
     function queue(uint256 id) external {
         if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
         Proposal storage p = proposals[id];
+        if (p.queued) revert ProposalAlreadyQueued();
 
         p.queued = true;
         timelock.schedule(p.target, p.value, p.data, bytes32(0), p.timelockSalt, timelock.getMinDelay());
