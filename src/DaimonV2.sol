@@ -550,10 +550,14 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
 
     /// @notice REALLY burns supply (reduces _tTotal) by drawing from the
     /// tokens already accumulated in the dead address, never going below
-    /// MIN_SUPPLY. Anyone can call it (it is permissionless and safe): it does
+    /// MIN_SUPPLY. Anyone can call it while the token is not paused: it does
     /// not move anyone's funds, it just "cancels" from the supply accounting
     /// what is already unrecoverable in the dead address.
-    function burnDeadBalanceToFloor() external nonReentrant {
+    /// @dev whenNotPaused is deliberate. This function writes _rTotal and
+    /// _tTotal — the reflection accounting itself. If the guardian pauses
+    /// because that accounting is suspect, leaving open a permissionless
+    /// function that mutates it would defeat the purpose of the pause.
+    function burnDeadBalanceToFloor() external nonReentrant whenNotPaused {
         uint256 deadBal = balanceOf(deadAddress);
         if (deadBal == 0) return;
         uint256 burnable = _tTotal > MIN_SUPPLY ? _tTotal - MIN_SUPPLY : 0;
