@@ -256,6 +256,23 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         uniswapV2Router = IUniswapV2Router02(_router);
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
 
+        // The pair is excluded from reflection as well. A pair that accrues
+        // reflection sees its token balance grow while its recorded reserve
+        // stays unchanged: anyone can then pocket the difference by calling
+        // skim() on the pair — value taken from the holders the reflection was
+        // meant for. Excluding it needs no balance conversion here, because
+        // createPair() has just returned a brand-new pair: both _rOwned and
+        // _tOwned are zero.
+        //
+        // NOTE: this ADDS a second entry to the fixed exclusion set; it does
+        // NOT make that set mutable. There is deliberately no runtime setter
+        // for reward exclusion — the immutability of this set is what removes
+        // the whole class of RFI-fork exclusion-toggle bugs, and it is stated
+        // as a design property. _getCurrentSupply() already loops over
+        // _excluded, so it handles two entries with no change.
+        _isExcludedFromReward[uniswapV2Pair] = true;
+        _excluded.push(uniswapV2Pair);
+
         emit Transfer(address(0), _migrationContract, _tTotal);
     }
 
