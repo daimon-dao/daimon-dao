@@ -216,7 +216,7 @@ contract CoverageGaps is StackDeployer {
     // Migration: sweep post-deadline verso la treasury
     // ============================================================
     function test_SweepSendsRemainderToTreasury() public {
-        vm.warp(block.timestamp + 3651 days); // oltre la deadline (3650 giorni)
+        vm.warp(block.timestamp + 366 days); // oltre la deadline (365 giorni)
         uint256 remaining = token.balanceOf(address(migration));
         uint256 treasuryBefore = token.balanceOf(treasury);
 

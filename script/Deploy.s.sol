@@ -59,6 +59,22 @@ contract Deploy is Script {
         uint256 oldSupply = vm.envOr("OLD_SUPPLY", uint256(1_000_000_000 ether));
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
 
+        // The migration deadline is immutable and arms the sweep: print it and
+        // hard-stop on an out-of-range duration BEFORE anything reaches the
+        // chain (no tx has been broadcast yet at this point).
+        console2.log("Migration duration (days):", migrationDuration / 1 days);
+        console2.log("Migration deadline (unix):", block.timestamp + migrationDuration);
+        // Mirrors DaimonMigration.MIN/MAX_MIGRATION_DURATION. Solidity cannot
+        // read a contract-level public constant without an instance, and this
+        // check must run BEFORE the migration is deployed — so the bounds are
+        // repeated here. The constructor remains the authoritative enforcement;
+        // this only fails earlier, with a clearer message, and without having
+        // spent gas on the preceding deploys.
+        require(
+            migrationDuration >= 30 days && migrationDuration <= 365 days,
+            "Deploy: MIGRATION_DURATION out of range (30-365 days)"
+        );
+
         if (guardian == deployer) {
             console2.log("ATTENZIONE: GUARDIAN_ADDRESS = deployer. Accettabile SOLO su testnet.");
         }
