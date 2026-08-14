@@ -50,9 +50,22 @@ abstract contract StackDeployer is Test {
         oldToken.excludeFromFee(deployer);
 
         DaimonV2 impl = new DaimonV2();
+
+        // Predict the migration address exactly as script/Deploy.s.sol does,
+        // and pass the REAL one to initialize(). This fixture used to pass the
+        // deployer as a placeholder _migrationContract and move the supply
+        // afterwards — a shortcut that does not match production wiring, where
+        // no EOA ever touches the supply. Anything the token records about the
+        // migration at initialize() (finding #32) would otherwise be recorded
+        // against the placeholder here and never exercised.
+        //
+        // Remaining CREATEs by the deployer from this point: proxy(+0),
+        // staking(+1), timelock(+2), governor(+3), migration(+4).
+        address predictedMigration = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 4);
+
         bytes memory initData = abi.encodeCall(
             DaimonV2.initialize,
-            ("Daimon", "DMN", deployer, address(router), deployer, guardian, marketingWallet)
+            ("Daimon", "DMN", predictedMigration, address(router), deployer, guardian, marketingWallet)
         );
         token = DaimonV2(payable(address(new ERC1967Proxy(address(impl), initData))));
 
@@ -71,8 +84,10 @@ abstract contract StackDeployer is Test {
         token.setStakingContract(address(staking));
 
         migration = new DaimonMigration(address(oldToken), address(token), treasury, address(timelock), 3650 days);
-        token.setExcludedFromFee(address(migration), true);
-        token.transfer(address(migration), token.balanceOf(deployer));
+        require(address(migration) == predictedMigration, "StackDeployer: predicted migration mismatch");
+        // No setExcludedFromFee and no supply transfer here any more: the
+        // migration received the whole INITIAL_SUPPLY and its fee exemption
+        // directly in initialize(), exactly as on mainnet.
 
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
