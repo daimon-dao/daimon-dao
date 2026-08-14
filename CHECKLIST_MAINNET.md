@@ -27,6 +27,20 @@ is exempt, so exempting Migration has no effect.
 Correct the misleading comment in `DaimonMigration.sol` that instructs
 exempting the Migration contract.
 
+**Legacy token custody (Zenith #6)**
+
+`claim()` sends the collected old tokens to the treasury rather than burning
+or locking them. That is accepted as a custody risk, not a code property — so
+it becomes an operational requirement:
+
+- [ ] The collected legacy tokens remain in **non-circulating custody for the
+      entire migration window**. They must not be sold, lent, bridged or moved
+      to any address that could return them to a holder: tokens back in
+      circulation before the deadline can be migrated a second time.
+- [ ] Decide and record who holds that custody and under what controls, before
+      the migration opens — the window is armed by an immutable deadline and
+      cannot be paused to fix this later.
+
 ## Addresses (careful: some are IMMUTABLE)
 
 - [ ] **`marketingWallet` → MULTISIG.** Never an EOA. Receives the marketing

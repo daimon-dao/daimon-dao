@@ -61,10 +61,16 @@ security policy).
   price leaves the tolerance the swap is *skipped* (funds preserved), without
   reverting the transfer of the user who triggered it (avoids a DoS vector on
   sells).
-- **Accepted known limit:** the quote is read in the same block as the swap,
-  so the protection limits the damage **to the set tolerance**, it does not
-  eliminate it entirely. Eliminating it would require a TWAP oracle. It is an
-  explicit trade-off (see §3).
+- **Accepted known limit — read this precisely.** `maxSwapSlippageBps` bounds
+  the deviation from the router's **contemporaneous quote**, and nothing more.
+  It does **not** bound the loss relative to a fair price: the quote is read in
+  the same block as the swap, from a pool an attacker may already have moved.
+  Someone who shifts the reserves first makes the quote itself unfavourable,
+  and the tolerance is then measured against that manipulated number — so the
+  real extractable value is not limited by this parameter.
+  The protocol reads **no external price feed and uses no oracle**, by design.
+  The residual MEV exposure is therefore an accepted risk that is explicitly
+  **not** bounded (see §3 and §7).
 - **Late voting.** Voting power is snapshotted at proposal creation
   (`votingPowerAt`): buying and staking after creation grants no power over
   that proposal.
@@ -136,9 +142,12 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
 
 ## 3. Known and accepted limits
 
-1. **Residual MEV within slippage.** The swap protection limits the damage to
-   the governed tolerance (default 5%), it does not zero it out (no on-chain
-   TWAP).
+1. **Residual MEV, not bounded by the slippage setting.** The swap protection
+   bounds the deviation from the router's contemporaneous quote, not the loss
+   against a fair price: an attacker who moves the reserves first makes that
+   quote unfavourable, and the tolerance is measured against the manipulated
+   number. No oracle and no on-chain TWAP is used, by design. See §2.2 and §7
+   (#34) for the full statement.
 2. **Upgrade authorizable by the DAO.** The UUPS upgrade can in theory replace
    the monetary logic; mitigated only by the Timelock's public delay. Explicit
    trade-off between upgradability and absolute immutability.
@@ -226,3 +235,108 @@ and partly already addressed; none is blocking.
 Detail of the findings and proposed fixes: see the adversarial round in
 [TESTNET_RESULTS.md](TESTNET_RESULTS.md) (Test 10) and the hardening report
 attached to the review conversation.
+
+---
+
+## 7. Accepted limitations — Zenith audit 2026-08
+
+Findings from the Zenith engagement that were reviewed and **accepted rather
+than changed**, each with the reason. They are recorded here so a reader does
+not have to re-derive the analysis, and so the acceptance is on the record
+rather than implicit.
+
+### #24 — Approvals and queued operations do not expire
+
+A passed proposal stays queueable indefinitely, and a ready timelock operation
+stays executable until it is executed or cancelled.
+
+**Accepted.** This matches OpenZeppelin's `TimelockController`, which defines a
+minimum delay and no execution deadline. Adding a grace period would introduce
+a liveness risk in exchange: an expired operation forces the whole 13-day cycle
+(1 day voting delay + 5 days voting + 7 days timelock) to be repeated, and an
+operation that expires unnoticed is a governance failure with no alarm. The
+defence against stale proposals is the guardian's ability to cancel, plus
+monitoring — both available at any point before execution.
+
+### #20 — Unswapped fee inventory is allocated at execution time
+
+The marketing and buyback fees accumulate in a single token balance. When the
+swap runs, the resulting BNB is split according to the split **in force at that
+moment**, not the one in force when each portion was collected.
+
+**Accepted — allocation happens at execution time.** A change to the split
+therefore also applies to inventory already collected and not yet converted;
+this is the intended reading and is stated here so it is not mistaken for a
+bug. The exposure is bounded: pending inventory cannot exceed the swap
+threshold before being converted, and any split change goes through a vote and
+the 7-day timelock, so it is public well before it takes effect. Separating the
+balances would add storage and accounting to a contract that already carries
+findings on its automation.
+
+### #34 — `maxSwapSlippageBps` does not bound the real MEV loss
+
+**This corrects a claim previously made in this document.** Earlier wording
+said the swap protection limits the damage "to the set tolerance". That is not
+accurate.
+
+`maxSwapSlippageBps` bounds the deviation from the router's **contemporaneous
+quote**. It does **not** bound the total loss relative to a fair price: an
+attacker who moves the reserves before the swap makes the quote itself
+unfavourable, and the tolerance is then measured against that manipulated
+number. The protocol reads **no external price feed and uses no oracle**, by
+design. The residual MEV exposure is an accepted risk and is explicitly **not**
+bounded. §2.2 and §3 have been corrected accordingly.
+
+### #4 — Reentrancy on the timelock predecessor
+
+`execute()` sets `executed = true` before calling the target. A target holding
+`EXECUTOR_ROLE` could in principle re-enter with an operation whose predecessor
+is the first one, and see it already marked executed.
+
+**Accepted — not reachable.** The Governor is the only executor, and its path
+always passes a zero predecessor, so no predecessor relationship is ever
+established. Recorded explicitly: **predecessor-based ordering is not supported
+under the current execution model.** Anyone extending the executor set, or
+introducing predecessors, must revisit this first.
+
+### #6 — Legacy tokens are transferred to the treasury
+
+`claim()` sends the old tokens to the treasury rather than burning or locking
+them. If the treasury were to put them back into circulation during the
+migration window, they could be migrated again.
+
+**Accepted as a custody risk**, not a code property, and therefore recorded as
+a strict operational requirement: **the collected legacy tokens remain in
+non-circulating custody for the entire migration window.** Also listed in
+[CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md), which is the document consulted
+at deploy time.
+
+### #10 — Staking assumes exact receipt
+
+`stake()` records the requested amount without checking the balance actually
+received. This is correct **because** the staking contract is fee-exempt, but
+the assumption was not written down anywhere.
+
+**Documented as an accounting invariant**, now stated in the NatSpec of
+`stake()`: the staking contract's fee exemption is not a convenience, it is
+what makes the recorded amount equal the received amount. Any upgrade or
+configuration change must preserve it. The fix for #32 additionally enforces
+this on-chain — the exemption can no longer be revoked while
+`totalStakedAmount() > 0`.
+
+### #16 and #17 — Double fees on liquidity operations
+
+Removing liquidity pays the transfer fee twice (pair → router → user). Adding
+liquidity yields fewer LP tokens than the router's own quote suggests, because
+the router computes on the gross amount while the pair receives the net.
+
+**Accepted in the contracts, disclosed in the interface.** The requirement is
+recorded in [DAPP_SPEC.md](DAPP_SPEC.md): the interface must state how many
+fees are paid and what will actually be received, before the user signs.
+
+⚠️ **Do not "fix" this by exempting the pair or the router.** Doing so would
+disable fees on every buy and sell, and would open a fee-free transfer route:
+pre-deposit tokens, then call liquidity removal to move them out untaxed. The
+double fee is the lesser cost by a wide margin.
+
+---
