@@ -156,6 +156,7 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event ExcludedFromFeeSet(address indexed account, bool excluded);
     event SwapAndLiquifyEnabledSet(bool enabled);
     event BuyBackEnabledSet(bool enabled);
+    event TerminalBuybackSettled(address indexed to, uint256 amount);
 
     error BelowMinSupply();
     error ZeroAddress();
@@ -163,6 +164,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     error TransferAmountExceedsMaxTx();
     error ContractIsPaused();
     error GuardianExpired();
+    error FloorNotReached();
+    error InvalidRecipient();
+    error NothingToSettle();
+    error SettlementTransferFailed();
 
     modifier lockSwap() {
         _inSwap = true;
@@ -646,6 +651,41 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     function setBuyBackEnabled(bool enabled) external onlyRole(GOVERNANCE_ROLE) {
         buyBackEnabled = enabled;
         emit BuyBackEnabledSet(enabled);
+    }
+
+    /// @notice Once the supply has reached MIN_SUPPLY, sends the BNB still
+    /// held for the buyback to `to`. Governance only.
+    /// @dev At the floor `_buyBackAndBurn()` returns immediately, so the BNB
+    /// accumulated from the marketing/buyback split has no spending path left
+    /// and would sit here forever. This is the only way out, and it opens ONLY
+    /// in that terminal state: while `_tTotal > MIN_SUPPLY` the buyback is
+    /// still the intended use of those funds and this reverts.
+    ///
+    /// WHY THE RECIPIENT IS NOT FIXED — this is deliberate, not an omission.
+    /// A hardcoded or stored address would be written years before it is ever
+    /// read, in a state that may never be reached, and could not be corrected
+    /// if that wallet were lost or superseded; a stored one would also add a
+    /// setter and a misconfiguration surface for a value used at most once.
+    /// Passing it per call is strictly more constrained in practice: the call
+    /// is governance-only, so it can only arrive through propose -> vote ->
+    /// 7-day timelock, and the destination is public for those seven days
+    /// before it can execute. The DAO decides where the residue goes at the
+    /// moment it becomes real, with the community watching.
+    /// The guards below exclude the destinations that would destroy the funds
+    /// or return them to this same dead end.
+    function settleTerminalBuyback(address to) external onlyRole(GOVERNANCE_ROLE) nonReentrant {
+        if (_tTotal > MIN_SUPPLY) revert FloorNotReached();
+        // Not the zero address (burns it), not this contract (returns it to
+        // the same dead end), not the dead address (unrecoverable).
+        if (to == address(0) || to == address(this) || to == deadAddress) revert InvalidRecipient();
+
+        uint256 amount = address(this).balance;
+        if (amount == 0) revert NothingToSettle();
+
+        (bool ok, ) = to.call{value: amount}("");
+        if (!ok) revert SettlementTransferFailed();
+
+        emit TerminalBuybackSettled(to, amount);
     }
 
     // ---- Guardian: ONLY emergency pause, no economic power ----
