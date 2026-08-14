@@ -182,6 +182,17 @@ contract DaimonStaking is ReentrancyGuard {
     // ============================================================
     // Staking
     // ============================================================
+    /// @notice Locks `amount` for the chosen option and credits the weighted
+    /// voting power.
+    /// @dev ACCOUNTING INVARIANT (Zenith #10): this function records `amount`
+    /// as staked without re-reading the balance actually received. That is
+    /// correct ONLY because this contract is exempt from the token's transfer
+    /// fee, so the amount received equals the amount requested. The exemption
+    /// is therefore not a convenience — it is what makes the recorded
+    /// principal true, and what lets withdraw() return it 1:1.
+    /// Any upgrade or configuration change MUST preserve it. Since the fix for
+    /// Zenith #32 the token enforces this on-chain as well: the exemption
+    /// cannot be revoked while totalStakedAmount() > 0.
     function stake(uint256 amount, uint256 lockOptionIndex) external nonReentrant returns (uint256 lockId) {
         if (amount == 0) revert ZeroAmount();
         if (lockOptionIndex >= lockOptions.length || !lockOptions[lockOptionIndex].active) revert InvalidLockOption();
