@@ -49,10 +49,12 @@ contract DaimonTimelock is AccessControl {
     error OperationAlreadyExecuted();
     error OperationAlreadyScheduled();
     error DelayTooShort();
+    error DelayTooLong();
     error ExecutionFailed();
 
     constructor(uint256 _minDelay, address proposer, address executor, address canceller, address admin) {
         require(_minDelay >= MIN_DELAY, "DaimonTimelock: below MIN_DELAY");
+        require(_minDelay <= MAX_DELAY, "DaimonTimelock: above MAX_DELAY");
         minDelay = _minDelay;
         _grantRole(PROPOSER_ROLE, proposer);
         _grantRole(EXECUTOR_ROLE, executor);
@@ -81,8 +83,27 @@ contract DaimonTimelock is AccessControl {
     // never zero it out or make it lower than MIN_DELAY.
     uint256 public constant MIN_DELAY = 7 days;
 
+    // Hardcoded absolute maximum delay. Beyond the overflow threshold, a delay
+    // would make block.timestamp + delay revert and freeze every future
+    // scheduling — including the proposal needed to correct it. Short of
+    // overflow, a delay of years would make governance unusable while looking
+    // perfectly valid.
+    //
+    // 90 days is chosen over a tighter bound because the two failure modes are
+    // asymmetric: too long a delay means arriving late, which is recoverable;
+    // too short a ceiling would stop the DAO from granting itself extra
+    // scrutiny on high-risk operations — a UUPS upgrade, a change of funds
+    // recipient — and that exposure is not. It still leaves a 7 -> 90 day
+    // policy range, thirteen times the floor.
+    uint256 public constant MAX_DELAY = 90 days;
+
     function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) external onlyRole(PROPOSER_ROLE) {
         if (delay < minDelay || delay < MIN_DELAY) revert DelayTooShort();
+        // The per-operation delay is a caller-supplied parameter, so it needs
+        // the same ceiling as minDelay: without it a single proposal could
+        // schedule itself decades out, or past the overflow threshold, no
+        // matter what minDelay says.
+        if (delay > MAX_DELAY) revert DelayTooLong();
         bytes32 id = hashOperation(target, value, data, predecessor, salt);
         if (operations[id].readyTimestamp != 0) revert OperationAlreadyScheduled();
 
@@ -120,6 +141,7 @@ contract DaimonTimelock is AccessControl {
     function updateDelay(uint256 newDelay) external {
         require(msg.sender == address(this), "DaimonTimelock: only via self-call (governance proposal)");
         require(newDelay >= MIN_DELAY, "DaimonTimelock: below MIN_DELAY");
+        require(newDelay <= MAX_DELAY, "DaimonTimelock: above MAX_DELAY");
         emit MinDelayChanged(minDelay, newDelay);
         minDelay = newDelay;
     }
