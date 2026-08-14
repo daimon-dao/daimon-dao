@@ -20,7 +20,12 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract DaimonTimelock is AccessControl {
     bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE"); // the Governor
-    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE"); // who can execute (can be an open "anyone" role if opened up)
+    // Who can execute. Only CONCRETE holders are supported: execute() uses the
+    // standard onlyRole(), which always checks actual membership. Granting the
+    // role to address(0) does NOT open execution to everyone — OpenZeppelin's
+    // AccessControl has no such convention, and the call would still revert
+    // for any address that does not hold the role itself.
+    bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
     bytes32 public constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE"); // guardian, cancel only
     // Manages the roles themselves, ideally the Timelock itself after the
     // initial setup. Coincides with OZ AccessControl's DEFAULT_ADMIN_ROLE,
