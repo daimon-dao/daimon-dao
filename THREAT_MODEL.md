@@ -264,14 +264,13 @@ The marketing and buyback fees accumulate in a single token balance. When the
 swap runs, the resulting BNB is split according to the split **in force at that
 moment**, not the one in force when each portion was collected.
 
-**Accepted — allocation happens at execution time.** A change to the split
-therefore also applies to inventory already collected and not yet converted;
-this is the intended reading and is stated here so it is not mistaken for a
-bug. The exposure is bounded: pending inventory cannot exceed the swap
-threshold before being converted, and any split change goes through a vote and
-the 7-day timelock, so it is public well before it takes effect. Separating the
-balances would add storage and accounting to a contract that already carries
-findings on its automation.
+**Accepted — allocation happens at execution time.** This is the intended
+reading and is stated here so it is not mistaken for a bug. Each automated
+swap attempts to convert one threshold-sized tranche. Total unswapped
+inventory can exceed that threshold. Changes to the fee split apply to all
+inventory when it is eventually converted; such changes remain public through
+governance and the Timelock. Separating the balances would add storage and
+accounting to a contract that already carries findings on its automation.
 
 ### #34 — `maxSwapSlippageBps` does not bound the real MEV loss
 
