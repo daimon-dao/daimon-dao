@@ -730,8 +730,9 @@ particolare. È una conseguenza dell'attività di scambio.
 1.  Avvengono scambi → le fee si accumulano come DMN nel contratto
 
 2.  Quando le fee accumulate superano una soglia, e avviene una
-    vendita verso la pool di liquidità, il contratto vende i token
-    accumulati sul mercato → riceve BNB
+    vendita verso la pool di liquidità, il contratto vende sul
+    mercato una tranche pari alla soglia, al massimo una per
+    blocco → riceve BNB
 
 3.  Il BNB viene suddiviso:
         quota marketing  →  60% al pool reward dello staking
