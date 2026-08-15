@@ -604,7 +604,7 @@ contract DaimonDAOTest is Test {
         // ramo marketing = 20/40 = 500 ether, di cui 60% staking / 40% wallet
         assertEq(marketingWallet.balance - marketingBefore, 200 ether);
         assertEq(address(staking).balance, 300 ether);
-        assertEq(staking.undistributedRewards(), 300 ether); // nessuno staka: accodati (M1)
+        assertEq(staking.zeroStakerReserve(), 300 ether); // nobody staking: reserved, never merged (#35)
         assertGt(token.balanceOf(dead), 0); // buyback eseguito nonostante minOut > 0
     }
 
@@ -686,13 +686,16 @@ contract DaimonDAOTest is Test {
         assertEq(token.balanceOf(dead), deadBal);
     }
 
-    // --- M1 + M2: reward accodati senza staker e distribuiti al primo notify utile ---
-    function test_UndistributedRewardsFlowToFirstStaker() public {
+    // --- M1 + M2, semantics changed by the #35 fix: rewards received with no
+    // staker are RESERVED, never merged into later distributions. The old
+    // behaviour this test asserted (backlog flowing to the first staker) was
+    // exactly the finding: 1 wei staked at the right moment captured it all.
+    function test_ZeroStakerRewardsAreReservedNotMerged() public {
         _deployFullStack();
 
         vm.deal(address(this), 10 ether);
         staking.notifyRewardAmount{value: 4 ether}(4 ether);
-        assertEq(staking.undistributedRewards(), 4 ether);
+        assertEq(staking.zeroStakerReserve(), 4 ether);
         assertEq(staking.pendingReward(alice), 0);
 
         _giveAliceSomeNewTokens(1000 * 1e18);
@@ -702,13 +705,14 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         staking.notifyRewardAmount{value: 2 ether}(2 ether);
-        assertEq(staking.undistributedRewards(), 0);
-        assertEq(staking.pendingReward(alice), 6 ether); // 4 accodati + 2 nuovi, esatti con scala 1e27
+        assertEq(staking.zeroStakerReserve(), 4 ether); // untouched by the distribution
+        assertEq(staking.pendingReward(alice), 2 ether); // only the new notify, exact at 1e27 scale
 
         uint256 balBefore = alice.balance;
         vm.prank(alice);
         staking.claimReward();
-        assertEq(alice.balance - balBefore, 6 ether);
+        assertEq(alice.balance - balBefore, 2 ether);
+        assertEq(staking.zeroStakerReserve(), 4 ether); // claims cannot reach the reserve
     }
 
     // --- B7: dopo la scadenza il guardian puo' solo togliere la pausa ---

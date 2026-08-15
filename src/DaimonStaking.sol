@@ -24,11 +24,15 @@ pragma solidity 0.8.26;
  */
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IDaimonV2Token {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+    // Needed by the #32-bis structural guard in stake(): the deposit
+    // accounting is only sound while this contract is fee-exempt.
+    function isExcludedFromFee(address account) external view returns (bool);
 }
 
 contract DaimonStaking is ReentrancyGuard {
@@ -52,6 +56,10 @@ contract DaimonStaking is ReentrancyGuard {
     }
 
     IDaimonV2Token public immutable daimonToken;
+
+    // Only used to refuse it as a recovery destination: sending recovered
+    // value there would destroy it a second time.
+    address private constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     // Lock options: duration in seconds => voting power multiplier (x1000)
     // Example: 30 days = 1.0x weight, 365 days = 4.0x weight
@@ -104,9 +112,13 @@ contract DaimonStaking is ReentrancyGuard {
     uint256 private constant REWARD_PRECISION = 1e27;
 
     uint256 public rewardPerVotingPowerStored; // MasterChef-style accumulator, scaled by REWARD_PRECISION
-    // BNB received when totalVotingPower == 0: queued and distributed at the
-    // first notify with stakers present.
-    uint256 public undistributedRewards;
+    // BNB received while totalVotingPower == 0. It NEVER merges into later
+    // distributions (#35): folding it into the next notify let the first
+    // staker to arrive - even with 1 wei - capture the whole backlog accrued
+    // before it existed. Recovery is an explicit governance decision
+    // (transferZeroStakerReserve), and the public getter doubles as the
+    // DAO's visibility that there is something to recover.
+    uint256 public zeroStakerReserve;
     mapping(address => uint256) private _userRewardDebt;
     mapping(address => uint256) private _userPendingReward;
 
@@ -114,6 +126,14 @@ contract DaimonStaking is ReentrancyGuard {
     event Withdrawn(address indexed user, uint256 indexed lockId, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
     event RewardNotified(uint256 amount);
+    // Distinct from RewardNotified on purpose: reserved funds are NOT queued
+    // for distribution, they wait for an explicit governance decision (#35).
+    event RewardReserved(uint256 amount);
+    // The deltas are MEASURED before/after the transfer, never assumed: with
+    // a reflection token the debited and received amounts need not equal the
+    // requested one.
+    event SurplusTransferred(address indexed to, uint256 debited, uint256 received);
+    event ZeroStakerReserveTransferred(address indexed to, uint256 debited, uint256 received);
     event LockOptionAdded(uint256 duration, uint256 multiplierX1000);
     event LockOptionDisabled(uint256 index);
 
@@ -122,6 +142,10 @@ contract DaimonStaking is ReentrancyGuard {
     error AlreadyWithdrawn();
     error NotLockOwner();
     error ZeroAmount();
+    error StakingNotFeeExempt();
+    error InvalidRecipient();
+    error AmountExceedsSurplus();
+    error AmountExceedsReserve();
 
     // The parameter is named initialGovernance (not _governance) so it does
     // not shadow the state mapping of the same name.
@@ -142,6 +166,14 @@ contract DaimonStaking is ReentrancyGuard {
     function stake(uint256 amount, uint256 lockOptionIndex) external nonReentrant returns (uint256 lockId) {
         if (amount == 0) revert ZeroAmount();
         if (lockOptionIndex >= lockOptions.length || !lockOptions[lockOptionIndex].active) revert InvalidLockOption();
+        // Structural guard (#32-bis): the accounting below records `amount`
+        // as received, with no balance-delta check - that is only sound
+        // while this contract is fee-exempt on the token. The token-side
+        // #32 fix prevents revoking the exemption while stake is
+        // outstanding, but releases it once totalStakedAmount reaches zero:
+        // nothing stopped a NEW deposit while the exemption was off. This
+        // refuses the deposit, closing the hole from this side too.
+        if (!daimonToken.isExcludedFromFee(address(this))) revert StakingNotFeeExempt();
 
         _settleReward(msg.sender);
 
@@ -150,6 +182,10 @@ contract DaimonStaking is ReentrancyGuard {
         bool ok = daimonToken.transferFrom(msg.sender, address(this), amount);
         require(ok, "DaimonStaking: transferFrom failed");
 
+        // No mulDiv needed here (verified for #31): amount is bounded by the
+        // 1e30 total supply and multiplierX1000 by 10_000 (addLockOption), so
+        // the product tops out near 1e34 - forty-three orders of magnitude
+        // below uint256 overflow.
         uint256 vp = (amount * opt.multiplierX1000) / 1000;
 
         lockId = nextLockId++;
@@ -170,7 +206,7 @@ contract DaimonStaking is ReentrancyGuard {
 
         _writeCheckpoint(msg.sender);
 
-        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
+        _userRewardDebt[msg.sender] = Math.mulDiv(votingPower[msg.sender], rewardPerVotingPowerStored, REWARD_PRECISION);
 
         emit Staked(msg.sender, lockId, amount, opt.duration, vp);
     }
@@ -194,7 +230,7 @@ contract DaimonStaking is ReentrancyGuard {
 
         _writeCheckpoint(msg.sender);
 
-        _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
+        _userRewardDebt[msg.sender] = Math.mulDiv(votingPower[msg.sender], rewardPerVotingPowerStored, REWARD_PRECISION);
 
         bool ok = daimonToken.transfer(msg.sender, amount);
         require(ok, "DaimonStaking: transfer failed");
@@ -249,34 +285,43 @@ contract DaimonStaking is ReentrancyGuard {
         // the amount argument (avoids mismatch/manipulation).
         require(msg.value == amount, "DaimonStaking: value mismatch");
         if (totalVotingPower == 0) {
-            // Nobody staked: the funds are queued and distributed at the
-            // first notify with voting power > 0 (without this accrual they
-            // would stay forever unattributed in the contract).
-            undistributedRewards += amount;
-            emit RewardNotified(amount);
+            // Nobody staked: the funds are set aside and NEVER merged into a
+            // later distribution (#35). See the note on zeroStakerReserve.
+            zeroStakerReserve += amount;
+            emit RewardReserved(amount);
             return;
         }
-        uint256 toDistribute = amount + undistributedRewards;
-        undistributedRewards = 0;
-        rewardPerVotingPowerStored += (toDistribute * REWARD_PRECISION) / totalVotingPower;
-        emit RewardNotified(toDistribute);
+        // Distribute exactly what this notification carries: nothing is ever
+        // distributed retroactively any more. mulDiv for #31 (see
+        // _settleReward), and for symmetry with every other accumulator
+        // expression.
+        rewardPerVotingPowerStored += Math.mulDiv(amount, REWARD_PRECISION, totalVotingPower);
+        emit RewardNotified(amount);
     }
 
+    // mulDiv (512-bit intermediate) in every reward expression (#31): voting
+    // power can reach ~4e30 and the accumulator grows without bound - one
+    // low-power epoch receiving a large notify is enough to push it past the
+    // point where vp * accumulator overflows uint256. The naive product then
+    // reverts (panic 0x11) inside stake() and withdraw(), permanently
+    // locking large stakers out of a NON-UPGRADEABLE contract. mulDiv
+    // computes the full 512-bit product before dividing, and floors exactly
+    // like the plain expression in every non-overflowing case.
     function _settleReward(address user) private {
         uint256 vp = votingPower[user];
         if (vp > 0) {
-            uint256 accumulated = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
+            uint256 accumulated = Math.mulDiv(vp, rewardPerVotingPowerStored, REWARD_PRECISION);
             uint256 pending = accumulated - _userRewardDebt[user];
             if (pending > 0) {
                 _userPendingReward[user] += pending;
             }
         }
-        _userRewardDebt[user] = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
+        _userRewardDebt[user] = Math.mulDiv(vp, rewardPerVotingPowerStored, REWARD_PRECISION);
     }
 
     function pendingReward(address user) external view returns (uint256) {
         uint256 vp = votingPower[user];
-        uint256 accumulated = (vp * rewardPerVotingPowerStored) / REWARD_PRECISION;
+        uint256 accumulated = Math.mulDiv(vp, rewardPerVotingPowerStored, REWARD_PRECISION);
         uint256 newlyAccrued = accumulated >= _userRewardDebt[user] ? accumulated - _userRewardDebt[user] : 0;
         return _userPendingReward[user] + newlyAccrued;
     }
@@ -310,6 +355,52 @@ contract DaimonStaking is ReentrancyGuard {
 
     function setGovernance(address account, bool enabled) external onlyGovernance {
         _setGovernance(account, enabled);
+    }
+
+    /// @notice Moves DMN held ABOVE the staked principal out of the contract
+    /// (#33). Surplus accrues from reflection on the staked balance and from
+    /// direct transfers; no other function can touch it, so without this it
+    /// would be stuck forever.
+    /// @dev The recipient is a PARAMETER, not a stored address: this
+    /// contract is not upgradeable, so a fixed destination that proved wrong
+    /// or obsolete would be irrecoverable. Every call arrives through a
+    /// public proposal and the 7-day Timelock, so the destination is visible
+    /// long before it can execute. The principal is protected twice: the
+    /// amount is checked against the measured surplus before the transfer,
+    /// and the remaining balance is re-checked after it.
+    function transferSurplus(address to, uint256 amount) external onlyGovernance nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        if (to == address(0) || to == address(this) || to == DEAD_ADDRESS) revert InvalidRecipient();
+
+        uint256 balBefore = daimonToken.balanceOf(address(this));
+        if (balBefore < totalStakedAmount + amount) revert AmountExceedsSurplus();
+
+        uint256 toBefore = daimonToken.balanceOf(to);
+        bool ok = daimonToken.transfer(to, amount);
+        require(ok, "DaimonStaking: transfer failed");
+
+        uint256 balAfter = daimonToken.balanceOf(address(this));
+        if (balAfter < totalStakedAmount) revert AmountExceedsSurplus();
+
+        emit SurplusTransferred(to, balBefore - balAfter, daimonToken.balanceOf(to) - toBefore);
+    }
+
+    /// @notice Recovers the BNB reserved while nobody was staked (#35). Same
+    /// shape and same reasoning as transferSurplus: parameterized recipient,
+    /// public route through governance and the Timelock, measured deltas.
+    function transferZeroStakerReserve(address to, uint256 amount) external onlyGovernance nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        if (to == address(0) || to == address(this) || to == DEAD_ADDRESS) revert InvalidRecipient();
+        if (amount > zeroStakerReserve) revert AmountExceedsReserve();
+
+        zeroStakerReserve -= amount;
+
+        uint256 selfBefore = address(this).balance;
+        uint256 toBefore = to.balance;
+        (bool ok, ) = to.call{value: amount}("");
+        require(ok, "DaimonStaking: BNB transfer failed");
+
+        emit ZeroStakerReserveTransferred(to, selfBefore - address(this).balance, to.balance - toBefore);
     }
 
     function lockOptionsLength() external view returns (uint256) {
