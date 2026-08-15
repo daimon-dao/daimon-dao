@@ -699,8 +699,8 @@ is a consequence of trading.
 1.  Trading occurs → fees accumulate as DMN inside the contract
 
 2.  Once accumulated fees exceed a threshold, and a sale to the
-    liquidity pool occurs, the contract sells the accumulated
-    tokens on the market → receives BNB
+    liquidity pool occurs, the contract sells one threshold-sized
+    tranche on the market, at most one per block → receives BNB
 
 3.  The BNB is split:
         marketing share  →  60% to the staking reward pool
