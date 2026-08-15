@@ -25,6 +25,9 @@ contract GovernanceSequence is StackDeployer {
 
     function _propose() internal returns (uint256 id, bytes memory data) {
         data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        // The snapshot is block.number - 1 (#12): the setUp stake must sit
+        // in a sealed block before the proposal for the whale to vote.
+        vm.roll(block.number + 1);
         vm.prank(whale);
         id = governor.propose(address(token), 0, data, "Riduzione fee");
     }

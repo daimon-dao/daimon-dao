@@ -10,14 +10,26 @@ pragma solidity 0.8.26;
  * manipulation in the same block or flash-loan-style attacks).
  *
  * The snapshot is realized with DaimonStaking's CHECKPOINTs (OZ Votes
- * style): at proposal creation, snapshotTimestamp and snapshotTotalVotingPower
- * are stored; castVote() reads the voter's voting power at that instant via
- * staking.votingPowerAt(voter, snapshotTimestamp), and the quorum in state()
- * uses the total at the snapshot. It follows that to vote on a proposal you
- * must have locked the tokens BEFORE (or in the same block as) its creation:
- * later stakes do not count, neither for votes nor for quorum — resistant
- * both to flash-loans and to late purchases aimed at an already-visible
- * proposal.
+ * style), keyed by BLOCK NUMBER: at proposal creation, snapshotBlock is set
+ * to block.number - 1 and snapshotTotalVotingPower to the aggregate voting
+ * power at that block; castVote() reads the voter's power at snapshotBlock
+ * via staking.votingPowerAt(voter, snapshotBlock), and the quorum in state()
+ * uses the total at the same block. It follows that to vote on a proposal
+ * you must have locked the tokens in a block STRICTLY BEFORE its creation:
+ * a stake in the proposal's own block or later counts for nothing, neither
+ * votes nor quorum (#12).
+ *
+ * Why block.number - 1 and not the creation timestamp: BSC seals two blocks
+ * per second, so a timestamp cannot separate "before the proposal" from
+ * "same block, reacting to it"; and the previous block is already sealed
+ * when the proposal lands, so its checkpoints can never be rewritten. The
+ * only residual window is staking in a block strictly before a propose
+ * still sitting in the mempool — economically identical to staking before
+ * an announced proposal, and dwarfed by the 1-day VOTING_DELAY.
+ *
+ * The quorum bps is also captured per proposal at creation (#37): changing
+ * quorumBps mid-flight does not retroactively change the threshold an
+ * existing proposal is judged against.
  *
  * Flow: propose -> vote (during votingPeriod) -> queue (on Timelock) ->
  * execute (after the Timelock delay).
@@ -30,8 +42,8 @@ pragma solidity 0.8.26;
 
 interface IDaimonStakingVotes {
     function votingPower(address account) external view returns (uint256);
-    function votingPowerAt(address account, uint256 timestamp) external view returns (uint256);
-    function totalVotingPower() external view returns (uint256);
+    function votingPowerAt(address account, uint256 blockNumber) external view returns (uint256);
+    function totalVotingPowerAt(uint256 blockNumber) external view returns (uint256);
 }
 
 interface ITimelockControllerMinimal {
@@ -61,10 +73,14 @@ contract DaimonGovernor {
         uint256 value;
         bytes data;
         string description;
-        uint256 snapshotTimestamp; // voters must have acquired voting power before this conceptual moment (here simplified: creation block)
-        // totalVotingPower at creation time: quorum is computed on this
-        // snapshot, not on the live value, so stake/unstake after the
-        // proposal cannot alter the threshold.
+        // The block BEFORE the proposal's own: voters must have acquired
+        // voting power in a block <= snapshotBlock. Stakes in the proposal's
+        // block (even earlier in it) or later count for nothing (#12).
+        uint256 snapshotBlock;
+        // Aggregate voting power at snapshotBlock: the quorum denominator.
+        // Computed on the same sealed block as the voter weights, so
+        // stake/unstake after the proposal can alter neither side of the
+        // quorum fraction.
         uint256 snapshotTotalVotingPower;
         uint256 voteStart;
         uint256 voteEnd;
@@ -75,6 +91,9 @@ contract DaimonGovernor {
         bool executed;
         bool queued;
         bytes32 timelockSalt;
+        // Quorum bps captured at creation (#37). Appended last so the
+        // proposals(id) tuple keeps its existing field order for consumers.
+        uint256 quorumBpsSnapshot;
     }
 
     mapping(uint256 => Proposal) public proposals;
@@ -122,7 +141,19 @@ contract DaimonGovernor {
     }
 
     function propose(address target, uint256 value, bytes calldata data, string calldata description) external returns (uint256 id) {
+        // Deliberately the LIVE voting power, not the snapshot: stake()
+        // locks for >= 30 days with no same-transaction exit, so this is
+        // real locked capital (flash-loan-proof), and a same-block stake
+        // buys nothing downstream — the block-1 snapshot excludes it from
+        // votes and quorum alike. Snapshotting the threshold too would only
+        // break "stake then propose" within one block, a pure UX loss.
         if (staking.votingPower(msg.sender) < proposalThreshold) revert InsufficientVotingPower();
+
+        // Snapshot at the PREVIOUS block: already sealed when the proposal
+        // lands, so its checkpoints are final and nothing that happens in
+        // the proposal's own block (including earlier transactions in it)
+        // can reach back into the snapshot (#12).
+        uint256 snapshotBlock = block.number - 1;
 
         id = proposalCount++;
         Proposal storage p = proposals[id];
@@ -131,8 +162,9 @@ contract DaimonGovernor {
         p.value = value;
         p.data = data;
         p.description = description;
-        p.snapshotTimestamp = block.timestamp;
-        p.snapshotTotalVotingPower = staking.totalVotingPower();
+        p.snapshotBlock = snapshotBlock;
+        p.snapshotTotalVotingPower = staking.totalVotingPowerAt(snapshotBlock);
+        p.quorumBpsSnapshot = quorumBps;
         p.voteStart = block.timestamp + VOTING_DELAY;
         p.voteEnd = p.voteStart + VOTING_PERIOD;
         p.timelockSalt = keccak256(abi.encode(id, block.timestamp));
@@ -147,9 +179,10 @@ contract DaimonGovernor {
         if (block.timestamp < p.voteStart || block.timestamp > p.voteEnd) revert VotingClosed();
         if (hasVoted[id][msg.sender]) revert AlreadyVoted();
 
-        // Weight at the proposal SNAPSHOT, not live: whoever stakes after
-        // creation cannot vote on this proposal.
-        uint256 weight = staking.votingPowerAt(msg.sender, p.snapshotTimestamp);
+        // Weight at the proposal SNAPSHOT (the sealed block before the
+        // proposal's), not live: whoever stakes in the proposal's block or
+        // later cannot vote on this proposal (#12).
+        uint256 weight = staking.votingPowerAt(msg.sender, p.snapshotBlock);
         if (weight == 0) revert InsufficientVotingPower();
 
         hasVoted[id][msg.sender] = true;
@@ -174,7 +207,11 @@ contract DaimonGovernor {
         // proposal over quorum and pass it, while staying silent would deny
         // it. By excluding against, voting no never helps clear the threshold.
         uint256 quorumVotes = p.forVotes + p.abstainVotes;
-        uint256 quorumNeeded = (p.snapshotTotalVotingPower * quorumBps) / 10000;
+        // Both sides of the fraction are snapshots taken at creation: the
+        // denominator at snapshotBlock, the bps as it was then (#37). A
+        // quorum change enacted while this proposal is in flight does not
+        // retroactively move its bar.
+        uint256 quorumNeeded = (p.snapshotTotalVotingPower * p.quorumBpsSnapshot) / 10000;
 
         if (quorumVotes < quorumNeeded || p.forVotes <= p.againstVotes) {
             return ProposalState.Defeated;
@@ -224,6 +261,8 @@ contract DaimonGovernor {
         emit GuardianSet(newGuardian);
     }
 
+    // #37: applies only to proposals created AFTER the change; proposals in
+    // flight keep the bps captured at creation (quorumBpsSnapshot).
     function setQuorumBps(uint256 bps) external {
         require(msg.sender == address(timelock), "DaimonGovernor: only via timelock");
         require(bps >= MIN_QUORUM_BPS, "DaimonGovernor: below MIN_QUORUM_BPS");

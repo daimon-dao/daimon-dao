@@ -215,7 +215,7 @@ export const daimonGovernorAbi = [
         "internalType": "string"
       },
       {
-        "name": "snapshotTimestamp",
+        "name": "snapshotBlock",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -268,6 +268,11 @@ export const daimonGovernorAbi = [
         "name": "timelockSalt",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "quorumBpsSnapshot",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
