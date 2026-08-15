@@ -63,6 +63,12 @@ interface IUniswapV2Router02 {
     function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
 }
 
+interface IUniswapV2PairReserves {
+    // Only the selector is used (via staticcall in _buyBackAndBurn): the
+    // probe must never itself become a revert path, see the comment there.
+    function getReserves() external view returns (uint112, uint112, uint32);
+}
+
 interface IDaimonStakingNotifier {
     // The token notifies the staking contract how much marketing fee was
     // sent to it, so staking can account the rewards.
@@ -148,6 +154,17 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event SwapAndLiquify(uint256 tokensSwapped, uint256 ethReceived);
     event BuyBackAndBurn(uint256 ethSpent, uint256 tokensBurned);
+    // Emitted when an armed buyback is skipped instead of executed (#27):
+    // monitoring can distinguish "did not start" from "failed", and a burst
+    // of skips is the observable signature of an empty pool or a manipulated
+    // quote. The reasons mirror the three abnormal exit paths below.
+    event BuyBackSkipped(uint256 ethAmount, BuyBackSkipReason reason);
+
+    enum BuyBackSkipReason {
+        EmptyReserves,
+        QuoteUnavailable,
+        SwapFailed
+    }
     event FeesUpdated(uint256 taxFee, uint256 buybackFee, uint256 marketingFee);
     event ParamsUpdated(string param, uint256 value);
     event PausedSet(bool paused);
@@ -512,6 +529,32 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         if (ethAmount == 0) return;
         if (_tTotal <= MIN_SUPPLY) return; // floor: no further buyback/burn
 
+        // #27 (BNB half): on a pair with no reserves the quote below can only
+        // revert, and before this fix that revert propagated out of _transfer
+        // — a donation of >1 BNB to the contract was enough to block the
+        // transfer seeding the initial liquidity. Probe the reserves first
+        // and skip outright on an empty pool.
+        //
+        // Raw staticcall + tolerant decode, deliberately: the probe must
+        // never itself become a revert path. A high-level try/catch call is
+        // NOT enough — since solc 0.8.10 the call to an address without code
+        // "succeeds" with empty returndata and the decode failure raises in
+        // the CALLER, outside the catch. A pair we cannot read (codeless
+        // test double, unexpected ABI) simply yields no verdict here and
+        // falls through to the wrapped quote, which is the actual guard.
+        (bool probeOk, bytes memory reservesData) =
+            uniswapV2Pair.staticcall(abi.encodeWithSelector(IUniswapV2PairReserves.getReserves.selector));
+        if (probeOk && reservesData.length >= 96) {
+            // Decoded as uint256 so the decode itself cannot revert: any
+            // 32-byte word is a valid uint256, and only the zero-comparison
+            // matters here.
+            (uint256 reserve0, uint256 reserve1, ) = abi.decode(reservesData, (uint256, uint256, uint256));
+            if (reserve0 == 0 || reserve1 == 0) {
+                emit BuyBackSkipped(ethAmount, BuyBackSkipReason.EmptyReserves);
+                return;
+            }
+        }
+
         address[] memory path = new address[](2);
         path[0] = uniswapV2Router.WETH();
         path[1] = address(this);
@@ -519,12 +562,24 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         // amountOutMin: current quote, corrected for the token's transfer fee
         // (the dead address is not excluded from the fee: it receives the
         // net), minus the governed slippage tolerance.
-        uint256 expectedAfterFee = 0;
-        {
-            uint256[] memory quote = uniswapV2Router.getAmountsOut(ethAmount, path);
-            expectedAfterFee = (quote[1] * (1000 - taxFee - liquidityFee)) / 1000;
+        //
+        // The quote is wrapped like the swap below (same structure as the
+        // #15 fix in _swapTokensForEth): getAmountsOut reverts on a pair
+        // with no reserves, and an unwrapped revert here would propagate out
+        // of _transfer and take down the user transfer that triggered it. A
+        // quote we cannot obtain simply means "do not buy back now".
+        uint256 minOut;
+        try uniswapV2Router.getAmountsOut(ethAmount, path) returns (uint256[] memory quote) {
+            if (quote.length < 2 || quote[1] == 0) {
+                emit BuyBackSkipped(ethAmount, BuyBackSkipReason.QuoteUnavailable);
+                return;
+            }
+            uint256 expectedAfterFee = (quote[1] * (1000 - taxFee - liquidityFee)) / 1000;
+            minOut = (expectedAfterFee * (10000 - maxSwapSlippageBps)) / 10000;
+        } catch {
+            emit BuyBackSkipped(ethAmount, BuyBackSkipReason.QuoteUnavailable);
+            return;
         }
-        uint256 minOut = (expectedAfterFee * (10000 - maxSwapSlippageBps)) / 10000;
 
         uint256 balanceBefore = balanceOf(deadAddress);
 
@@ -541,6 +596,7 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         try uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: ethAmount}(
             minOut, path, deadAddress, block.timestamp + 300
         ) {} catch {
+            emit BuyBackSkipped(ethAmount, BuyBackSkipReason.SwapFailed);
             return;
         }
 
