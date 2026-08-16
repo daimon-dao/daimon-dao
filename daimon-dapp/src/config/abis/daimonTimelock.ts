@@ -90,6 +90,19 @@ export const daimonTimelockAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_DELAY",
     "inputs": [],
     "outputs": [
@@ -619,12 +632,22 @@ export const daimonTimelockAbi = [
   },
   {
     "type": "error",
+    "name": "DelayTooLong",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "DelayTooShort",
     "inputs": []
   },
   {
     "type": "error",
     "name": "ExecutionFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OperationAlreadyCanceled",
     "inputs": []
   },
   {
@@ -640,6 +663,11 @@ export const daimonTimelockAbi = [
   {
     "type": "error",
     "name": "OperationNotReady",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OperationNotScheduled",
     "inputs": []
   },
   {

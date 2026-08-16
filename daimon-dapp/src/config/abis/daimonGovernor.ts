@@ -34,6 +34,19 @@ export const daimonGovernorAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_PROPOSAL_THRESHOLD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_QUORUM_BPS",
     "inputs": [],
     "outputs": [
@@ -590,6 +603,26 @@ export const daimonGovernorAbi = [
   {
     "type": "error",
     "name": "NotGuardian",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalAlreadyCanceled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalAlreadyQueued",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalDoesNotExist",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalIsCanceled",
     "inputs": []
   },
   {
