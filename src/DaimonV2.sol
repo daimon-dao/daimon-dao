@@ -177,11 +177,14 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // verifiable on-chain by anyone.
     uint256 public guardianExpiry;
 
-    // ---- Mandatory fee exemptions (finding #32) ----
+    // ---- Storage appended by the audit remediation ----
     // APPENDED AT THE END OF STORAGE, deliberately: this contract is behind a
     // UUPS proxy, so new variables may only be added after the existing ones,
-    // never inserted among them.
-    //
+    // never inserted among them. The order below - #32's fields first, then
+    // #28's budget block - is the DEFINITIVE proxy layout: every future
+    // upgrade must respect it.
+
+    // ---- Mandatory fee exemptions (finding #32) ----
     // Some fee exemptions are not a policy choice but a requirement of the
     // module that holds them: removing them would not merely change fees, it
     // would break accounting that other people's funds depend on. They are
@@ -189,6 +192,37 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // liabilities.
     address public migrationContract;
     mapping(address => bool) public mandatoryFeeExempt;
+
+    // ---- Per-block automation budgets (finding #28) ----
+    // A 1-wei transfer to the pair is enough to trigger the automation, and
+    // lockSwap/nonReentrant only prevent NESTING: they reset between calls,
+    // so a loop of dust transfers re-ran the fee swap and the buyback once
+    // per iteration. minimumTokensBeforeSwap, buyBackUpperLimit and the 5%
+    // slice bounded the SINGLE execution, not the aggregate. These counters
+    // bound the aggregate per block, independently of the caller.
+    //
+    // Two families, deliberately separate:
+    //  - ATTEMPTS are consumed BEFORE the router interaction, so a failure
+    //    caught by the try/catch still burns the block's attempt and cannot
+    //    be retried within the block;
+    //  - AMOUNTS record only SUCCESSFUL executions (measured, not assumed),
+    //    and are what the per-block ceilings are checked against.
+    //
+    // Packed: 64+32+32+128 fill one slot exactly, the spent counter sits in
+    // a second one. uint128 cannot overflow here (both amounts are bounded
+    // by the respective total supplies, far below 2^128).
+    uint64 private _autoBudgetBlock;
+    uint32 private _blockFeeSwapAttempts;
+    uint32 private _blockBuybackAttempts;
+    uint128 private _blockDmnSwapped;
+    uint128 private _blockBnbSpent;
+
+    // One execution per family per block: the chunk/slice sizes already cap
+    // the single execution, so "one per block" makes the per-block aggregate
+    // coincide with the bound the existing parameters always intended.
+    // Constants, not setters: no new governance surface.
+    uint256 private constant MAX_FEE_SWAPS_PER_BLOCK = 1;
+    uint256 private constant MAX_BUYBACKS_PER_BLOCK = 1;
 
     // ---- Events ----
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -563,9 +597,40 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // ============================================================
     // Swap (marketing + staking reward) e buyback&burn
     // ============================================================
+    /// @dev Resets the per-block budget counters when the block changes.
+    /// Called at the entry of both automation paths, BEFORE their budget
+    /// checks, so the counters always refer to the current block.
+    function _rollAutomationBudget() private {
+        if (_autoBudgetBlock != uint64(block.number)) {
+            _autoBudgetBlock = uint64(block.number);
+            _blockFeeSwapAttempts = 0;
+            _blockBuybackAttempts = 0;
+            _blockDmnSwapped = 0;
+            _blockBnbSpent = 0;
+        }
+    }
+
     function _swapAccumulatedFees(uint256 contractTokenBalance) private lockSwap nonReentrant {
+        _rollAutomationBudget();
+        // Budget gate (#28): skipping is silent, like the other pacing
+        // conditions in _transfer — being over budget is the designed steady
+        // state under repeated triggers, not an anomaly worth an event.
+        if (_blockFeeSwapAttempts >= MAX_FEE_SWAPS_PER_BLOCK) return;
+        if (uint256(_blockDmnSwapped) + contractTokenBalance > minimumTokensBeforeSwap * MAX_FEE_SWAPS_PER_BLOCK) return;
+        // Consumed before any router interaction: a caught failure below
+        // still burns this block's attempt (see the budget storage note).
+        _blockFeeSwapAttempts++;
+
+        uint256 dmnBefore = balanceOf(address(this));
         uint256 initialEth = address(this).balance;
         _swapTokensForEth(contractTokenBalance);
+        // The contract is fee-exempt, so on success the delta is exactly the
+        // amount sold; on a caught failure it is zero and only the attempt
+        // was consumed.
+        uint256 dmnSold = dmnBefore - balanceOf(address(this));
+        if (dmnSold > 0) {
+            _blockDmnSwapped += uint128(dmnSold);
+        }
         uint256 ethReceived = address(this).balance - initialEth;
 
         if (liquidityFee == 0 || ethReceived == 0) return;
@@ -638,6 +703,19 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         if (ethAmount == 0) return;
         if (_tTotal <= MIN_SUPPLY) return; // floor: no further buyback/burn
 
+        _rollAutomationBudget();
+        if (_blockBuybackAttempts >= MAX_BUYBACKS_PER_BLOCK) return;
+        // The budget binds the CUMULATIVE spend, not the single slice: each
+        // call spends 5% of the RESIDUAL balance, so per-slice limits decay
+        // geometrically while the aggregate keeps growing (5 dust triggers
+        // drained ~2.26 ETH from a 10 ETH balance, not 5 x 0.5). The ceiling
+        // is the largest single slice the parameters allow.
+        if (uint256(_blockBnbSpent) + ethAmount > (buyBackUpperLimit / 20) * MAX_BUYBACKS_PER_BLOCK) return;
+        // Consumed before any router interaction (the reserve probe below
+        // included): a caught failure still burns this block's attempt (see
+        // the budget storage note).
+        _blockBuybackAttempts++;
+
         // #27 (BNB half): on a pair with no reserves the quote below can only
         // revert, and before this fix that revert propagated out of _transfer
         // — a donation of >1 BNB to the contract was enough to block the
@@ -708,6 +786,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
             emit BuyBackSkipped(ethAmount, BuyBackSkipReason.SwapFailed);
             return;
         }
+
+        // Only a successful buyback counts against the amount budget: the
+        // msg.value above has actually left the contract at this point.
+        _blockBnbSpent += uint128(ethAmount);
 
         uint256 balanceAfter = balanceOf(deadAddress);
         emit BuyBackAndBurn(ethAmount, balanceAfter - balanceBefore);
