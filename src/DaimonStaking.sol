@@ -97,16 +97,24 @@ contract DaimonStaking is ReentrancyGuard {
     uint256 public totalStakedAmount;
 
     // ---- Voting power checkpoints (OZ Votes style) ----
-    // At each stake/withdraw a (timestamp, votingPower) pair is recorded:
-    // the Governor reads the voting power at the proposal snapshot via
-    // votingPowerAt(), so tokens staked AFTER a proposal's creation cannot
-    // vote on it.
+    // At each stake/withdraw a (blockNumber, votingPower) pair is recorded,
+    // for the account AND for the aggregate total: the Governor reads both
+    // at the proposal snapshot (the block BEFORE the proposal's own block),
+    // so voting power moved in the proposal's block or later can influence
+    // neither the votes nor the quorum denominator (#12).
+    //
+    // Keyed by block.number, NOT block.timestamp: BSC seals two blocks per
+    // second, so two different blocks share one timestamp and a timestamp
+    // key cannot tell "before the proposal" from "same block, reacting to
+    // it". Lock durations and reward accounting stay on wall-clock time;
+    // only the snapshot history is block-based.
     struct Checkpoint {
-        uint256 timestamp;
+        uint256 blockNumber;
         uint256 votingPower;
     }
 
     mapping(address => Checkpoint[]) private _vpCheckpoints;
+    Checkpoint[] private _totalVpCheckpoints;
 
     // ---- Reward pool (funded in BNB by the token's marketing fee) ----
     // Scale 1e27: with voting power up to ~4e30 (4x on a supply of 1e12
@@ -179,7 +187,7 @@ contract DaimonStaking is ReentrancyGuard {
         totalVotingPower += vp;
         totalStakedAmount += amount;
 
-        _writeCheckpoint(msg.sender);
+        _writeCheckpoints(msg.sender);
 
         _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
 
@@ -203,7 +211,7 @@ contract DaimonStaking is ReentrancyGuard {
         totalVotingPower -= vp;
         totalStakedAmount -= amount;
 
-        _writeCheckpoint(msg.sender);
+        _writeCheckpoints(msg.sender);
 
         _userRewardDebt[msg.sender] = (votingPower[msg.sender] * rewardPerVotingPowerStored) / REWARD_PRECISION;
 
@@ -216,29 +224,35 @@ contract DaimonStaking is ReentrancyGuard {
     // ============================================================
     // Checkpoint del voting power
     // ============================================================
-    function _writeCheckpoint(address account) private {
-        uint256 vp = votingPower[account];
-        Checkpoint[] storage cps = _vpCheckpoints[account];
+    function _writeCheckpoints(address account) private {
+        _writeCheckpoint(_vpCheckpoints[account], votingPower[account]);
+        _writeCheckpoint(_totalVpCheckpoints, totalVotingPower);
+    }
+
+    // A same-block update overwrites the last entry. This is safe with the
+    // Governor's block-1 snapshot: by the time a snapshot can reference
+    // block N, block N is sealed and its checkpoint can no longer be
+    // rewritten. (The overwrite WAS finding #12 when the snapshot could
+    // point at the still-open key.)
+    function _writeCheckpoint(Checkpoint[] storage cps, uint256 value) private {
         uint256 len = cps.length;
-        if (len > 0 && cps[len - 1].timestamp == block.timestamp) {
-            cps[len - 1].votingPower = vp;
+        if (len > 0 && cps[len - 1].blockNumber == block.number) {
+            cps[len - 1].votingPower = value;
         } else {
-            cps.push(Checkpoint({timestamp: block.timestamp, votingPower: vp}));
+            cps.push(Checkpoint({blockNumber: block.number, votingPower: value}));
         }
     }
 
-    /// @notice Voting power of `account` at instant `timestamp` (last
-    /// checkpoint with timestamp <= requested; 0 if none). Binary search:
-    /// O(log n) even with many stake/withdraw.
-    function votingPowerAt(address account, uint256 timestamp) external view returns (uint256) {
-        Checkpoint[] storage cps = _vpCheckpoints[account];
+    // Last checkpoint with blockNumber <= requested; 0 if none. Binary
+    // search: O(log n) even with many stake/withdraw.
+    function _checkpointLookup(Checkpoint[] storage cps, uint256 blockNumber) private view returns (uint256) {
         uint256 len = cps.length;
-        if (len == 0 || cps[0].timestamp > timestamp) return 0;
+        if (len == 0 || cps[0].blockNumber > blockNumber) return 0;
         uint256 lo = 0;
         uint256 hi = len - 1;
         while (lo < hi) {
             uint256 mid = (lo + hi + 1) / 2;
-            if (cps[mid].timestamp <= timestamp) {
+            if (cps[mid].blockNumber <= blockNumber) {
                 lo = mid;
             } else {
                 hi = mid - 1;
@@ -247,8 +261,23 @@ contract DaimonStaking is ReentrancyGuard {
         return cps[lo].votingPower;
     }
 
+    /// @notice Voting power of `account` at block `blockNumber`.
+    function votingPowerAt(address account, uint256 blockNumber) external view returns (uint256) {
+        return _checkpointLookup(_vpCheckpoints[account], blockNumber);
+    }
+
+    /// @notice Aggregate voting power at block `blockNumber`: the quorum
+    /// denominator the Governor uses for proposals snapshotted at that block.
+    function totalVotingPowerAt(uint256 blockNumber) external view returns (uint256) {
+        return _checkpointLookup(_totalVpCheckpoints, blockNumber);
+    }
+
     function checkpointCount(address account) external view returns (uint256) {
         return _vpCheckpoints[account].length;
+    }
+
+    function totalCheckpointCount() external view returns (uint256) {
+        return _totalVpCheckpoints.length;
     }
 
     // ============================================================

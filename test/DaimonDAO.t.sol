@@ -273,6 +273,7 @@ contract DaimonDAOTest is Test {
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
 
+        vm.roll(block.number + 1); // lo snapshot e' block - 1 (#12): lo stake deve stare in un blocco gia' sigillato
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Reduce fees");
 
@@ -321,6 +322,7 @@ contract DaimonDAOTest is Test {
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(0), uint256(0), uint256(0));
 
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Zero fees");
 
@@ -350,6 +352,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot quorum");
 
@@ -384,6 +387,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Skip the queue");
 
@@ -540,6 +544,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot votes");
 
@@ -567,27 +572,30 @@ contract DaimonDAOTest is Test {
         _deployFullStack();
         _giveAliceSomeNewTokens(1000 * 1e18);
 
-        // Timestamp fissi (letterali): con via-ir il compilatore considera
-        // block.timestamp invariante nella transazione e puo' ri-leggerlo
-        // dopo un vm.warp invece di riusare il valore salvato prima —
-        // quindi qui non deriviamo mai i timestamp da block.timestamp.
-        uint256 tStake = 1_000_000;
-        vm.warp(tStake);
+        // Fixed literal block numbers: with via-ir the compiler treats
+        // block.number as invariant within the transaction and may re-read
+        // it after a vm.roll instead of reusing the value saved earlier —
+        // so we never derive checkpoint keys from block.number here. (The
+        // checkpoints are keyed by BLOCK since the #12 fix; the lock expiry
+        // stays on wall-clock time, hence the warp before withdraw.)
+        uint256 bStake = 1_000;
+        vm.roll(bStake);
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
         uint256 lockId = staking.stake(1000 * 1e18, 0); // 30gg, 1x
         vm.stopPrank();
 
-        assertEq(staking.votingPowerAt(alice, tStake), 1000 * 1e18);
-        assertEq(staking.votingPowerAt(alice, tStake - 1), 0); // prima dello stake: zero
+        assertEq(staking.votingPowerAt(alice, bStake), 1000 * 1e18);
+        assertEq(staking.votingPowerAt(alice, bStake - 1), 0); // prima dello stake: zero
 
-        vm.warp(tStake + 31 days);
+        vm.roll(bStake + 100);
+        vm.warp(block.timestamp + 31 days);
         vm.prank(alice);
         staking.withdraw(lockId);
 
-        assertEq(staking.votingPowerAt(alice, tStake + 31 days), 0);          // oggi: zero
-        assertEq(staking.votingPowerAt(alice, tStake + 1 days), 1000 * 1e18); // lo storico resta interrogabile
+        assertEq(staking.votingPowerAt(alice, bStake + 100), 0);          // oggi: zero
+        assertEq(staking.votingPowerAt(alice, bStake + 50), 1000 * 1e18); // lo storico resta interrogabile
     }
 
     // --- A2: nessun EOA detiene l'admin del Timelock dopo il wiring ---

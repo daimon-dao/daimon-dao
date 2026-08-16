@@ -38,29 +38,34 @@ contract AdversarialTest is StackDeployer {
     // AREA 1 — SNAPSHOT / WHALE
     // ============================================================
 
-    /// vp acquisito a un timestamp STRETTAMENTE successivo allo snapshot
-    /// non conta per quella proposta.
+    /// vp acquisito in un blocco STRETTAMENTE successivo allo snapshot
+    /// (block - 1 della proposta, #12) non conta per quella proposta.
     function test_A1_vpAfterSnapshotDoesNotCount() public {
         address ally = address(0xA11);
         address whale = address(0xBAD);
 
+        // Blocchi fissi (letterali): stessa cautela via-ir documentata per i
+        // timestamp — mai derivare da block.number un valore riusato dopo un
+        // vm.roll.
+        vm.roll(100);
         vm.warp(1_000_000);
-        _stake(ally, 1_000_000 ether, 0); // vp prima della proposta, cp @1_000_000
+        _stake(ally, 1_000_000 ether, 0); // vp prima della proposta, cp @ blocco 100
 
-        uint256 tSnap = 2_000_000;
-        vm.warp(tSnap);
+        vm.roll(101);
+        vm.warp(2_000_000);
         vm.prank(ally);
-        uint256 id = governor.propose(address(token), 0, "", "p"); // snapshot @2_000_000
+        uint256 id = governor.propose(address(token), 0, "", "p"); // snapshot @ blocco 100
 
-        // whale staka DOPO, a timestamp strettamente successivo
-        vm.warp(tSnap + 100);
-        _stake(whale, 500_000_000 ether, 3); // enorme vp 4x, ma tardi, cp @2_000_100
+        // whale staka DOPO, in un blocco strettamente successivo
+        vm.roll(102);
+        vm.warp(2_000_100);
+        _stake(whale, 500_000_000 ether, 3); // enorme vp 4x, ma tardi, cp @ blocco 102
 
-        assertEq(staking.votingPowerAt(whale, tSnap), 0, "vp whale trapelato nello snapshot");
-        assertGt(staking.votingPowerAt(ally, tSnap), 0, "vp ally mancante");
+        assertEq(staking.votingPowerAt(whale, 100), 0, "vp whale trapelato nello snapshot");
+        assertGt(staking.votingPowerAt(ally, 100), 0, "vp ally mancante");
 
         // voto aperto: il whale non puo' votare, l'ally si'
-        vm.warp(tSnap + governor.VOTING_DELAY());
+        vm.warp(2_000_000 + governor.VOTING_DELAY());
         vm.prank(whale);
         vm.expectRevert(DaimonGovernor.InsufficientVotingPower.selector);
         governor.castVote(id, 1);
@@ -69,20 +74,22 @@ contract AdversarialTest is StackDeployer {
         governor.castVote(id, 1); // ok
     }
 
-    /// Nuance documentata: staking allo STESSO timestamp dello snapshot conta.
-    /// Richiede però stesso blocco della creazione (i timestamp di blocco su
-    /// BSC/EVM sono strettamente crescenti): chi REAGISCE a una proposta già
-    /// minata è sempre in un blocco successivo → escluso. Non sfruttabile.
-    function test_A1_sameTimestampStakeCounts_sameBlockOnly() public {
+    /// #12 fix: lo stake nello STESSO BLOCCO della proposta (stesso
+    /// timestamp incluso) NON conta. Lo snapshot e' il blocco precedente,
+    /// gia' sigillato: niente di cio' che accade nel blocco della proposta
+    /// puo' retrodatarsi dentro lo snapshot. (Prima del fix questo test
+    /// asseriva l'opposto, documentando la nuance sfruttabile.)
+    function test_A1_sameBlockStakeDoesNotCount() public {
         address u = address(0xC0);
-        _stake(u, 1000 ether, 0);
+        vm.roll(100); // blocchi letterali (cautela via-ir, v. sopra)
+        _stake(u, 1000 ether, 0); // cp @ blocco 100
+        vm.roll(101);
         vm.warp(block.timestamp + 1 days);
-        uint256 tSnap = block.timestamp;
-        vm.prank(u); // serve vp per proporre
-        governor.propose(address(token), 0, "", "p");
-        // stesso timestamp, "dopo" nella stessa transazione-blocco
+        vm.prank(u); // serve vp per proporre (soglia live, deliberata)
+        governor.propose(address(token), 0, "", "p"); // snapshot @ blocco 100
+        // stesso blocco e stesso timestamp, "dopo" nella stessa transazione-blocco
         _stake(u, 1000 ether, 0);
-        assertGt(staking.votingPowerAt(u, tSnap), 1000 ether, "same-ts stake dovrebbe contare");
+        assertEq(staking.votingPowerAt(u, 100), 1000 ether, "same-block stake non deve contare");
     }
 
     // ============================================================
@@ -144,6 +151,7 @@ contract AdversarialTest is StackDeployer {
         // proposta che passa da sola, poi boundary del timelock all'execute
         address p = address(0x15);
         _stake(p, 2_000_000 ether, 0);
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.warp(block.timestamp + 1 days);
 
         bytes memory data = abi.encodeCall(DaimonV2.setFees, (10, 10, 20));
@@ -184,6 +192,7 @@ contract AdversarialTest is StackDeployer {
         _stake(proposer, 8_000_000 ether, 0);
         _stake(opp, 4_000_000 ether, 0);
         _stake(crowd, 88_000_000 ether, 0); // non voterà mai
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.warp(block.timestamp + 1 days);
         vm.prank(proposer);
         id = governor.propose(address(token), 0, "", "quorum-game");

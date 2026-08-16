@@ -161,6 +161,10 @@ contract CoverageGaps is StackDeployer {
         token.approve(address(staking), 3_000_000 ether);
         staking.stake(3_000_000 ether, 3);
         vm.stopPrank();
+        // #12 snapshots at block.number - 1: the stake must sit in a sealed
+        // block before the proposal (same adjustment as the rest of the
+        // governance suite).
+        vm.roll(block.number + 1);
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
 

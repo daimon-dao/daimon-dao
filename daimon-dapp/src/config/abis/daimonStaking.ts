@@ -303,6 +303,19 @@ export const daimonStakingAbi = [
   },
   {
     "type": "function",
+    "name": "totalCheckpointCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "totalStaked",
     "inputs": [
       {
@@ -337,6 +350,25 @@ export const daimonStakingAbi = [
     "type": "function",
     "name": "totalVotingPower",
     "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalVotingPowerAt",
+    "inputs": [
+      {
+        "name": "blockNumber",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -388,7 +420,7 @@ export const daimonStakingAbi = [
         "internalType": "address"
       },
       {
-        "name": "timestamp",
+        "name": "blockNumber",
         "type": "uint256",
         "internalType": "uint256"
       }
