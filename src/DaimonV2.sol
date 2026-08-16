@@ -489,15 +489,30 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
 
+        // Clean slate before quoting: no allowance may survive from an earlier
+        // attempt, whatever happened to it.
+        _approve(address(this), address(uniswapV2Router), 0);
+
         // amountOutMin from the current quote minus the governed tolerance.
         // NOTE: the quote is read in the same block as the swap, so it limits
         // the impact of intra-block manipulation up to the tolerance, it does
         // not eliminate it (a TWAP would be needed for that). The contract is
         // excluded from the fee, so the quote does not need correcting for the
         // transfer fee.
-        uint256[] memory quote = uniswapV2Router.getAmountsOut(tokenAmount, path);
-        uint256 minOut = (quote[1] * (10000 - maxSwapSlippageBps)) / 10000;
+        //
+        // The quote is wrapped like the swap below: getAmountsOut reverts on a
+        // pair with no reserves, and an unwrapped revert here would propagate
+        // out of _swapAccumulatedFees and take down the user transfer that
+        // triggered it. A quote we cannot obtain simply means "do not swap now".
+        uint256 minOut;
+        try uniswapV2Router.getAmountsOut(tokenAmount, path) returns (uint256[] memory quote) {
+            if (quote.length < 2 || quote[1] == 0) return;
+            minOut = (quote[1] * (10000 - maxSwapSlippageBps)) / 10000;
+        } catch {
+            return;
+        }
 
+        // Approve exactly what the swap consumes, and only once the quote is known.
         _approve(address(this), address(uniswapV2Router), tokenAmount);
         // try/catch: if slippage exceeds the tolerance the swap fails, but it
         // must NOT revert the transfer of the user who triggered it (that
@@ -506,6 +521,10 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount, minOut, path, address(this), block.timestamp
         ) {} catch {}
+        // Revoke on ANY outcome. On success the router has already pulled the
+        // tokens and the allowance is spent; on failure it would otherwise
+        // stay written in this frame and remain callable later.
+        _approve(address(this), address(uniswapV2Router), 0);
     }
 
     function _buyBackAndBurn(uint256 ethAmount) private lockSwap nonReentrant {
