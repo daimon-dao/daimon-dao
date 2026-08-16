@@ -327,5 +327,16 @@ contract DaimonStaking is ReentrancyGuard {
         return lockOptions.length;
     }
 
-    receive() external payable {}
+    // NO receive(): BNB must arrive ONLY through notifyRewardAmount(), which
+    // is payable and books what it receives into rewardPerVotingPowerStored.
+    // A bare receiver accepted BNB that no accounting ever saw: the balance
+    // grew while the accumulator did not, breaking the invariant that this
+    // contract holds exactly (funded - claimed), and stranding those funds —
+    // nothing here can move BNB except claimReward(), which pays out only
+    // what the accumulator attributes.
+    //
+    // Verified before removing: DaimonV2 funds the pool exclusively via
+    // notifyRewardAmount{value: ...} in _swapAccumulatedFees, never with a
+    // bare transfer, so no legitimate path depended on this function.
+    // Accidental sends now bounce back to the sender instead of being trapped.
 }
