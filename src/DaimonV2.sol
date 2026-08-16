@@ -503,11 +503,24 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         uint256 contractBalance = balanceOf(address(this));
         bool overMin = contractBalance >= minimumTokensBeforeSwap;
 
-        if (!_inSwap && swapAndLiquifyEnabled && to == uniswapV2Pair && overMin) {
+        // The canonical router moves tokens into the pair only while it is
+        // mid-operation — the token leg of addLiquidityETH(), the input leg
+        // of a sell — i.e. AFTER it has read the pair reserves and fixed its
+        // amounts from that snapshot. Running the fee swap or the buyback
+        // inside that window shifts the reserves under the router's feet:
+        // addLiquidityETH() then mints LP shares against a stale ratio and
+        // part of the deposit becomes pool backing that mints nothing
+        // (finding #1). When the router is the immediate caller, the
+        // automation is skipped entirely; it stays reachable through any
+        // direct transfer to the pair, which carries no outer reserve
+        // snapshot to invalidate.
+        bool routerInitiated = to == uniswapV2Pair && msg.sender == address(uniswapV2Router);
+
+        if (!_inSwap && !routerInitiated && swapAndLiquifyEnabled && to == uniswapV2Pair && overMin) {
             _swapAccumulatedFees(minimumTokensBeforeSwap);
         }
 
-        if (!_inSwap && buyBackEnabled && to == uniswapV2Pair) {
+        if (!_inSwap && !routerInitiated && buyBackEnabled && to == uniswapV2Pair) {
             uint256 ethBalance = address(this).balance;
             if (ethBalance > 1 ether && _tTotal > MIN_SUPPLY) {
                 uint256 spendAmount = ethBalance > buyBackUpperLimit ? buyBackUpperLimit : ethBalance;
