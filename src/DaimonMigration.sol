@@ -10,11 +10,18 @@ pragma solidity 0.8.26;
  *
  * Operational precondition (one-time action required from the owner of the
  * OLD Daimon contract, BEFORE opening the migration):
- *   oldDaimon.excludeFromFee(address(thisMigrationContract))
- * Without this step, the incoming transferFrom would incur the old
- * contract's tax fee and the net migrated amount would be lower than what
- * the user declared, causing a protective revert (see below) rather than a
- * silent loss of funds.
+ *   oldDaimon.excludeFromFee(treasury)
+ * The TREASURY, not this contract: the old-token transfer in claim() runs
+ * claimant -> treasury, with this contract acting only as the allowance
+ * spender, never as a transfer endpoint. The old Daimon disables its fee
+ * only when the sender or the recipient is exempt, so exempting the
+ * Migration contract itself would leave the fee active. The treasury is
+ * the one fixed recipient of every claim, which makes its exemption the
+ * scalable configuration (exempting every claimant, or zeroing the old
+ * contract's fees, would also work). Without this step, the incoming
+ * transferFrom would incur the old contract's tax fee and the net migrated
+ * amount would be lower than what the user declared, causing a protective
+ * revert (see below) rather than a silent loss of funds.
  *
  * Security:
  *  - Pull, not push: the user initiates their own claim, no "mass" action
