@@ -149,6 +149,45 @@ contract CoverageGaps is StackDeployer {
         governor.cancel(id);
     }
 
+    /// Finding #8: cancel() did not check that the proposal exists. The
+    /// guardian could cancel an id not yet allocated; propose() never resets
+    /// p.canceled, so that proposal would have been born already canceled —
+    /// and the flag outlives the guardian that set it, since nothing clears
+    /// it when the guardian is rotated or expires.
+    function test_GuardianCannotPreCancelFutureProposal() public {
+        uint256 futureId = governor.proposalCount(); // not allocated yet
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonGovernor.ProposalDoesNotExist.selector);
+        governor.cancel(futureId);
+
+        // That id can still be allocated normally, and is NOT born canceled.
+        fundWithDmn(alice, 3_000_000 ether);
+        vm.startPrank(alice);
+        token.approve(address(staking), 3_000_000 ether);
+        staking.stake(3_000_000 ether, 3);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 id = governor.propose(address(token), 0, data, "not pre-canceled");
+        assertEq(id, futureId, "unexpected proposal id");
+        assertEq(
+            uint8(governor.state(id)),
+            uint8(DaimonGovernor.ProposalState.Pending),
+            "proposal born canceled"
+        );
+
+        // A genuine cancel still works, and only once.
+        vm.prank(guardian);
+        governor.cancel(id);
+        assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Canceled));
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonGovernor.ProposalAlreadyCanceled.selector);
+        governor.cancel(id);
+    }
+
     // ============================================================
     // Timelock: cancel del canceller (guardian) — finding #2
     // ============================================================

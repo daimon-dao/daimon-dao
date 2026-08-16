@@ -121,6 +121,8 @@ contract DaimonGovernor {
     error NotGuardian();
     error AlreadyExecuted();
     error InvalidSupport();
+    error ProposalDoesNotExist();
+    error ProposalAlreadyCanceled();
 
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
@@ -248,8 +250,14 @@ contract DaimonGovernor {
     /// execute or create them. Meant for emergencies (e.g. a proposal that
     /// exploits a bug discovered after creation, before the final vote).
     function cancel(uint256 id) external onlyGuardian {
+        // An id not yet allocated must be rejected: propose() does not reset
+        // p.canceled, so pre-canceling a future id would make that proposal
+        // dead on arrival — and the flag would outlive the guardian that set
+        // it, since nothing clears it when the guardian is replaced.
+        if (id >= proposalCount) revert ProposalDoesNotExist();
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();
+        if (p.canceled) revert ProposalAlreadyCanceled();
         p.canceled = true;
         emit ProposalCanceled(id);
     }
