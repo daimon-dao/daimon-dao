@@ -72,6 +72,30 @@ contract GovernanceSequence is StackDeployer {
         governor.execute(id);
     }
 
+    /// Finding #7: queueing twice must be rejected by the Governor itself.
+    /// Before the fix the second call sailed past state() — which has no
+    /// Queued branch and still reports Succeeded — re-emitted ProposalQueued
+    /// and was only stopped inside the Timelock by OperationAlreadyScheduled:
+    /// the wrong error, from the wrong layer, and a dependency on someone
+    /// else's implementation detail.
+    function test_CannotQueueTwice() public {
+        (uint256 id,) = _propose();
+        vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
+        vm.prank(whale);
+        governor.castVote(id, 1);
+        vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
+
+        governor.queue(id);
+
+        vm.expectRevert(DaimonGovernor.ProposalAlreadyQueued.selector);
+        governor.queue(id);
+
+        // The first queue still stands: the proposal remains executable.
+        vm.warp(block.timestamp + timelock.getMinDelay() + 1);
+        governor.execute(id);
+        assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Executed));
+    }
+
     function test_DefeatedProposalCannotBeQueuedOrExecuted() public {
         // whale vota CONTRO: la proposta e' bocciata, mai eseguibile.
         (uint256 id,) = _propose();
