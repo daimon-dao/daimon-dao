@@ -384,9 +384,11 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         // reflection sees its token balance grow while its recorded reserve
         // stays unchanged: anyone can then pocket the difference by calling
         // skim() on the pair — value taken from the holders the reflection was
-        // meant for. Excluding it needs no balance conversion here, because
-        // createPair() has just returned a brand-new pair: both _rOwned and
-        // _tOwned are zero.
+        // meant for. Excluding it needs no balance conversion here: whether
+        // the pair was just created or pre-created by someone else (see the
+        // #25 note above), the TOKEN itself is brand-new — its entire supply
+        // was minted to the migration contract a few lines up, so the pair
+        // cannot yet hold a single DMN and both _rOwned and _tOwned are zero.
         //
         // NOTE: this ADDS a second entry to the fixed exclusion set; it does
         // NOT make that set mutable. There is deliberately no runtime setter
