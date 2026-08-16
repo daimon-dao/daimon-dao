@@ -23,6 +23,22 @@ pragma solidity 0.8.26;
  *    logic), which is why the upgrade ALWAYS goes through the Timelock with a
  *    public delay: the community always has a window to notice and react.
  *
+ * BEP-20 / ERC-20 COMPATIBILITY NOTES:
+ *  - getOwner(), from the BEP-2 binding extension, is deliberately NOT
+ *    implemented. This token has no owner: control belongs to the DAO Timelock
+ *    through roles, and no single address can be named. Returning a
+ *    placeholder — the Timelock, or the zero address — would misrepresent the
+ *    trust model to any integrator that reads it as "the account in charge".
+ *    The BEP-2 binding is therefore not supported, by design and not by
+ *    omission.
+ *  - Balances CANNOT be reconstructed from Transfer events alone. Reflection
+ *    redistributes value by shifting a global index: a holder's balance grows
+ *    with no event naming that holder, because no per-account movement takes
+ *    place. ReflectionFeeApplied reports how much was redistributed and by
+ *    whom, but not to whom — that is the nature of the mechanism, not a gap in
+ *    the instrumentation. Integrations must read balanceOf() and must never
+ *    derive balances by replaying the event log.
+ *
  * DEPENDENCIES:
  *  Uses the official OpenZeppelin imports (audited and maintained):
  *  Initializable, UUPSUpgradeable, AccessControlUpgradeable,
@@ -156,6 +172,11 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event ExcludedFromFeeSet(address indexed account, bool excluded);
     event SwapAndLiquifyEnabledSet(bool enabled);
     event BuyBackEnabledSet(bool enabled);
+    /// Reflection applied on a transfer: `amount` was removed from the sender
+    /// and redistributed to every reward-eligible holder by shifting the
+    /// global index. It is deliberately NOT a Transfer event: no single
+    /// account receives it.
+    event ReflectionFeeApplied(address indexed sender, uint256 amount);
 
     error BelowMinSupply();
     error ZeroAddress();
@@ -354,7 +375,16 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // ============================================================
     function _transfer(address from, address to, uint256 amount) private whenNotPaused {
         if (from == address(0) || to == address(0)) revert ZeroAddress();
-        require(amount > 0, "DaimonV2: transfer amount is zero");
+
+        // ERC-20/BEP-20 require zero-value transfers to succeed and to emit a
+        // Transfer event. Returning here — BEFORE the swap and buyback
+        // automation below — also keeps a zero-amount transfer from being used
+        // as a free trigger for those swaps. The whenNotPaused guard still
+        // applies: a paused token transfers nothing, not even zero.
+        if (amount == 0) {
+            emit Transfer(from, to, 0);
+            return;
+        }
 
         // maxTxAmount does not apply to: governance, the contract itself
         // (when it sells the fee tokens accumulated during the internal swap,
@@ -403,6 +433,13 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         if (rFee > 0 || tFee > 0) _reflectFee(rFee, tFee);
 
         emit Transfer(sender, recipient, tTransferAmount);
+        // The liquidity fee is a real balance movement to this contract, so it
+        // must be observable as a Transfer like any other credit.
+        if (tLiquidity > 0) emit Transfer(sender, address(this), tLiquidity);
+        // Reflection has no ERC-20 representation: it is a shift of the global
+        // index, not a movement between two accounts. A dedicated event makes
+        // it observable without pretending it is a transfer to someone.
+        if (tFee > 0) emit ReflectionFeeApplied(sender, tFee);
 
         if (!takeFee) _restoreAllFee();
     }
@@ -595,6 +632,11 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         _tTotal -= toBurn;
 
         if (_tTotal < MIN_SUPPLY) revert BelowMinSupply(); // safety net, must never happen
+
+        // Conventional burn signature: tokens leaving circulation are reported
+        // as a Transfer to the zero address, which is what indexers and
+        // explorers look for.
+        emit Transfer(deadAddress, address(0), toBurn);
     }
 
     // ============================================================
