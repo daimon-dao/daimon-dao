@@ -70,13 +70,14 @@ contract StakingNoBareReceiveTest is StackDeployer {
         assertEq(address(staking).balance, 0, "BNB left behind after a full claim");
     }
 
-    /// The queued-rewards path (funding with no stakers yet) also relies on
-    /// notifyRewardAmount, not on receive().
-    function test_QueuedRewardsPathStillWorks() public {
+    /// The zero-staker path (funding with no stakers yet) also relies on
+    /// notifyRewardAmount, not on receive(). Since #35 those funds are
+    /// RESERVED, not queued for a later distribution.
+    function test_ZeroStakerReservePathStillWorks() public {
         vm.deal(address(this), 3 ether);
         staking.notifyRewardAmount{value: 3 ether}(3 ether);
 
-        assertEq(staking.undistributedRewards(), 3 ether, "queued rewards not recorded");
-        assertEq(address(staking).balance, 3 ether, "queued BNB not held");
+        assertEq(staking.zeroStakerReserve(), 3 ether, "reserved rewards not recorded");
+        assertEq(address(staking).balance, 3 ether, "reserved BNB not held");
     }
 }
