@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {stdStorage, StdStorage} from "forge-std/Test.sol";
 import {StackDeployer} from "./base/StackDeployer.sol";
 import {DaimonMigration} from "../src/DaimonMigration.sol";
 
@@ -15,6 +16,8 @@ import {DaimonMigration} from "../src/DaimonMigration.sol";
  * recovery path for good.
  */
 contract SweepExactnessTest is StackDeployer {
+    using stdStorage for StdStorage;
+
     function setUp() public {
         deployStack();
     }
@@ -31,9 +34,16 @@ contract SweepExactnessTest is StackDeployer {
         vm.prank(address(timelock));
         token.setMaxTxAmount(wholeSupply);
 
-        // Break the configuration the way the finding describes.
-        vm.prank(address(timelock));
-        token.setExcludedFromFee(address(migration), false);
+        // Break the configuration the way the finding describes. Since #32
+        // this state is NO LONGER REACHABLE through the API: the migration's
+        // exemption is mandatory and setExcludedFromFee() refuses to revoke
+        // it until the deadline has passed and the sweep has run - which is
+        // exactly what that fix is for. The test forces the state directly
+        // into storage, DELIBERATELY, to keep verifying the #11 delta check
+        // as defence in depth: it guards the OUTCOME (any shortfall on the
+        // outgoing leg), whatever configuration or bug might produce it.
+        stdstore.target(address(token)).sig("isExcludedFromFee(address)").with_key(address(migration))
+            .checked_write(false);
 
         vm.warp(migration.migrationDeadline() + 1);
 

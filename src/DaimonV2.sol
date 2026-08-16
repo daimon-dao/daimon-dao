@@ -79,6 +79,18 @@ interface IUniswapV2Router02 {
     function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
 }
 
+// Read-only views used to decide whether a mandatory fee exemption can be
+// released (finding #32). Both are already public on the deployed contracts:
+// no change to DaimonStaking — which is not upgradeable — is required.
+interface IDaimonStakingLiabilities {
+    function totalStakedAmount() external view returns (uint256);
+}
+
+interface IDaimonMigrationLiabilities {
+    function migrationDeadline() external view returns (uint256);
+    function sweepExecuted() external view returns (bool);
+}
+
 interface IDaimonStakingNotifier {
     // The token notifies the staking contract how much marketing fee was
     // sent to it, so staking can account the rewards.
@@ -159,6 +171,19 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // verifiable on-chain by anyone.
     uint256 public guardianExpiry;
 
+    // ---- Mandatory fee exemptions (finding #32) ----
+    // APPENDED AT THE END OF STORAGE, deliberately: this contract is behind a
+    // UUPS proxy, so new variables may only be added after the existing ones,
+    // never inserted among them.
+    //
+    // Some fee exemptions are not a policy choice but a requirement of the
+    // module that holds them: removing them would not merely change fees, it
+    // would break accounting that other people's funds depend on. They are
+    // flagged here and can only be lifted once that module can no longer have
+    // liabilities.
+    address public migrationContract;
+    mapping(address => bool) public mandatoryFeeExempt;
+
     // ---- Events ----
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -184,6 +209,7 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     error TransferAmountExceedsMaxTx();
     error ContractIsPaused();
     error GuardianExpired();
+    error MandatoryFeeExemption();
 
     modifier lockSwap() {
         _inSwap = true;
@@ -266,6 +292,11 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         // pre-allocated outside the 1:1 migration, by design.
         _rOwned[_migrationContract] = _rTotal;
         isExcludedFromFee[_migrationContract] = true;
+        // The migration must stay fee-exempt while it still owes 1:1 claims:
+        // taxing it would make claim() revert with AmountMismatch and freeze
+        // every migration while the immutable deadline keeps running.
+        migrationContract = _migrationContract;
+        mandatoryFeeExempt[_migrationContract] = true;
         isExcludedFromFee[address(this)] = true;
 
         // The dead address is excluded from reflection: this way its balance
@@ -712,12 +743,39 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         if (staking == address(0)) revert ZeroAddress();
         stakingContract = staking;
         isExcludedFromFee[staking] = true;
+        // Staking must stay fee-exempt while it holds anyone's principal:
+        // withdraw() returns the exact staked amount, so a taxed transfer out
+        // would leave it short and corrupt its accounting. A previous staking
+        // contract keeps its flag: it may still hold stakes of its own.
+        mandatoryFeeExempt[staking] = true;
         emit StakingContractSet(staking);
     }
 
+    /// @notice Governance can grant or revoke fee exemptions freely, EXCEPT
+    /// for the ones flagged as mandatory: those can only be revoked once the
+    /// module that holds them can no longer have liabilities. Granting is
+    /// never restricted.
     function setExcludedFromFee(address account, bool excluded) external onlyRole(GOVERNANCE_ROLE) {
+        if (!excluded && mandatoryFeeExempt[account] && !_mandatoryExemptionReleasable(account)) {
+            revert MandatoryFeeExemption();
+        }
         isExcludedFromFee[account] = excluded;
         emit ExcludedFromFeeSet(account, excluded);
+    }
+
+    /// @dev A mandatory exemption becomes releasable when the module behind it
+    /// can no longer owe anyone anything:
+    ///  - staking: no principal left to return (totalStakedAmount == 0);
+    ///  - migration: the window is closed AND the sweep has been executed, so
+    ///    no claim can still arrive and nothing is left to send.
+    /// Both reads already exist as public views on the deployed contracts, so
+    /// this needs no change to DaimonStaking, which is not upgradeable.
+    function _mandatoryExemptionReleasable(address account) private view returns (bool) {
+        if (account == migrationContract) {
+            return block.timestamp > IDaimonMigrationLiabilities(account).migrationDeadline()
+                && IDaimonMigrationLiabilities(account).sweepExecuted();
+        }
+        return IDaimonStakingLiabilities(account).totalStakedAmount() == 0;
     }
 
     function setSwapAndLiquifyEnabled(bool enabled) external onlyRole(GOVERNANCE_ROLE) {
