@@ -65,6 +65,27 @@ contract DaimonGovernor {
     // Protects against attacks where a few holders control every decision.
     uint256 public constant MIN_QUORUM_BPS = 1000; // 10% su base 10000
 
+    // Absolute maximum proposal threshold. Without it, a threshold above the
+    // voting power any account can ever hold would make it impossible to
+    // create the very proposal needed to lower it again: governance
+    // permanently frozen, with no recovery path.
+    //
+    // The bound is a policy on governance accessibility, not the theoretical
+    // limit. It is DaimonV2.MIN_SUPPLY / 100 — one percent of the supply
+    // floor, the only quantity in this system that can never change. Written
+    // out here rather than imported, because this Governor deliberately
+    // depends on no token contract; the derivation is kept explicit so the
+    // policy stays readable:
+    //   MIN_SUPPLY = 21_000_000_000e18  ->  MAX_PROPOSAL_THRESHOLD = 210_000_000e18
+    //
+    // At today's ~1000B supply that is 0.005% of it (52.5M tokens locked at
+    // 4x); in the terminal scenario, with supply burnt down to the floor, it
+    // is 1% at 1x — reachable by a coalition, never a gate. Against the
+    // ~10T maximum attributable voting power it is 0.002%. The deployed
+    // threshold is 1000e18, so governance keeps five orders of magnitude of
+    // room: this excludes only the unrecoverable region.
+    uint256 public constant MAX_PROPOSAL_THRESHOLD = (21_000_000_000 * 10 ** 18) / 100;
+
     enum ProposalState { Pending, Active, Defeated, Succeeded, Queued, Executed, Canceled }
 
     struct Proposal {
@@ -132,6 +153,7 @@ contract DaimonGovernor {
 
     constructor(address _staking, address _timelock, address _guardian, uint256 _quorumBps, uint256 _proposalThreshold) {
         require(_quorumBps >= MIN_QUORUM_BPS && _quorumBps <= 5000, "DaimonGovernor: invalid quorum");
+        require(_proposalThreshold <= MAX_PROPOSAL_THRESHOLD, "DaimonGovernor: threshold too high");
         require(
             _staking != address(0) && _timelock != address(0) && _guardian != address(0),
             "DaimonGovernor: zero address"
@@ -288,6 +310,7 @@ contract DaimonGovernor {
 
     function setProposalThreshold(uint256 threshold) external {
         require(msg.sender == address(timelock), "DaimonGovernor: only via timelock");
+        require(threshold <= MAX_PROPOSAL_THRESHOLD, "DaimonGovernor: threshold too high");
         proposalThreshold = threshold;
         emit ProposalThresholdSet(threshold);
     }
