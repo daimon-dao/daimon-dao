@@ -50,6 +50,11 @@ interface ITimelockControllerMinimal {
     function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) external;
     function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external payable;
     function getMinDelay() external view returns (uint256);
+    // Needed to reflect a cancellation performed directly on the Timelock
+    // (#26). hashOperation is used rather than recomputing the hash here, so
+    // the Timelock stays the single source of truth for the id formula.
+    function hashOperation(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external pure returns (bytes32);
+    function operations(bytes32 id) external view returns (uint256 readyTimestamp, bool executed, bool canceled);
 }
 
 contract DaimonGovernor {
@@ -145,6 +150,7 @@ contract DaimonGovernor {
     error InvalidSupport();
     error ProposalDoesNotExist();
     error ProposalAlreadyCanceled();
+    error ProposalIsCanceled();
 
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
@@ -201,6 +207,10 @@ contract DaimonGovernor {
     function castVote(uint256 id, uint8 support) external {
         if (support > 2) revert InvalidSupport();
         Proposal storage p = proposals[id];
+        // A cancelled proposal takes no more votes: counting them would keep
+        // producing tallies for something that can never execute, and would
+        // let a cancelled proposal look alive in the interface.
+        if (p.canceled) revert ProposalIsCanceled();
         if (block.timestamp < p.voteStart || block.timestamp > p.voteEnd) revert VotingClosed();
         if (hasVoted[id][msg.sender]) revert AlreadyVoted();
 
@@ -219,7 +229,16 @@ contract DaimonGovernor {
         emit VoteCast(id, msg.sender, support, weight);
     }
 
+    /// @dev Reports a single, consistent view of the proposal:
+    ///  - an id that was never allocated is rejected instead of resolving to
+    ///    an empty struct that reads as a real Pending proposal (#22);
+    ///  - Queued is actually returned, instead of a queued proposal still
+    ///    reading as Succeeded;
+    ///  - a cancellation performed DIRECTLY on the Timelock is reflected here,
+    ///    so the two contracts can no longer disagree about whether the
+    ///    proposal is still alive (#26).
     function state(uint256 id) public view returns (ProposalState) {
+        if (id >= proposalCount) revert ProposalDoesNotExist();
         Proposal storage p = proposals[id];
         if (p.canceled) return ProposalState.Canceled;
         if (p.executed) return ProposalState.Executed;
@@ -241,6 +260,18 @@ contract DaimonGovernor {
         if (quorumVotes < quorumNeeded || p.forVotes <= p.againstVotes) {
             return ProposalState.Defeated;
         }
+
+        if (p.queued) {
+            // A CANCELLER can cancel the scheduled operation directly on the
+            // Timelock. Without reading that flag the Governor would keep
+            // reporting a live proposal for an operation that can never
+            // execute — the divergence this finding is about.
+            bytes32 opId = timelock.hashOperation(p.target, p.value, p.data, bytes32(0), p.timelockSalt);
+            (,, bool operationCanceled) = timelock.operations(opId);
+            if (operationCanceled) return ProposalState.Canceled;
+            return ProposalState.Queued;
+        }
+
         return ProposalState.Succeeded;
     }
 
@@ -250,9 +281,12 @@ contract DaimonGovernor {
     /// The Governor must reject it itself, at its own level, rather than
     /// depending on an implementation detail of the contract it calls.
     function queue(uint256 id) external {
-        if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
         Proposal storage p = proposals[id];
+        // Checked BEFORE the state() gate: state() reports Queued for a
+        // scheduled proposal (#26), so a second queue() would otherwise
+        // surface as ProposalNotSucceeded and lose the precise error (#7).
         if (p.queued) revert ProposalAlreadyQueued();
+        if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
 
         p.queued = true;
         timelock.schedule(p.target, p.value, p.data, bytes32(0), p.timelockSalt, timelock.getMinDelay());
@@ -263,11 +297,14 @@ contract DaimonGovernor {
     function execute(uint256 id) external payable {
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();
-        if (state(id) != ProposalState.Succeeded) revert ProposalNotSucceeded();
-        // execute() must go through the queue() path -> Timelock delay:
-        // without this check, a proposal that was never scheduled would reach
-        // timelock.execute() skipping the public reaction window.
-        if (!p.queued) revert ProposalNotQueued();
+        // state() now reports Queued for a proposal that went through queue(),
+        // so THAT is the executable state. Succeeded means it passed but was
+        // never scheduled: it still owes the Timelock delay, which is the
+        // public reaction window, hence the distinct error. Anything else is
+        // not executable at all.
+        ProposalState current = state(id);
+        if (current == ProposalState.Succeeded) revert ProposalNotQueued();
+        if (current != ProposalState.Queued) revert ProposalNotSucceeded();
 
         p.executed = true;
         timelock.execute{value: msg.value}(p.target, p.value, p.data, bytes32(0), p.timelockSalt);
