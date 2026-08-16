@@ -57,6 +57,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 // === Uniswap interfaces (identical to the original, needed for swap/buyback)
 // ============================================================
 interface IUniswapV2Factory {
+    function getPair(address tokenA, address tokenB) external view returns (address pair);
     function createPair(address tokenA, address tokenB) external returns (address pair);
 }
 
@@ -362,7 +363,22 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
         _excluded.push(deadAddress);
 
         uniswapV2Router = IUniswapV2Router02(_router);
-        uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
+
+        // The proxy address is predictable (CREATE from a known deployer and
+        // nonce), and the canonical factory reverts on createPair() when the
+        // pair already exists — so anyone could pre-create the DMN/WBNB pair
+        // and make this whole deployment revert (finding #25). A pre-created
+        // canonical pair is the SAME trusted factory artifact this call would
+        // have produced, so reuse it instead of failing. Initial-liquidity
+        // provisioning must still treat any pre-existing reserves as
+        // untrusted: see CHECKLIST_MAINNET.md.
+        IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Router.factory());
+        address wbnb = uniswapV2Router.WETH();
+        address pair = factory.getPair(address(this), wbnb);
+        if (pair == address(0)) {
+            pair = factory.createPair(address(this), wbnb);
+        }
+        uniswapV2Pair = pair;
 
         // The pair is excluded from reflection as well. A pair that accrues
         // reflection sees its token balance grow while its recorded reserve
