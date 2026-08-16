@@ -452,6 +452,39 @@ contract DaimonDAOTest is Test {
         }
     }
 
+    /// Finding #5: burnDeadBalanceToFloor() is permissionless and writes
+    /// _rTotal and _tTotal — the reflection accounting itself. While the
+    /// guardian holds the token paused, that accounting must stay frozen:
+    /// pausing to investigate a suspected problem in it, while leaving a
+    /// public function that mutates it open, would defeat the pause.
+    function test_BurnToFloorBlockedWhilePaused() public {
+        _deployFullStack();
+
+        // Give the dead address something to burn.
+        vm.prank(address(migration));
+        token.transfer(address(0xdEaD), 5_000_000 * 1e18);
+        uint256 supplyBefore = token.totalSupply();
+        uint256 deadBefore = token.balanceOf(token.deadAddress());
+        assertGt(deadBefore, 0, "nothing to burn");
+
+        vm.prank(guardian);
+        token.setPaused(true);
+
+        // Anyone can call it, but not while paused.
+        vm.expectRevert(DaimonV2.ContractIsPaused.selector);
+        token.burnDeadBalanceToFloor();
+
+        // The accounting is untouched by the rejected call.
+        assertEq(token.totalSupply(), supplyBefore, "supply moved while paused");
+        assertEq(token.balanceOf(token.deadAddress()), deadBefore, "dead balance moved while paused");
+
+        // After the resume it works again, permissionless as before.
+        vm.prank(guardian);
+        token.setPaused(false);
+        token.burnDeadBalanceToFloor();
+        assertLt(token.totalSupply(), supplyBefore, "burn did not resume after unpause");
+    }
+
     // ============================================================
     // Test 6: Guardian scadenza a 36 mesi
     // ============================================================
