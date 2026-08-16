@@ -70,7 +70,10 @@ abstract contract StackDeployer is Test {
 
         token.setStakingContract(address(staking));
 
-        migration = new DaimonMigration(address(oldToken), address(token), treasury, address(timelock), 3650 days);
+        // 365 days = MAX_MIGRATION_DURATION: the longest window the contract
+        // accepts, so the migration stays open as long as possible during the
+        // fuzz/invariant runs (the handler catches post-deadline claims).
+        migration = new DaimonMigration(address(oldToken), address(token), treasury, address(timelock), 365 days);
         token.setExcludedFromFee(address(migration), true);
         token.transfer(address(migration), token.balanceOf(deployer));
 

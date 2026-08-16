@@ -50,6 +50,18 @@ contract DaimonMigration is ReentrancyGuard {
     address public immutable treasury;     // DAO treasury, destination of the old tokens
     address public immutable governance;   // Timelock, the only one allowed to sweep post-deadline
 
+    // Bounds on the migration window. The deadline is immutable AND it arms
+    // the sweep: whoever has not claimed by then loses the claim to the
+    // treasury. The minimum is therefore holder protection — below one month
+    // there is no credible public notice period for a distributed holder
+    // base. The maximum caps how long the old token stays a live parallel
+    // market and guarantees the sweep is reachable: being immutable, a typo
+    // like "3650 instead of 365" would otherwise freeze it for a decade with
+    // no remedy. 30 days is also the window already exercised end-to-end on
+    // the live testnet.
+    uint256 public constant MIN_MIGRATION_DURATION = 30 days;
+    uint256 public constant MAX_MIGRATION_DURATION = 365 days;
+
     uint256 public immutable migrationDeadline;
     uint256 public totalMigrated;
 
@@ -67,6 +79,7 @@ contract DaimonMigration is ReentrancyGuard {
     error MigrationStillOpen();
     error OnlyGovernance();
     error AlreadySwept();
+    error InvalidMigrationDuration();
 
     modifier onlyGovernance() {
         if (msg.sender != governance) revert OnlyGovernance();
@@ -78,6 +91,11 @@ contract DaimonMigration is ReentrancyGuard {
         // (or burn the old tokens to address(0)) with no remedy.
         if (_oldDaimon == address(0) || _newDaimon == address(0) || _treasury == address(0) || _governance == address(0)) {
             revert ZeroAddress();
+        }
+        // The deadline is immutable: an out-of-range duration cannot be
+        // corrected after deploy, so it must never leave the constructor.
+        if (_migrationDurationSeconds < MIN_MIGRATION_DURATION || _migrationDurationSeconds > MAX_MIGRATION_DURATION) {
+            revert InvalidMigrationDuration();
         }
         oldDaimon = IOldDaimon(_oldDaimon);
         newDaimon = INewDaimon(_newDaimon);
