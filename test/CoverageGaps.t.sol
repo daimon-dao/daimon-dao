@@ -219,6 +219,43 @@ contract CoverageGaps is StackDeployer {
         assertFalse(canceled, "phantom canceled flag");
     }
 
+    /// Finding #18: governance privilege changes on the staking contract were
+    /// silent. The mapping is private and not enumerable, so without an event
+    /// a monitor can neither subscribe to changes nor reconstruct the current
+    /// set of holders.
+    function test_GovernanceChangesEmitEvent() public {
+        // Granting emits.
+        vm.expectEmit(true, false, false, true, address(staking));
+        emit DaimonStaking.GovernanceSet(bob, true);
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, true);
+        assertTrue(staking.isGovernance(bob));
+
+        // Revoking emits.
+        vm.expectEmit(true, false, false, true, address(staking));
+        emit DaimonStaking.GovernanceSet(bob, false);
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, false);
+        assertFalse(staking.isGovernance(bob));
+    }
+
+    /// A write that does not change the value must stay silent, so every
+    /// emitted event is a real transition.
+    function test_GovernanceNoOpEmitsNothing() public {
+        // bob is not governance: setting false again changes nothing.
+        vm.recordLogs();
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, false);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op revoke emitted an event");
+
+        // timelock is already governance: setting true again changes nothing.
+        assertTrue(staking.isGovernance(address(timelock)));
+        vm.recordLogs();
+        vm.prank(address(timelock));
+        staking.setGovernance(address(timelock), true);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op grant emitted an event");
+    }
+
     // ============================================================
     // Staking: gestione lock option (governance)
     // ============================================================
