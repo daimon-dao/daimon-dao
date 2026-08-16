@@ -43,6 +43,21 @@ su mainnet devono essere multisig distinti.
       staging; per il lancio pubblico, dominio ufficiale + allowlist
       WalletConnect.
 
+## Automazione fee (post-fix Zenith #1)
+
+- [ ] **Monitorare il saldo DMN del contratto token** dopo il lancio:
+      `balanceOf(DaimonV2)` è l'inventario fee non ancora convertito.
+- [ ] Quando supera `minimumTokensBeforeSwap`, un **transfer di 1 wei di DMN
+      alla pair**, da un indirizzo qualsiasi, innesca la conversione (al
+      massimo un chunk di fee-swap e una slice di buyback per blocco: budget
+      del #28). Anche il BNB del buyback si muove solo così: le vendite via
+      router non innescano più nulla.
+- [ ] **NON è un requisito di sicurezza**: se il poke si ferma, le fee si
+      accumulano e basta — nessuna scadenza, nessuna perdita, si riparte col
+      poke successivo. Modello completo e motivazione in THREAT_MODEL.md §8
+      (⚠️ non "correggere" il fix reintroducendo il trigger sulle vendite:
+      riaprirebbe il finding #1).
+
 ## Governance post-lancio
 
 - [ ] `marketingWallet` e `stakingContract` restano modificabili **solo** via

@@ -339,3 +339,75 @@ pre-deposit tokens, then call liquidity removal to move them out untaxed. The
 double fee is the lesser cost by a wide margin.
 
 ---
+
+## 8. Fee-conversion triggering after the #1 fix — the poke model
+
+The fix for Zenith #1 skips the fee swap and the buyback whenever the
+configured router is the immediate caller of a transfer to the pair
+(`msg.sender == address(uniswapV2Router)`). Since the canonical periphery is
+also how every ordinary sell reaches the pair, **router-mediated sells no
+longer trigger the automation**. This section records what triggers it now,
+and why the sell exclusion is deliberate — so it is not "corrected" later as
+if it were an oversight.
+
+### The poke
+
+The automation's remaining trigger is a **direct transfer to the pair**: any
+amount, from any address — 1 wei suffices, and at 1 wei every fee rounds to
+zero. Whoever sends it pays the gas of the work it triggers (one fee-swap
+chunk and/or one buyback slice, both through the router). The trigger is
+**permissionless and budget-bounded**: the #28 per-block budgets cap the
+aggregate at one chunk and one slice per block, regardless of who pokes or
+how often.
+
+If nobody pokes, nothing breaks: fees keep accumulating in the contract as
+DMN, buyback BNB sits idle, and conversion resumes with the next poke — no
+deadline, no loss, no stuck state. What degrades is only the **cadence** of
+marketing/staking funding and of the buyback.
+
+This is **not a keeper role**: no registration, no privileged address, no
+compensation, no single point of failure. The project can run a poke bot for
+cadence (see [CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md)), but anyone can
+replace it at any moment with a plain transfer.
+
+### Why sells are excluded too — verified, not assumed
+
+Verified against the canonical PancakeSwap V2 periphery (`PancakeRouter.sol`
+and `PancakePair.sol`, `pancakeswap/pancake-smart-contracts`):
+
+- **Sells were never exposed to the #1 staleness.** In
+  `swapExactTokensForETHSupportingFeeOnTransferTokens` — the only variant a
+  taxed holder can use — the output is computed **after** the token transfer
+  (`getReserves` and `balanceOf(pair) − reserve` run post-callback), and
+  `amountOutMin` is enforced on the **actual** WETH received, at the very
+  end. A reserve shift during the transfer is ordinary intra-block ordering
+  risk, exactly the class `amountOutMin` exists to bound. Liquidity
+  additions are different in kind: their user minimums are consumed
+  **before** the token callback, against the pre-callback reserve snapshot,
+  and `mint()` enforces no minimum LP output — that asymmetry is the whole
+  finding.
+- **The callee cannot tell the two apart.** At the token-leg moment, a sell
+  and a liquidity addition are byte-identical to the token:
+  `transferFrom(holder → pair)` with `msg.sender == router`. The EVM gives a
+  callee no introspection into the caller's frame or calldata, so a
+  selective skip (liquidity legs only) cannot be built inside the token.
+- **The WBNB-surplus probe does not work.** In `addLiquidityETH` the token
+  leg lands **before** the WETH deposit and its transfer to the pair, so at
+  the moment the token could probe, the pair's WBNB surplus is still zero —
+  the heuristic misses precisely the finding's vector. In two-sided
+  `addLiquidity` it fires only for one caller-chosen argument order, and
+  WBNB dust donations to the pair can spoof it in either direction.
+- **On the sell side the skip is a benefit, not a cost.** Sellers no longer
+  pay the automation's gas inside their own transaction, and no longer have
+  their slippage budget systematically consumed by an automation swap that
+  was guaranteed to land immediately before theirs (which could push
+  tight-tolerance sells into `INSUFFICIENT_OUTPUT_AMOUNT` reverts).
+
+⚠️ **Do not reintroduce the sell trigger.** Re-enabling the automation on
+router-initiated transfers reopens #1 in full, because the token cannot
+exclude just the liquidity legs. If sell-triggered conversion is ever wanted
+again, it requires a periphery-level design (a liquidity integration that
+revalidates the reserve ratio and enforces a minimum LP output) and a new
+audit — not a one-line revert of the #1 fix.
+
+---
