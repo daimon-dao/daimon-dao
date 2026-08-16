@@ -152,8 +152,22 @@ contract DaimonMigration is ReentrancyGuard {
         sweepExecuted = true;
         uint256 remaining = newDaimon.balanceOf(address(this));
         if (remaining > 0) {
+            // Same balance-before/after check claim() already applies on both
+            // legs. Without it the sweep only read transfer()'s boolean: if
+            // this contract's fee exemption had been revoked, the transfer
+            // would have SUCCEEDED while the treasury received less than the
+            // full remainder — and sweepExecuted stays true, so the recovery
+            // could never be repeated after fixing the configuration. One
+            // silent shortfall would close the recovery path for good.
+            //
+            // Reverting instead rolls back sweepExecuted with the rest of the
+            // transaction, so the sweep stays available once the exemption is
+            // restored.
+            uint256 treasuryBefore = newDaimon.balanceOf(treasury);
             bool ok = newDaimon.transfer(treasury, remaining);
             require(ok, "DaimonMigration: sweep transfer failed");
+            uint256 received = newDaimon.balanceOf(treasury) - treasuryBefore;
+            if (received != remaining) revert AmountMismatch();
         }
 
         emit Swept(treasury, remaining);
