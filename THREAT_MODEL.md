@@ -24,7 +24,7 @@ security policy).
 | **External attacker** | hostile EOA/contract with no roles | interact like any user, attempt reentrancy/MEV | acquire roles, drain funds, mint, exceed the hardcoded limits |
 | **Whale** | holder with large capital | accumulate voting power (only by locking tokens over time), influence votes | vote with power acquired *after* the proposal; flash-loan governance |
 | **Governance (DAO via Timelock)** | Timelock driven by the Governor | change fees (≤10%), addresses, limits, **UUPS upgrade of the token** | mint, push the supply below the floor, zero out the Timelock delay, act without the public 7-day delay |
-| **Guardian** | emergency multisig | pause the token (≤36 months), cancel malicious proposals/operations | economic powers, execute proposals, pause after expiry (but can always *unpause*) |
+| **Guardian** | emergency multisig | pause the token in self-terminating 14-day windows (≤36 months), cancel malicious proposals/operations (≤36 months) | economic powers, execute proposals, any pause or cancel after `guardianAuthorityExpiry` — nothing it armed survives the mandate |
 | **Deployer** | whoever runs the deploy script | only the initial wiring | **nothing after deploy**: renounces every role (verified on-chain) |
 
 ---
@@ -117,13 +117,26 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
 
 - **Defensive powers only**: pausing the token and cancelling
   proposals/operations. No economic power, no execution.
-- **36-month expiry** (`guardianExpiry`): after it, `setPaused(true)` reverts
-  forever (definitive decentralization, verifiable on-chain). `setPaused(false)`
-  always stays possible → a contract paused at expiry does not stay frozen
-  forever.
+- **One mandate, three enforcement points (#36).** The token's
+  `guardianExpiry` (36 months) is replicated as an immutable
+  `guardianAuthorityExpiry` in the Governor and the Timelock, asserted equal
+  at deploy. After that single instant: `setPaused(true)` reverts, BOTH
+  cancellation paths (`Governor.cancel`, the Timelock's role-based `cancel`)
+  revert, and any armed pause has already lapsed — definitive
+  decentralization with no cooperation needed from the guardian.
+- **A pause is a window, not a latch (#36).** `setPaused(true)` arms
+  `pauseUntil = min(now + 14 days, guardianExpiry)` and the effective state is
+  `isPaused()`, which turns false on its own. Keeping the token paused
+  requires actively renewing the window — every renewal a visible
+  transaction. `setPaused(false)` always stays possible and clears the flag.
+  Every second of scheduled pause is credited to the migration deadline
+  (`effectiveMigrationDeadline`), so a pause cannot consume the immutable
+  claim window.
 - Assumption: the guardian is a **multisig** (in production). A compromised
-  guardian can pause (temporary DoS, not theft) and cancel legitimate
-  proposals (temporary censorship) until expiry.
+  guardian can pause (temporary DoS, not theft, in renewable 14-day windows)
+  and cancel legitimate proposals (temporary censorship) — both strictly
+  until the mandate's end, after which recovery proposals are uncancellable
+  by any single authority.
 
 ### 2.6 Migration
 
@@ -254,9 +267,20 @@ stays executable until it is executed or cancelled.
 minimum delay and no execution deadline. Adding a grace period would introduce
 a liveness risk in exchange: an expired operation forces the whole 13-day cycle
 (1 day voting delay + 5 days voting + 7 days timelock) to be repeated, and an
-operation that expires unnoticed is a governance failure with no alarm. The
-defence against stale proposals is the guardian's ability to cancel, plus
-monitoring — both available at any point before execution.
+operation that expires unnoticed is a governance failure with no alarm.
+
+**The defence against stale proposals changed with the #36 fix.** This
+acceptance originally leaned on the guardian's ability to cancel at any point
+before execution — a defence that now ends, by design, at
+`guardianAuthorityExpiry`. Within the mandate nothing changes: guardian
+cancel plus monitoring. After the mandate, the remedy for a
+queued-but-unwanted operation is a **governance-voted cancellation**: a
+proposal targeting the Timelock's own `cancel()` (a self-call, exempt from
+the expiry gate precisely for this reason and covered by
+`test_GovernanceSelfCancelSurvivesExpiry`). Slower — a full 13-day cycle —
+but majority-gated and censorship-free, which is what keeps this acceptance
+sound once no single authority can cancel any more. Monitoring remains the
+alarm in both eras.
 
 ### #20 — Unswapped fee inventory is allocated at execution time
 
