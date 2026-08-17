@@ -59,8 +59,12 @@ security policy).
   minus a governed slippage tolerance (`maxSwapSlippageBps`, default 5%,
   bounded between 0.5% and 30%). The swaps run inside `try/catch`: if the
   price leaves the tolerance the swap is *skipped* (funds preserved), without
-  reverting the transfer of the user who triggered it (avoids a DoS vector on
-  sells).
+  reverting the direct-to-pair transfer that triggered it (the poke, §8).
+  Since the #1 fix, ordinary sells cannot trigger these swaps at all —
+  router-initiated transfers skip the automation — so the old DoS surface
+  (push the price beyond tolerance and every sell that crossed the threshold
+  reverted) is gone **by construction**, not merely mitigated: the try/catch
+  now only shields whoever volunteers the poke.
 - **Accepted known limit — read this precisely.** `maxSwapSlippageBps` bounds
   the deviation from the router's **contemporaneous quote**, and nothing more.
   It does **not** bound the loss relative to a fair price: the quote is read in
@@ -148,8 +152,10 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
   it at deploy (no supply creation). *Tested invariant:* old tokens in the
   treasury == `totalMigrated`, and the migration never distributes more DMN
   than owed.
-- **Sweep:** only after the deadline, only from the Timelock, only to the DAO
-  treasury, once.
+- **Sweep:** only after the **effective** deadline — the immutable base
+  deadline plus any guardian-pause credit (`effectiveMigrationDeadline`, #36)
+  — only from the Timelock, only to the DAO treasury, once. The sweep can
+  never fire while a pause credit is still keeping the claim window open.
 
 ---
 
