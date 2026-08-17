@@ -24,6 +24,25 @@ at the next released version, together with the final audit report.
   per-block budgets capping the aggregate. The old wording ("a sale to the
   liquidity pool occurs", "steps 2 and 4 are automatic") described the
   pre-fix model.
+- **Systematic precision pass** (EN and IT), following a claims-vs-code
+  audit of the whole document. In order of weight: §6.5's "no one can
+  prevent" the floor burn — false since the Zenith #5 fix, which gates
+  `burnDeadBalanceToFloor` behind the emergency pause (now stated, with the
+  window bound); §7.2's zero-staker rewards "distributed to the next
+  stakers" — the exact behaviour the #35 fix removed, they now sit in a
+  governance-recoverable reserve; §11.3's "two addresses outside anyone's
+  reach" — true for the dead address, but for the migration treasury only
+  the pointer is immutable, the funds are managed by its signers (now
+  stated, with the custody commitment); the abstract now names the guardian
+  and its veto instead of listing only what nobody can do; §2.3/§7.3
+  snapshot machinery updated from timestamp keys to sealed-block keys
+  (#12) — including the one code snippet in the document that showed a
+  no-longer-existing interface (all other snippets verified against the
+  integrated contracts); the §4.2 table's reflection-exclusion set now
+  lists both entries (dead address and pair, #30) and its slippage row
+  carries the #34 caveat (a bound against the router's own quote, not
+  against MEV loss); the deploy assertion count updated from fourteen to
+  nineteen (#36).
 - **§5 guardian paragraph, §8.6, and the actor summary** (EN and IT): the
   guardian's perimeter was understated — it has always also held the two
   cancellation powers (governance proposals and their queued timelock

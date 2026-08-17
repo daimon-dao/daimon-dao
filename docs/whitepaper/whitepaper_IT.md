@@ -18,9 +18,14 @@ Ogni parametro che governa il protocollo — le fee sulle transazioni, il
 funzionamento dello staking, l'allocazione della tesoreria, e il codice stesso
 — può essere modificato soltanto attraverso un voto on-chain seguito da un
 timelock pubblico obbligatorio di sette giorni. Nessun individuo, inclusi
-coloro che lo hanno costruito, detiene il potere di alterare, mettere in pausa
-permanentemente, accelerare o aggirare quel processo. Non è un impegno che
-chiediamo di credere sulla parola: è una proprietà dei contratti deployati,
+coloro che lo hanno costruito, detiene il potere di alterare, accelerare o
+aggirare quel processo. Esiste un solo account di salvaguardia — il guardian
+— e i suoi poteri sono puramente negativi: può mettere in pausa il token in
+finestre di al massimo quattordici giorni che decadono da sole, e può porre
+il veto a una decisione in corso prima dell'esecuzione. Ognuno di quei
+poteri termina a una scadenza inamovibile, 36 mesi dopo il deploy; nulla di
+ciò che ha armato sopravvive a quell'istante. Non è un impegno che chiediamo
+di credere sulla parola: è una proprietà dei contratti deployati,
 verificabile da chiunque in qualsiasi momento.
 
 Chi blocca i propri token riceve potere di voto proporzionale sia alla
@@ -111,17 +116,20 @@ guida non è assegnata da un potere superiore; è scelta da chi verrà guidato, 
 scelta in anticipo.
 
 ```solidity
-votingPowerAt(voter, proposal.snapshotTimestamp)
+votingPowerAt(voter, proposal.snapshotBlock)
 ```
 
-Il potere di voto è valutato nel momento in cui una proposta è stata creata,
-non nel momento del voto. L'influenza su una decisione deriva da un impegno
-preso prima che quella decisione esistesse come questione.
+Il potere di voto è valutato all'ultimo blocco sigillato *prima* che la
+proposta fosse creata, non nel momento del voto. L'influenza su una decisione
+deriva da un impegno preso prima che quella decisione esistesse come
+questione.
 
 L'effetto pratico è che il potere non può essere acquisito in reazione a
-qualcosa. Non si può vedere una proposta sgradita, comprare influenza, e
-usarla. La scelta precede la questione — che è precisamente ciò che Platone
-descriveva, e precisamente ciò che uno snapshot impone.
+qualcosa che è già on-chain: quando una proposta atterra, il blocco di
+snapshot alle sue spalle è già sigillato, e l'influenza comprata dopo — anche
+nello stesso identico blocco — non conta nulla. La scelta precede la
+questione — che è precisamente ciò che Platone descriveva, e precisamente ciò
+che uno snapshot impone.
 
 ## 2.4 Eraclito — la guida e il guidato sono la stessa cosa
 
@@ -424,8 +432,8 @@ una migliore.
 | Emissione | non possibile | non possibile |
 | Riduzione supply | token spostati, supply invariata | **supply realmente ridotta** |
 | Floor di supply | nessuno | **21B, immutabile** |
-| Esclusione da reflection | modificabile dal proprietario | **insieme immutabile, solo dead address** |
-| Protezione slippage | nessuna — accetta qualsiasi output | limitata, con quote dal router |
+| Esclusione da reflection | modificabile dal proprietario | **insieme immutabile, fissato al deploy: dead address e pair di liquidità** |
+| Protezione slippage | nessuna — accetta qualsiasi output | limitata rispetto al quote del router stesso — non un limite alla perdita MEV |
 | Destinatario marketing | stesso indirizzo del proprietario | impostato dalla governance, previsto multisig |
 | Staking | nessuno | vote-escrow, reward in BNB |
 | Governance | nessuna | governance on-chain completa |
@@ -753,10 +761,16 @@ particolare. È una conseguenza dell'attività di scambio.
     — permanentemente, e al massimo fino al floor
 ```
 
-Il passaggio 5 è **permissionless**: qualsiasi indirizzo può chiamarlo, in
-qualsiasi momento, senza alcun ruolo speciale. Nessuno può impedirlo, e
-nessuno può forzarlo oltre il floor. La funzione non ha un chiamante
-privilegiato perché non ne ha bisogno — il suo unico effetto possibile è
+Il passaggio 5 è **permissionless**: qualsiasi indirizzo può chiamarlo,
+senza alcun ruolo speciale. Nessuno può forzarlo oltre il floor, ed
+esattamente una cosa può ritardarlo: la funzione rispetta la pausa di
+emergenza del guardian — una scelta deliberata, perché scrive la stessa
+contabilità della supply che chi risponde a un incidente vorrebbe congelata.
+Durante una finestra di pausa armata il burn attende, al massimo quattordici
+giorni per finestra; altrimenti nessuno può impedirlo, e una volta terminato
+il mandato di 36 mesi del guardian, niente potrà più metterlo in pausa. La
+funzione non ha un chiamante privilegiato perché non ne ha bisogno — il suo
+unico effetto possibile è
 ridurre la supply verso un limite fissato nel codice.
 
 I passaggi 2 e 4 scattano su un innesco permissionless e usano la pool di
@@ -847,25 +861,29 @@ L'effetto combinato è che lo staking rimuove token dalla circolazione
 restituendo valore che non deve essere rivenduto sullo stesso mercato.
 
 I reward maturano continuamente e si riscuotono su richiesta. Se dei reward
-arrivano in un momento in cui nessun token è in staking, vengono trattenuti e
-distribuiti agli staker successivi invece di andare persi.
+arrivano in un momento in cui nessun token è in staking, vengono accantonati
+in una riserva dedicata invece di andare persi — recuperabile solo con una
+decisione esplicita della governance, e mai ripiegata silenziosamente in una
+distribuzione successiva, dove il primo staker ad arrivare avrebbe potuto
+catturarli.
 
 ## 7.3 Checkpoint del potere di voto
 
 Il contratto di staking non registra solo il potere di voto attuale. Ne
 registra la storia.
 
-Ogni cambiamento — un nuovo lock, un ritiro — scrive un checkpoint con un
-timestamp. Questo permette al contratto di governance di porre una domanda
-specifica: *qual era il potere di voto di questo indirizzo nel momento in cui
-la proposta N è stata creata?*
+Ogni cambiamento — un nuovo lock, un ritiro — scrive un checkpoint indicizzato
+per numero di blocco. Questo permette al contratto di governance di porre una
+domanda specifica: *qual era il potere di voto di questo indirizzo al blocco
+sigillato appena prima che la proposta N fosse creata?*
 
 È ciò che impedisce l'attacco alla governance più evidente. Senza checkpoint
 storici, un attore potrebbe osservare una proposta che non gli piace,
 acquisire e mettere in staking una posizione ingente, e votarla contro con
 potere acquistato dopo che la questione è stata sollevata. Con i checkpoint,
-il voto viene risolto contro uno snapshot preso alla creazione della proposta:
-il potere acquisito in seguito non conta nulla.
+il voto viene risolto contro lo snapshot di un blocco già sigillato: il
+potere acquisito in seguito — anche nello stesso blocco della proposta — non
+conta nulla.
 
 Lo abbiamo testato specificamente, con un attaccante simulato che deteneva una
 posizione schiacciante messa in staking subito dopo la creazione di una
@@ -1278,7 +1296,7 @@ quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
 detiene alcun ruolo in seguito: lo script di deploy rinuncia a ogni permesso
-temporaneo e poi verifica, con quattordici asserzioni che interrompono il deploy
+temporaneo e poi verifica, con diciannove asserzioni che interrompono il deploy
 in caso di fallimento, che nessun account esterno mantenga autorità in alcun
 punto del sistema.
 
@@ -1505,10 +1523,17 @@ quota marketing è impostato da una funzione riservata alla governance: la DAO
 può reindirizzare quel flusso di entrate in qualsiasi momento, con un voto.
 Ciò che non fa è approvare ogni singolo pagamento.
 
-Due indirizzi sono permanentemente fuori dalla portata di chiunque, governance
-inclusa: l'indirizzo morto che riceve i token bruciati, e la tesoreria della
-migrazione. Entrambi sono `immutable`, fissati al deploy. Alcune destinazioni
-non dovrebbero essere reindirizzabili da una maggioranza.
+Due *destinazioni* sono fissate permanentemente, oltre il potere di
+reindirizzo persino della governance: l'indirizzo morto che riceve i token
+bruciati, e la tesoreria della migrazione. Entrambi i puntatori sono
+`immutable`, impostati al deploy. La distinzione merita precisione, perché i
+due casi non sono uguali. I token all'indirizzo morto sono fuori dalla
+portata di chiunque, per sempre. La tesoreria della migrazione è un multisig:
+il suo **indirizzo** non può essere cambiato da nessuno, ma i fondi che
+detiene sono gestiti dai suoi firmatari — sotto l'impegno di custodia
+assunto per la migrazione, che tiene i vecchi token raccolti fuori dalla
+circolazione per l'intera finestra di claim. Ciò che nessuna maggioranza può
+fare è puntare in silenzio uno dei due flussi altrove.
 
 ## 11.4 Impegni
 

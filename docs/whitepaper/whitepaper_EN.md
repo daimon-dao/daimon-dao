@@ -17,10 +17,14 @@ mathematically impossible.
 Every parameter that governs the protocol — transaction fees, staking
 mechanics, treasury allocation, even the code itself — can be changed only
 through an on-chain vote followed by a mandatory seven-day public timelock.
-No individual, including those who built it, holds the power to alter, pause
-permanently, accelerate, or bypass that process. This is not a commitment we
-ask you to trust: it is a property of the deployed contracts, verifiable by
-anyone at any time.
+No individual, including those who built it, holds the power to alter,
+accelerate, or bypass that process. One safeguard account exists — the
+guardian — and its powers are purely negative: it can pause the token in
+windows of at most fourteen days that expire on their own, and it can veto
+an in-flight decision before execution. Every one of those powers ends at an
+unmovable deadline 36 months after deployment; nothing it armed survives
+that instant. This is not a commitment we ask you to trust: it is a property
+of the deployed contracts, verifiable by anyone at any time.
 
 Holders who lock their tokens receive voting power proportional to both the
 amount and the duration of their commitment, along with rewards paid in BNB —
@@ -108,17 +112,18 @@ assigned by a higher power; it is chosen by the one who will be guided, and
 chosen in advance.
 
 ```solidity
-votingPowerAt(voter, proposal.snapshotTimestamp)
+votingPowerAt(voter, proposal.snapshotBlock)
 ```
 
-Voting power is evaluated at the moment a proposal was created, not at the
-moment of voting. Influence over a decision derives from a commitment made
-before that decision existed as a question.
+Voting power is evaluated at the last block sealed *before* a proposal was
+created, not at the moment of voting. Influence over a decision derives from
+a commitment made before that decision existed as a question.
 
 The practical effect is that power cannot be acquired in reaction to
-something. You cannot see a proposal you dislike, buy influence, and use it.
-The choice precedes the question — which is precisely what Plato described,
-and precisely what a snapshot enforces.
+something already on chain: when a proposal lands, the snapshot block behind
+it is already sealed, so influence bought afterwards — even in the very same
+block — counts for nothing. The choice precedes the question — which is
+precisely what Plato described, and precisely what a snapshot enforces.
 
 ## 2.4 Heraclitus — the guide and the guided are the same
 
@@ -411,8 +416,8 @@ a better one.
 | Minting | not possible | not possible |
 | Supply reduction | tokens moved, supply unchanged | **supply actually reduced** |
 | Supply floor | none | **21B, immutable** |
-| Exclusion from reflection | owner-toggleable at runtime | **immutable set, dead address only** |
-| Swap slippage protection | none — accepts any output | bounded, with quote from router |
+| Exclusion from reflection | owner-toggleable at runtime | **immutable set, fixed at deployment: dead address and liquidity pair** |
+| Swap slippage protection | none — accepts any output | bounded against the router's own quote — not a bound on MEV loss |
 | Marketing recipient | same address as the owner | governance-set, expected to be a multisig |
 | Staking | none | vote-escrow, rewards in BNB |
 | Governance | none | full on-chain governance |
@@ -722,10 +727,15 @@ is a consequence of trading.
     supply — permanently, and down to the floor at most
 ```
 
-Step 5 is **permissionless**: any address can call it, at any time, with no
-special role required. No one can prevent it, and no one can force it past
-the floor. The function has no privileged caller because it needs none — its
-only possible effect is to reduce supply toward a bound fixed in the code.
+Step 5 is **permissionless**: any address can call it, with no special role
+required. No one can force it past the floor, and exactly one thing can
+delay it: the function respects the guardian's emergency pause — a
+deliberate choice, because it writes the same supply accounting an incident
+responder would want frozen. During an armed pause window the burn waits, at
+most fourteen days per window; otherwise no one can prevent it, and once the
+guardian's 36-month mandate ends, nothing can pause it ever again. The
+function has no privileged caller because it needs none — its only possible
+effect is to reduce supply toward a bound fixed in the code.
 
 Steps 2 and 4 fire on a permissionless trigger and use the public liquidity
 pool. Ordinary sales through the router deliberately do **not** trigger
@@ -810,23 +820,27 @@ The combined effect is that staking removes tokens from circulation while
 returning value that does not have to be sold back into the same market.
 
 Rewards accrue continuously and are claimed on demand. If rewards arrive at a
-moment when no tokens are staked, they are held and distributed to the next
-stakers rather than lost.
+moment when no tokens are staked, they are set aside in a dedicated reserve
+rather than lost — recoverable only by an explicit governance decision, and
+never silently folded into a later distribution, where the first staker to
+arrive could have captured them.
 
 ## 7.3 Voting power checkpoints
 
 The staking contract does not only record current voting power. It records
 its history.
 
-Every change — a new lock, a withdrawal — writes a checkpoint with a
-timestamp. This allows the governance contract to ask a specific question:
-*what was this address's voting power at the moment proposal N was created?*
+Every change — a new lock, a withdrawal — writes a checkpoint keyed by block
+number. This allows the governance contract to ask a specific question:
+*what was this address's voting power at the block sealed just before
+proposal N was created?*
 
 This is what prevents the most obvious governance attack. Without historical
 checkpoints, an actor could observe a proposal they dislike, acquire and
 stake a large position, and vote it down with power purchased after the
-question was raised. With them, the vote is settled against a snapshot taken
-at proposal creation: power acquired afterwards counts for nothing.
+question was raised. With them, the vote is settled against a snapshot of an
+already-sealed block: power acquired afterwards — even in the proposal's own
+block — counts for nothing.
 
 We tested this specifically, with a simulated attacker holding an
 overwhelming position staked immediately after a proposal's creation. Their
@@ -1221,7 +1235,7 @@ lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
 afterwards: the deployment script renounces every temporary permission and
-then verifies, with fourteen assertions that abort deployment on failure,
+then verifies, with nineteen assertions that abort deployment on failure,
 that no externally owned account retains authority anywhere in the system.
 
 The full threat model, including the reasoning behind each conclusion, is
@@ -1440,10 +1454,16 @@ receives the marketing share is set by a governance-only function: the DAO
 can redirect that revenue stream at any time, by vote. What it does not do is
 approve each individual payment.
 
-Two addresses are permanently outside anyone's reach, including governance:
-the dead address that receives burned tokens, and the migration treasury.
-Both are `immutable`, fixed at deployment. Some destinations should not be
-redirectable by a majority.
+Two *destinations* are permanently fixed, beyond even governance's power to
+redirect: the dead address that receives burned tokens, and the migration
+treasury. Both pointers are `immutable`, set at deployment. The distinction
+deserves precision, because the two cases are not the same. Tokens at the
+dead address are beyond anyone's reach, forever. The migration treasury is a
+multisig: its **address** cannot be changed by anyone, but the funds it
+holds are managed by its signers — under the custody commitment made for the
+migration, which keeps the collected legacy tokens out of circulation for
+the entire claim window. What no majority can do is quietly point either
+stream somewhere else.
 
 ## 11.4 Commitments
 
