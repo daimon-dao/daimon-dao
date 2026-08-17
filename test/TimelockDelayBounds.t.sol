@@ -22,14 +22,14 @@ contract TimelockDelayBoundsTest is StackDeployer {
 
     function test_ConstructorRejectsAboveMax() public {
         vm.expectRevert("DaimonTimelock: above MAX_DELAY");
-        new DaimonTimelock(90 days + 1, deployer, deployer, guardian, deployer);
+        new DaimonTimelock(90 days + 1, deployer, deployer, guardian, deployer, block.timestamp + 1095 days);
     }
 
     function test_ConstructorAcceptsTheBounds() public {
-        DaimonTimelock atMin = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer);
+        DaimonTimelock atMin = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer, block.timestamp + 1095 days);
         assertEq(atMin.getMinDelay(), 7 days, "min not applied");
 
-        DaimonTimelock atMax = new DaimonTimelock(90 days, deployer, deployer, guardian, deployer);
+        DaimonTimelock atMax = new DaimonTimelock(90 days, deployer, deployer, guardian, deployer, block.timestamp + 1095 days);
         assertEq(atMax.getMinDelay(), 90 days, "max not applied");
         assertEq(atMax.MAX_DELAY(), 90 days);
     }

@@ -50,13 +50,13 @@ contract ProposalThresholdBoundsTest is StackDeployer {
         uint256 max = governor.MAX_PROPOSAL_THRESHOLD();
 
         vm.expectRevert("DaimonGovernor: threshold too high");
-        new DaimonGovernor(address(staking), address(timelock), guardian, 1000, max + 1);
+        new DaimonGovernor(address(staking), address(timelock), guardian, 1000, max + 1, block.timestamp + 1095 days);
     }
 
     function test_ConstructorAcceptsUpToMax() public {
         uint256 max = governor.MAX_PROPOSAL_THRESHOLD();
 
-        DaimonGovernor g = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, max);
+        DaimonGovernor g = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, max, block.timestamp + 1095 days);
         assertEq(g.proposalThreshold(), max, "constructor did not apply the max");
     }
 

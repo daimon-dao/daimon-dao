@@ -182,8 +182,8 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // APPENDED AT THE END OF STORAGE, deliberately: this contract is behind a
     // UUPS proxy, so new variables may only be added after the existing ones,
     // never inserted among them. The order below - #32's fields first, then
-    // #28's budget block - is the DEFINITIVE proxy layout: every future
-    // upgrade must respect it.
+    // #28's budget block, then #36's pause block - is the DEFINITIVE proxy
+    // layout: every future upgrade must respect it.
 
     // ---- Mandatory fee exemptions (finding #32) ----
     // Some fee exemptions are not a policy choice but a requirement of the
@@ -225,6 +225,33 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     uint256 private constant MAX_FEE_SWAPS_PER_BLOCK = 1;
     uint256 private constant MAX_BUYBACKS_PER_BLOCK = 1;
 
+    // ---- Self-terminating pause (finding #36) ----
+    // `paused` keeps its original slot but is no longer the whole truth: a
+    // pause is now a WINDOW that ends at pauseUntil on its own, with no call
+    // needed. Keeping the token paused requires actively renewing the
+    // window — every renewal a visible transaction — so a pause can neither
+    // persist by inaction (a lost guardian key) nor outlive the mandate:
+    // the window is always clamped to guardianExpiry. Read isPaused(), not
+    // `paused`: after the window lapses the flag can remain true while the
+    // token is fully operational.
+    uint256 public pauseUntil;
+    // Cumulative seconds of pause window ever SCHEDULED, monotone. Consumed
+    // by DaimonMigration to extend the effective claim deadline (#36): a
+    // pause blocks claim()'s token transfer, so holders are given the
+    // blocked time back. Credited at scheduling time; an early unpause does
+    // not claw the credit back — the accounting error is deliberately in
+    // the holders' favour, and it spares the lapse-detection machinery a
+    // poke dependency.
+    uint256 public cumulativePauseSeconds;
+    uint256 private _pauseAccountedUntil;
+
+    // One pause window covers a full worst-case governance response — 1 day
+    // voting delay + 5 days voting + 7 days timelock = 13 days — plus one
+    // day of margin: an honest emergency pause never NEEDS a renewal
+    // mid-crisis, which is exactly when the guardian is the party under
+    // attack. A constant, not a setter: no new governance surface.
+    uint256 public constant MAX_PAUSE_DURATION = 14 days;
+
     // ---- Events ----
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -244,6 +271,9 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     event FeesUpdated(uint256 taxFee, uint256 buybackFee, uint256 marketingFee);
     event ParamsUpdated(string param, uint256 value);
     event PausedSet(bool paused);
+    // The end of the scheduled pause window (#36): monitoring reads the
+    // lapse instant from here, since no transaction marks the lapse itself.
+    event PauseScheduled(uint256 until);
     event StakingContractSet(address indexed staking);
     event MarketingWalletSet(address indexed wallet);
     event ExcludedFromFeeSet(address indexed account, bool excluded);
@@ -275,8 +305,16 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     }
 
     modifier whenNotPaused() {
-        if (paused) revert ContractIsPaused();
+        if (isPaused()) revert ContractIsPaused();
         _;
+    }
+
+    /// @notice The effective pause state (#36): the `paused` flag arms a
+    /// window, and only inside the window is the token actually paused.
+    /// Interfaces must read THIS, not `paused` — after the window lapses the
+    /// raw flag can stay true while transfers work normally.
+    function isPaused() public view returns (bool) {
+        return paused && block.timestamp < pauseUntil;
     }
 
     constructor() {
@@ -1002,13 +1040,45 @@ contract DaimonV2 is Initializable, UUPSUpgradeable, AccessControlUpgradeable, R
     // permanently: the contract can no longer be paused by anyone, not even
     // by the DAO. It is a guarantee of definitive decentralization, verifiable
     // on-chain by anyone reading guardianExpiry.
+    //
+    // A pause is a WINDOW, never a latch (#36): it self-terminates at
+    // pauseUntil — at most MAX_PAUSE_DURATION out, always clamped to
+    // guardianExpiry — so it cannot persist by inaction and cannot outlive
+    // the mandate. At guardianExpiry everything self-heals with no call:
+    // isPaused() turns false on its own.
     function setPaused(bool _paused) external onlyRole(GUARDIAN_ROLE) {
+        if (!_paused) {
+            // Early unpause: always possible, even past expiry, to clear the
+            // residual flag. The pause credit already granted to the
+            // migration window is NOT clawed back (see cumulativePauseSeconds).
+            paused = false;
+            pauseUntil = 0;
+            emit PausedSet(false);
+            return;
+        }
+
         // Only PAUSING expires with the guardian: unpausing always stays
         // possible, otherwise a contract paused at the moment of expiry would
         // stay frozen forever.
-        if (_paused && block.timestamp >= guardianExpiry) revert GuardianExpired();
-        paused = _paused;
-        emit PausedSet(_paused);
+        if (block.timestamp >= guardianExpiry) revert GuardianExpired();
+
+        uint256 maxEnd = block.timestamp + MAX_PAUSE_DURATION;
+        uint256 newUntil = maxEnd < guardianExpiry ? maxEnd : guardianExpiry;
+
+        // Migration credit (#36): every second of pause window scheduled is
+        // added, once, to the counter DaimonMigration uses to extend its
+        // effective deadline. _pauseAccountedUntil prevents double-crediting
+        // overlapping renewals.
+        uint256 accountedFrom = block.timestamp > _pauseAccountedUntil ? block.timestamp : _pauseAccountedUntil;
+        if (newUntil > accountedFrom) {
+            cumulativePauseSeconds += newUntil - accountedFrom;
+            _pauseAccountedUntil = newUntil;
+        }
+
+        paused = true;
+        pauseUntil = newUntil;
+        emit PausedSet(true);
+        emit PauseScheduled(newUntil);
     }
 
     // ============================================================

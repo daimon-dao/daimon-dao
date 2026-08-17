@@ -93,16 +93,18 @@ contract DaimonDAOTest is Test {
 
         // 3. Deploy timelock: proposer/executor/canceller settati dopo aver
         // il governor (bootstrap), per ora deployer ha tutti i ruoli admin
-        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer);
+        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer, token.guardianExpiry());
 
         // 4. Deploy governor (quorum 10% = 1000 bps su 10000)
-        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 * 1e18);
+        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 * 1e18, token.guardianExpiry());
 
         // 5. Wiring dei ruoli del Timelock: il Governor deve essere sia
         // PROPOSER (per queue) sia EXECUTOR (execute() del Governor chiama
-        // timelock.execute() con msg.sender = governor).
+        // timelock.execute() con msg.sender = governor), oltre che CANCELLER
+        // per la cancellazione atomica (#26).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
 
         staking.setGovernance(address(timelock), true);
@@ -497,10 +499,15 @@ contract DaimonDAOTest is Test {
         vm.prank(guardian);
         token.setPaused(true);
         assertTrue(token.paused());
+        // #36: la pausa e' una FINESTRA di 14 giorni, non un latch.
+        assertTrue(token.isPaused());
+        assertEq(token.pauseUntil(), block.timestamp + token.MAX_PAUSE_DURATION());
 
         vm.prank(guardian);
         token.setPaused(false);
         assertFalse(token.paused());
+        assertFalse(token.isPaused());
+        assertEq(token.pauseUntil(), 0);
     }
 
     function test_GuardianCannotPauseAfter36Months() public {
@@ -757,17 +764,29 @@ contract DaimonDAOTest is Test {
     }
 
     // --- B7: dopo la scadenza il guardian puo' solo togliere la pausa ---
+    // #36: la pausa non puo' piu' SOPRAVVIVERE alla scadenza — la finestra
+    // lapsa da sola (qui gia' dopo 14 giorni, e comunque mai oltre
+    // guardianExpiry), senza bisogno di alcuna chiamata. Prima del fix
+    // questo test tollerava una pausa ancora effettiva dopo 36 mesi: era il
+    // comportamento difettoso del finding.
     function test_GuardianCanUnpauseAfterExpiry() public {
         _deployFullStack();
         vm.prank(guardian);
         token.setPaused(true);
+        assertTrue(token.isPaused());
 
         vm.warp(block.timestamp + 1096 days);
+
+        // Auto-risanamento: NESSUNA chiamata, eppure il token non e' piu'
+        // in pausa. Il flag grezzo resta armato ma senza effetto.
+        assertTrue(token.paused());
+        assertFalse(token.isPaused());
 
         vm.prank(guardian);
         vm.expectRevert(DaimonV2.GuardianExpired.selector);
         token.setPaused(true);
 
+        // L'unpause residuo pulisce il flag, sempre possibile.
         vm.prank(guardian);
         token.setPaused(false);
         assertFalse(token.paused());
