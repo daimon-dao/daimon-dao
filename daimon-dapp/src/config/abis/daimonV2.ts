@@ -64,6 +64,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "function",
+    "name": "MAX_PAUSE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_SUPPLY",
     "inputs": [],
     "outputs": [
@@ -191,6 +204,19 @@ export const daimonV2Abi = [
   {
     "type": "function",
     "name": "buybackFee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cumulativePauseSeconds",
     "inputs": [],
     "outputs": [
       {
@@ -413,6 +439,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "function",
+    "name": "isPaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "liquidityFee",
     "inputs": [],
     "outputs": [
@@ -530,6 +569,19 @@ export const daimonV2Abi = [
         "name": "",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseUntil",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -1145,6 +1197,19 @@ export const daimonV2Abi = [
       },
       {
         "name": "value",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PauseScheduled",
+    "inputs": [
+      {
+        "name": "until",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"

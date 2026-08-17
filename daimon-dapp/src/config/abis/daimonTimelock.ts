@@ -28,6 +28,11 @@ export const daimonTimelockAbi = [
         "name": "admin",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_guardianAuthorityExpiry",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -222,6 +227,19 @@ export const daimonTimelockAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "guardianAuthorityExpiry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -643,6 +661,11 @@ export const daimonTimelockAbi = [
   {
     "type": "error",
     "name": "ExecutionFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "GuardianAuthorityExpired",
     "inputs": []
   },
   {

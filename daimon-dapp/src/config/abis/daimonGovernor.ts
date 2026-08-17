@@ -28,6 +28,11 @@ export const daimonGovernorAbi = [
         "name": "_proposalThreshold",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "_guardianAuthorityExpiry",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -137,6 +142,19 @@ export const daimonGovernorAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "guardianAuthorityExpiry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -588,6 +606,11 @@ export const daimonGovernorAbi = [
   {
     "type": "error",
     "name": "AlreadyVoted",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "GuardianAuthorityExpired",
     "inputs": []
   },
   {
