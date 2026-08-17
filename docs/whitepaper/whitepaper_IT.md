@@ -609,17 +609,23 @@ cambiati da nessuno — né da chi ha fatto il deploy, né dalla governance, né
 un aggiornamento. Alcune destinazioni non dovrebbero essere reindirizzabili,
 nemmeno da una maggioranza.
 
-**Il guardian.** Un account detiene un potere: può mettere in pausa il
-contratto in caso di emergenza. Non può cambiare le fee, muovere fondi,
-alterare la governance, emettere token o aggiornare alcunché. Esiste perché
-nella prima fase di vita di un protocollo sette giorni di timelock sono una
-risposta troppo lenta a un exploit in corso.
+**Il guardian.** Un account detiene un insieme ristretto di poteri
+difensivi, fuori dal ciclo di governance: può mettere in pausa il contratto
+in caso di emergenza — per al massimo quattordici giorni per attivazione,
+dopo i quali la pausa decade da sola — e può annullare una proposta di
+governance in corso, o l'operazione già programmata nel timelock che ne
+deriva, prima dell'esecuzione. Non può cambiare le fee, muovere fondi,
+alterare i parametri di governance, emettere token o aggiornare alcunché, e
+non può eseguire: ognuno dei suoi poteri è un freno, mai un motore. Esiste
+perché nella prima fase di vita di un protocollo sette giorni di timelock
+sono una risposta troppo lenta a un exploit in corso.
 
-L'autorità del guardian scade 36 mesi dopo il deploy. Non è un impegno a
-rinunciarvi; è un confronto tra timestamp nel codice che nessuno può rimuovere
-o posticipare. Dopo quella data la funzione di pausa smette di funzionare
-permanentemente — mentre la funzione di riattivazione continua a funzionare,
-così che nessuno possa lasciare il protocollo congelato.
+Ogni potere del guardian scade nello stesso istante, 36 mesi dopo il deploy.
+Non è un impegno a rinunciarvi; è un timestamp fissato indipendentemente in
+tre contratti — token, governor, timelock — che nessuno, governance inclusa,
+può rimuovere o posticipare. Dopo quella data pausa e annullamenti smettono
+di funzionare, e qualsiasi pausa ancora armata è già decaduta: la
+decentralizzazione si completa senza la collaborazione di nessuno.
 
 La Sezione 8.6 descrive i vincoli del guardian per intero.
 
@@ -729,18 +735,19 @@ particolare. È una conseguenza dell'attività di scambio.
 ```
 1.  Avvengono scambi → le fee si accumulano come DMN nel contratto
 
-2.  Quando le fee accumulate superano una soglia, e avviene una
-    vendita verso la pool di liquidità, il contratto vende sul
-    mercato una tranche pari alla soglia, al massimo una per
-    blocco → riceve BNB
+2.  Quando le fee accumulate superano una soglia, un qualsiasi
+    trasferimento diretto di DMN alla pair di liquidità — basta un
+    wei, inviato da chiunque — fa vendere al contratto una tranche
+    pari alla soglia, al massimo una per blocco → riceve BNB
 
 3.  Il BNB viene suddiviso:
         quota marketing  →  60% al pool reward dello staking
                             40% alle operazioni
         quota buyback    →  trattenuta nel contratto
 
-4.  Quando il BNB trattenuto supera una soglia, il contratto compra
-    DMN sul mercato aperto e li invia all'indirizzo morto
+4.  Sullo stesso innesco, quando il BNB trattenuto supera una
+    soglia, il contratto compra DMN sul mercato aperto e li invia
+    all'indirizzo morto — al massimo una fetta per blocco
 
 5.  burnDeadBalanceToFloor() rimuove quel saldo dalla supply totale
     — permanentemente, e al massimo fino al floor
@@ -752,11 +759,20 @@ nessuno può forzarlo oltre il floor. La funzione non ha un chiamante
 privilegiato perché non ne ha bisogno — il suo unico effetto possibile è
 ridurre la supply verso un limite fissato nel codice.
 
-I passaggi 2 e 4 sono automatici e usano la pool di liquidità pubblica. Gli
-swap sono protetti da un limite di slippage e incapsulati in modo che uno swap
-fallito non possa bloccare i trasferimenti: se le condizioni di mercato
-rendono uno swap sfavorevole, viene saltato e ritentato più tardi invece di
-far fallire la transazione dell'utente.
+I passaggi 2 e 4 scattano su un innesco permissionless e usano la pool di
+liquidità pubblica. Le vendite ordinarie attraverso il router,
+deliberatamente, **non** li innescano: il router calcola i propri importi da
+un'istantanea delle riserve della pool, e far girare gli swap del protocollo
+dentro quella finestra permetterebbe di prezzare male un deposito di
+liquidità (finding #1 dell'audit). L'innesco è quindi un semplice
+trasferimento di DMN alla pair — chiunque può inviare un wei per far
+avanzare il ciclo, e budget per blocco limitano l'aggregato indipendentemente
+da chi chiama e quanto spesso. Se nessuno innesca, le fee si accumulano
+finché qualcuno non lo fa: nulla si perde e nulla si blocca. Gli swap sono
+protetti da un limite di slippage e incapsulati in modo che uno swap fallito
+non possa bloccare i trasferimenti: se le condizioni di mercato rendono uno
+swap sfavorevole, viene saltato e ritentato all'innesco successivo invece di
+far fallire la transazione del chiamante.
 
 ## 6.6 Cosa succede al floor
 
@@ -1018,32 +1034,48 @@ possa essere visto arrivare.
 
 ## 8.6 Il guardian
 
-Un account detiene un potere fuori dal ciclo di governance. Il guardian può
-**mettere in pausa il contratto**. Questo è l'intero raggio della sua
-autorità.
+Un account detiene un piccolo insieme di poteri fuori dal ciclo di
+governance, tutti difensivi. Il guardian può **mettere in pausa il
+contratto**, e può **annullare** una proposta di governance — o l'operazione
+già programmata nel timelock che ne deriva — prima che venga eseguita.
+Questo è l'intero raggio della sua autorità: freni, mai un motore.
 
 Non può cambiare le fee, muovere fondi, alterare i parametri di governance,
-emettere token, aggiornare, o influenzare un voto. Può fermare i
-trasferimenti, e nient'altro.
+emettere token, aggiornare, proporre o votare. Può fermare i trasferimenti
+per una finestra limitata e può impedire l'esecuzione di una specifica
+azione di governance; nient'altro.
 
 Esiste per una ragione precisa: nella prima fase di vita di un protocollo,
 sette giorni di timelock non sono un tempo di risposta praticabile a un
-exploit in corso. Il guardian è l'allarme antincendio, non un posto al tavolo.
+exploit in corso — e una proposta malevola colta in volo ha bisogno di un
+interruttore più rapido di una contro-proposta. Il guardian è l'allarme
+antincendio, non un posto al tavolo.
 
-Tre vincoli lo definiscono:
+Quattro vincoli lo definiscono:
 
-**Scade.** L'autorità del guardian termina 36 mesi dopo il deploy. È un
-confronto tra timestamp nel codice, non un impegno — nessuno, governance
-inclusa, può rimuoverlo o prorogarlo. Dopo quella data la funzione di pausa
-smette di funzionare permanentemente.
+**Una pausa è una finestra, non un interruttore.** Attivare la pausa la arma
+per al massimo quattordici giorni — abbastanza da coprire un intero ciclo di
+risposta della governance — e poi decade da sola, senza bisogno di alcuna
+transazione. Tenere il token in pausa richiede di rinnovare attivamente la
+finestra, e ogni rinnovo è un atto pubblico e visibile. Una chiave persa o
+un guardian silente non possono lasciare il protocollo congelato.
 
-**Non può intrappolare il protocollo.** La funzione di riattivazione continua
-a funzionare anche dopo la scadenza del guardian. Il potere di congelare
-scompare; quello di ripartire no. Nessuno può lasciare Daimon in pausa a tempo
-indefinito.
+**Tutto scade, in un solo istante.** Tutti i poteri del guardian — la pausa
+ed entrambi i percorsi di annullamento — terminano 36 mesi dopo il deploy.
+La scadenza è un timestamp fissato indipendentemente nel token, nel governor
+e nel timelock, verificato identico nei tre al deploy, e modificabile da
+nessuno, governance inclusa. Dopo di essa, nuove pause e ogni annullamento
+vengono rifiutati, e qualsiasi pausa ancora armata è già decaduta. Da quel
+momento le proposte di governance non sono annullabili da nessuna autorità
+singola: ciò che supera il voto e il timelock, viene eseguito.
 
-**È visibile.** Mettere in pausa è un evento on-chain. Non c'è modo di usare
-questo potere in silenzio.
+**Non può costare agli holder la migrazione.** Ogni secondo di pausa è
+accreditato alla scadenza della migrazione: se una pausa blocca i claim, la
+finestra di claim si estende esattamente del tempo bloccato. La censura può
+ritardare lo scambio; non può consumarlo.
+
+**È visibile.** Mettere in pausa, rinnovare una pausa e annullare sono
+eventi on-chain. Non c'è modo di usare questi poteri in silenzio.
 
 Il guardian è un compromesso temporaneo con la realtà, limitato nel raggio,
 limitato nel tempo, e progettato per scomparire senza richiedere la
@@ -1238,8 +1270,11 @@ il 10% o il timelock sotto i sette giorni, non può reindirizzare l'indirizzo
 morto o la tesoreria della migrazione. Il protocollo limita la propria stessa
 governance.
 
-**Il guardian.** Può mettere in pausa il contratto. Non può fare nient'altro,
-e perde anche quello dopo 36 mesi.
+**Il guardian.** Può mettere in pausa il contratto in finestre di quattordici
+giorni che decadono da sole, e annullare un'azione di governance in corso
+prima che venga eseguita. Non può toccare fondi, parametri o esecuzione — e
+ognuno di questi poteri termina alla stessa scadenza di 36 mesi, dopo la
+quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
 detiene alcun ruolo in seguito: lo script di deploy rinuncia a ogni permesso

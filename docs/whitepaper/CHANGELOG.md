@@ -17,6 +17,23 @@ at the next released version, together with the final audit report.
   sell, at most one per block (per-block budgets introduced by the Zenith
   #28 fix). Same class of imprecision as the #20 threat-model correction:
   the swap threshold sizes the tranche, it does not bound the inventory.
+- **§6.5, burn cycle, steps 2/4 and closing paragraph** (EN and IT): the
+  automation trigger changed with the Zenith #1 fix. Ordinary sales through
+  the router deliberately no longer trigger the fee swap or the buyback;
+  the trigger is a permissionless direct transfer of DMN to the pair, with
+  per-block budgets capping the aggregate. The old wording ("a sale to the
+  liquidity pool occurs", "steps 2 and 4 are automatic") described the
+  pre-fix model.
+- **§5 guardian paragraph, §8.6, and the actor summary** (EN and IT): the
+  guardian's perimeter was understated — it has always also held the two
+  cancellation powers (governance proposals and their queued timelock
+  operations), not just the pause. The sections now state the real
+  perimeter, the window model introduced by the Zenith #36 fix (14-day
+  self-terminating pauses, renewals visible on-chain), the single 36-month
+  expiry replicated across the three contracts, and the migration pause
+  credit. Note: §8.6's claim that "no one can leave Daimon paused
+  indefinitely" only became true with the #36 fix — before it, an armed
+  pause survived the guardian's expiry.
 
 ## v0.1 — 2026-07-27
 

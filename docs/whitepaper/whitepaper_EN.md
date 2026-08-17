@@ -584,16 +584,22 @@ the migration treasury are fixed at deployment and cannot be changed by
 anyone — not by the deployer, not by governance, not by an upgrade. Some
 destinations should not be redirectable, even by a majority.
 
-**The guardian.** One account holds one power: it can pause the contract in
-an emergency. It cannot change fees, move funds, alter governance, mint, or
-upgrade anything. It exists because in the early life of a protocol, seven
-days of timelock is too slow a response to an exploit in progress.
+**The guardian.** One account holds a narrow set of defensive powers outside
+the governance cycle: it can pause the contract in an emergency — for at
+most fourteen days per activation, after which the pause lapses on its own —
+and it can cancel an in-flight governance proposal, or the scheduled
+timelock operation behind it, before execution. It cannot change fees, move
+funds, alter governance parameters, mint, or upgrade anything, and it cannot
+execute: every one of its powers is a brake, never an engine. It exists
+because in the early life of a protocol, seven days of timelock is too slow
+a response to an exploit in progress.
 
-The guardian's authority expires 36 months after deployment. This is not a
-commitment to renounce it; it is a timestamp comparison in the code that no
-one can remove or postpone. After that date the pause function stops working
-permanently — while the unpause function continues to work, so that no one
-can leave the protocol frozen.
+Every guardian power expires at the same instant, 36 months after
+deployment. This is not a commitment to renounce; it is a timestamp fixed
+independently in three contracts — token, governor, timelock — that no one,
+governance included, can remove or postpone. After that date pausing and
+cancelling stop working, and any pause still armed has already lapsed:
+decentralization completes itself without anyone's cooperation.
 
 Section 8.6 describes the guardian's constraints in full.
 
@@ -698,17 +704,19 @@ is a consequence of trading.
 ```
 1.  Trading occurs → fees accumulate as DMN inside the contract
 
-2.  Once accumulated fees exceed a threshold, and a sale to the
-    liquidity pool occurs, the contract sells one threshold-sized
-    tranche on the market, at most one per block → receives BNB
+2.  Once accumulated fees exceed a threshold, any direct transfer
+    of DMN to the liquidity pair — one wei is enough, sent by
+    anyone — makes the contract sell one threshold-sized tranche
+    on the market, at most one per block → receives BNB
 
 3.  The BNB is split:
         marketing share  →  60% to the staking reward pool
                             40% to operations
         buyback share    →  retained in the contract
 
-4.  When the retained BNB exceeds a threshold, the contract buys
-    DMN on the open market and sends it to the dead address
+4.  On the same trigger, when the retained BNB exceeds a threshold,
+    the contract buys DMN on the open market and sends it to the
+    dead address — at most one slice per block
 
 5.  burnDeadBalanceToFloor() removes that balance from total
     supply — permanently, and down to the floor at most
@@ -719,10 +727,18 @@ special role required. No one can prevent it, and no one can force it past
 the floor. The function has no privileged caller because it needs none — its
 only possible effect is to reduce supply toward a bound fixed in the code.
 
-Steps 2 and 4 are automatic and use the public liquidity pool. The swaps are
-protected by a slippage bound and wrapped so that a failed swap cannot block
-transfers: if market conditions make a swap unfavourable, it is skipped and
-retried later rather than reverting the user's transaction.
+Steps 2 and 4 fire on a permissionless trigger and use the public liquidity
+pool. Ordinary sales through the router deliberately do **not** trigger
+them: the router computes its amounts from a snapshot of the pool's
+reserves, and running the protocol's own swaps inside that window would let
+a liquidity deposit be mispriced (audit finding #1). The trigger is
+therefore a plain transfer of DMN to the pair — anyone can send one wei to
+advance the cycle, and per-block budgets cap the aggregate regardless of who
+calls or how often. If nobody triggers, fees simply accumulate until someone
+does: nothing is lost and nothing blocks. The swaps are protected by a
+slippage bound and wrapped so that a failed swap cannot block transfers: if
+market conditions make a swap unfavourable, it is skipped and retried at the
+next trigger rather than reverting the caller's transaction.
 
 ## 6.6 What happens at the floor
 
@@ -971,32 +987,50 @@ coming.
 
 ## 8.6 The guardian
 
-One account holds one power outside the governance cycle. The guardian can
-**pause the contract**. That is the entire scope of its authority.
+One account holds a small set of powers outside the governance cycle, all
+defensive. The guardian can **pause the contract**, and it can **cancel** a
+governance proposal — or the scheduled timelock operation behind it — before
+it executes. That is the entire scope of its authority: brakes, never an
+engine.
 
 It cannot change fees, move funds, alter governance parameters, mint,
-upgrade, or influence a vote. It can stop transfers, and nothing else.
+upgrade, propose, or vote. It can stop transfers for a bounded window and it
+can stop a specific governance action from executing; nothing else.
 
-It exists for a narrow reason: in the early life of a protocol, seven days of
-timelock is not a viable response time to an exploit in progress. The
-guardian is the fire alarm, not a seat at the table.
+It exists for a narrow reason: in the early life of a protocol, seven days
+of timelock is not a viable response time to an exploit in progress — and a
+malicious proposal caught mid-flight needs a faster off-switch than a
+counter-proposal. The guardian is the fire alarm, not a seat at the table.
 
-Three constraints define it:
+Four constraints define it:
 
-**It expires.** The guardian's authority ends 36 months after deployment.
-This is a timestamp comparison in the code, not a commitment — no one,
-including governance, can remove or extend it. After that date the pause
-function stops working permanently.
+**A pause is a window, not a switch.** Activating the pause arms it for at
+most fourteen days — enough to cover one full governance response cycle —
+and then it lapses on its own, with no transaction needed. Keeping the token
+paused requires actively renewing the window, and every renewal is a public,
+visible act. A lost key or a silent guardian cannot leave the protocol
+frozen.
 
-**It cannot trap the protocol.** The unpause function continues to work after
-the guardian's expiry. The power to freeze disappears; the power to resume
-does not. No one can leave Daimon paused indefinitely.
+**Everything expires, at one instant.** All guardian powers — the pause and
+both cancellation paths — end 36 months after deployment. The deadline is a
+timestamp fixed independently in the token, the governor and the timelock,
+verified identical across the three at deployment, and modifiable by no one,
+governance included. After it, new pauses and every cancellation are
+refused, and any pause still armed has already lapsed. From that moment
+governance proposals are uncancellable by any single authority: whatever
+passes the vote and the timelock, executes.
 
-**It is visible.** Pausing is an on-chain event. There is no way to use this
-power quietly.
+**It cannot cost holders the migration.** Every second of pause is credited
+to the migration deadline: if a pause blocks claims, the claim window is
+extended by exactly the blocked time. Censorship can delay the exchange; it
+cannot consume it.
 
-The guardian is a temporary compromise with reality, bounded in scope, bounded
-in time, and designed to disappear without requiring anyone's cooperation.
+**It is visible.** Pausing, renewing a pause, and cancelling are on-chain
+events. There is no way to use these powers quietly.
+
+The guardian is a temporary compromise with reality, bounded in scope,
+bounded in time, and designed to disappear without requiring anyone's
+cooperation.
 
 ---
 
@@ -1179,8 +1213,11 @@ fees above 10%, cannot lower the quorum below 10% or the timelock below seven
 days, cannot redirect the dead address or the migration treasury. The
 protocol constrains its own governance.
 
-**The guardian.** Can pause the contract. Cannot do anything else, and loses
-even that after 36 months.
+**The guardian.** Can pause the contract in self-terminating fourteen-day
+windows, and cancel an in-flight governance action before it executes.
+Cannot touch funds, parameters, or execution — and every one of these powers
+ends at the same 36-month expiry, after which any armed pause has already
+lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
 afterwards: the deployment script renounces every temporary permission and
