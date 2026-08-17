@@ -38,6 +38,13 @@ interface ITimelockControllerMinimal {
     function schedule(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, uint256 delay) external;
     function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external payable;
     function getMinDelay() external view returns (uint256);
+    // Needed for the atomic cross-cancel (#26): hashOperation is called
+    // rather than recomputing the hash here, so the Timelock stays the
+    // single source of truth for the id formula; operations() lets cancel()
+    // reconcile with an operation already canceled or executed directly.
+    function hashOperation(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external pure returns (bytes32);
+    function operations(bytes32 id) external view returns (uint256 readyTimestamp, bool executed, bool canceled);
+    function cancel(bytes32 id) external;
 }
 
 contract DaimonGovernor {
@@ -102,23 +109,32 @@ contract DaimonGovernor {
     error NotGuardian();
     error AlreadyExecuted();
     error InvalidSupport();
+    error GuardianAuthorityExpired();
+
+    // The single guardian-mandate deadline (#36): the same instant as the
+    // token's guardianExpiry and the Timelock's guardianAuthorityExpiry,
+    // passed in by the deploy script and asserted equal across the three.
+    // Immutable so no path — upgrade, rotation, governance — can extend it.
+    uint256 public immutable guardianAuthorityExpiry;
 
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
         _;
     }
 
-    constructor(address _staking, address _timelock, address _guardian, uint256 _quorumBps, uint256 _proposalThreshold) {
+    constructor(address _staking, address _timelock, address _guardian, uint256 _quorumBps, uint256 _proposalThreshold, uint256 _guardianAuthorityExpiry) {
         require(_quorumBps >= MIN_QUORUM_BPS && _quorumBps <= 5000, "DaimonGovernor: invalid quorum");
         require(
             _staking != address(0) && _timelock != address(0) && _guardian != address(0),
             "DaimonGovernor: zero address"
         );
+        require(_guardianAuthorityExpiry > block.timestamp, "DaimonGovernor: expiry in the past");
         staking = IDaimonStakingVotes(_staking);
         timelock = ITimelockControllerMinimal(_timelock);
         guardian = _guardian;
         quorumBps = _quorumBps;               // 1000 = 10%
         proposalThreshold = _proposalThreshold;
+        guardianAuthorityExpiry = _guardianAuthorityExpiry;
     }
 
     function propose(address target, uint256 value, bytes calldata data, string calldata description) external returns (uint256 id) {
@@ -211,8 +227,35 @@ contract DaimonGovernor {
     /// execute or create them. Meant for emergencies (e.g. a proposal that
     /// exploits a bug discovered after creation, before the final vote).
     function cancel(uint256 id) external onlyGuardian {
+        // The mandate ends at guardianAuthorityExpiry (#36): after it this
+        // function is dead for whoever holds the guardian seat, and with the
+        // Timelock's twin gate the governance pipeline becomes uncancellable
+        // by any single authority — recovery proposals always execute.
+        if (block.timestamp >= guardianAuthorityExpiry) revert GuardianAuthorityExpired();
         Proposal storage p = proposals[id];
         if (p.executed) revert AlreadyExecuted();
+
+        // Atomic cross-cancel (#26): a queued proposal has a scheduled
+        // Timelock operation, and the two flags must never disagree about
+        // executability. Without this, the operation would stay scheduled and
+        // a future additional EXECUTOR (a configuration governance may
+        // legitimately adopt) could execute what the Governor reports as
+        // canceled.
+        if (p.queued) {
+            bytes32 opId = timelock.hashOperation(p.target, p.value, p.data, bytes32(0), p.timelockSalt);
+            (, bool opExecuted, bool opCanceled) = timelock.operations(opId);
+            // Executed directly at the Timelock: the action already happened
+            // on-chain — reporting it canceled here would create the very
+            // divergence this fix removes.
+            if (opExecuted) revert AlreadyExecuted();
+            // Already canceled directly at the Timelock (the guardian's
+            // independent path, kept by design): converge the flags without
+            // re-canceling — the Timelock rejects a double cancel.
+            if (!opCanceled) {
+                timelock.cancel(opId);
+            }
+        }
+
         p.canceled = true;
         emit ProposalCanceled(id);
     }

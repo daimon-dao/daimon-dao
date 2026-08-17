@@ -105,12 +105,19 @@ contract Deploy is Script {
         // ---- 5. Staking (governance temporanea: deployer) ----
         DaimonStaking staking = new DaimonStaking(address(token), deployer);
 
+        // ---- 5b. Scadenza unica del mandato guardian (#36) ----
+        // Un solo istante per tutte e tre le autorita' (pausa sul token,
+        // cancel nel Governor, cancel nel Timelock): letto dal token appena
+        // inizializzato e replicato come immutable negli altri due. Gli
+        // assert finali verificano l'uguaglianza.
+        uint256 guardianAuthorityExpiry = token.guardianExpiry();
+
         // ---- 6. Timelock: deployer proposer/executor/admin SOLO per bootstrap ----
-        DaimonTimelock timelock = new DaimonTimelock(TIMELOCK_MIN_DELAY, deployer, deployer, guardian, deployer);
+        DaimonTimelock timelock = new DaimonTimelock(TIMELOCK_MIN_DELAY, deployer, deployer, guardian, deployer, guardianAuthorityExpiry);
 
         // ---- 7. Governor ----
         DaimonGovernor governor =
-            new DaimonGovernor(address(staking), address(timelock), guardian, QUORUM_BPS, PROPOSAL_THRESHOLD);
+            new DaimonGovernor(address(staking), address(timelock), guardian, QUORUM_BPS, PROPOSAL_THRESHOLD, guardianAuthorityExpiry);
 
         // ---- 8. Migration: DEVE atterrare sull'indirizzo precalcolato ----
         DaimonMigration migration =
@@ -122,6 +129,12 @@ contract Deploy is Script {
         // con msg.sender = governor).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
+        // Canceller (#26): il Governor cancella atomicamente nel Timelock
+        // l'operazione di una proposta in coda che il guardian annulla. Il
+        // guardian CONSERVA il suo CANCELLER diretto (percorso d'emergenza
+        // se il Governor fosse compromesso), entrambi scadono con
+        // guardianAuthorityExpiry.
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
         timelock.revokeRole(timelock.EXECUTOR_ROLE(), deployer);
 
@@ -168,6 +181,15 @@ contract Deploy is Script {
         require(!timelock.hasRole(timelock.EXECUTOR_ROLE(), deployer), "assert: deployer executor");
         require(timelock.hasRole(timelock.PROPOSER_ROLE(), address(governor)), "assert: governor non proposer");
         require(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(governor)), "assert: governor non executor");
+
+        // Cancellazioni (#26/#36): guardian e governor cancellano finche' il
+        // mandato dura, il timelock puo' auto-cancellare via proposta anche
+        // dopo; la scadenza e' UNA sola, identica nei tre contratti.
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), guardian), "assert: guardian non canceller");
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), address(governor)), "assert: governor non canceller");
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), address(timelock)), "assert: timelock senza self-cancel");
+        require(timelock.guardianAuthorityExpiry() == token.guardianExpiry(), "assert: scadenza timelock != token");
+        require(governor.guardianAuthorityExpiry() == token.guardianExpiry(), "assert: scadenza governor != token");
 
         // Staking: governa solo il timelock.
         require(staking.isGovernance(address(timelock)), "assert: timelock non governa lo staking");

@@ -57,11 +57,14 @@ abstract contract StackDeployer is Test {
         token = DaimonV2(payable(address(new ERC1967Proxy(address(impl), initData))));
 
         staking = new DaimonStaking(address(token), deployer);
-        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer);
-        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 ether);
+        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer, token.guardianExpiry());
+        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 ether, token.guardianExpiry());
 
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
+        // Come nello script di deploy (#26): il Governor cancella
+        // atomicamente nel Timelock; il guardian conserva il suo CANCELLER.
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
         timelock.revokeRole(timelock.EXECUTOR_ROLE(), deployer);
 

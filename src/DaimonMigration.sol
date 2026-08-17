@@ -40,6 +40,10 @@ interface IOldDaimon {
 interface INewDaimon {
     function transfer(address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+    // Total seconds of guardian pause window ever scheduled on the new token
+    // (#36). A pause blocks claim()'s outgoing transfer, so every second of
+    // it extends the effective migration deadline by the same amount.
+    function cumulativePauseSeconds() external view returns (uint256);
 }
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -86,10 +90,23 @@ contract DaimonMigration is ReentrancyGuard {
         migrationDeadline = block.timestamp + _migrationDurationSeconds;
     }
 
+    /// @notice The deadline actually enforced: the immutable base deadline
+    /// plus every second of pause window the guardian ever scheduled on the
+    /// new token (#36). A pause makes claim() revert (the outgoing DaimonV2
+    /// transfer is blocked), so holders get the blocked time back — the
+    /// migration window cannot be consumed by censorship against an
+    /// immutable deadline. The credit is monotone and survives early
+    /// unpauses (over-crediting is deliberately in the holders' favour),
+    /// and it is bounded: pauses only exist inside the 36-month guardian
+    /// mandate.
+    function effectiveMigrationDeadline() public view returns (uint256) {
+        return migrationDeadline + newDaimon.cumulativePauseSeconds();
+    }
+
     /// @param amount how many old Daimon you want to migrate. You must first
     /// call oldDaimon.approve(migrationContractAddress, amount).
     function claim(uint256 amount) external nonReentrant {
-        if (block.timestamp > migrationDeadline) revert MigrationEnded();
+        if (block.timestamp > effectiveMigrationDeadline()) revert MigrationEnded();
         if (amount == 0) revert ZeroAmount();
 
         uint256 treasuryBalanceBefore = oldDaimon.balanceOf(treasury);
@@ -128,7 +145,9 @@ contract DaimonMigration is ReentrancyGuard {
     /// decisions (e.g. a new migration round, a voted burn, etc). Executable
     /// only once.
     function sweepUnclaimed() external onlyGovernance nonReentrant {
-        if (block.timestamp <= migrationDeadline) revert MigrationStillOpen();
+        // Same effective deadline as claim(): the sweep must never fire
+        // while a pause credit is still keeping the claim window open.
+        if (block.timestamp <= effectiveMigrationDeadline()) revert MigrationStillOpen();
         if (sweepExecuted) revert AlreadySwept();
 
         sweepExecuted = true;

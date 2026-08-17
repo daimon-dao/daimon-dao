@@ -50,10 +50,22 @@ contract DaimonTimelock is AccessControl {
     error OperationAlreadyScheduled();
     error DelayTooShort();
     error ExecutionFailed();
+    error GuardianAuthorityExpired();
 
-    constructor(uint256 _minDelay, address proposer, address executor, address canceller, address admin) {
+    // The single guardian-mandate deadline (#36). One value, replicated as
+    // an immutable in the token (guardianExpiry), here, and in the Governor:
+    // the deploy script reads it from the token and passes the SAME number
+    // to both constructors, then asserts the three are equal. Immutable on
+    // purpose — an expiry read live from the upgradeable token could be
+    // extended by an upgrade, and "authorities that really expire" is the
+    // whole point of the finding.
+    uint256 public immutable guardianAuthorityExpiry;
+
+    constructor(uint256 _minDelay, address proposer, address executor, address canceller, address admin, uint256 _guardianAuthorityExpiry) {
         require(_minDelay >= MIN_DELAY, "DaimonTimelock: below MIN_DELAY");
+        require(_guardianAuthorityExpiry > block.timestamp, "DaimonTimelock: expiry in the past");
         minDelay = _minDelay;
+        guardianAuthorityExpiry = _guardianAuthorityExpiry;
         _grantRole(PROPOSER_ROLE, proposer);
         _grantRole(EXECUTOR_ROLE, executor);
         _grantRole(CANCELLER_ROLE, canceller);
@@ -61,6 +73,14 @@ contract DaimonTimelock is AccessControl {
         // governance proposal that targets the timelock itself
         // (msg.sender = timelock in execute()).
         _grantRole(ADMIN_ROLE, address(this));
+        // The timelock can also CANCEL via self-call — an executed governance
+        // proposal targeting cancel(), the same pattern as updateDelay().
+        // This is what keeps a queued-but-wrong operation removable after the
+        // guardian mandate ends (see cancel()): scheduled operations never
+        // expire (#24), so some cancellation path must outlive the guardian,
+        // and a majority decision on the public 13-day track is the only one
+        // that cannot censor.
+        _grantRole(CANCELLER_ROLE, address(this));
         // TEMPORARY bootstrap for the initial wiring: the deploy admin MUST
         // call renounceRole(ADMIN_ROLE) at the end of setup, otherwise a
         // hidden owner remains, able to self-assign PROPOSER/EXECUTOR and
@@ -111,6 +131,16 @@ contract DaimonTimelock is AccessControl {
     }
 
     function cancel(bytes32 id) external onlyRole(CANCELLER_ROLE) {
+        // The guardian mandate ends at guardianAuthorityExpiry, and with it
+        // every role-based cancellation — whoever the role may have rotated
+        // to (#36). The single exemption is the timelock itself: a self-call
+        // arrives only from an EXECUTED governance proposal (13-day public
+        // track, majority vote), which is governance acting, not a minority
+        // veto. After expiry the pipeline is therefore uncancellable by any
+        // single authority, and recovery proposals always reach execution.
+        if (block.timestamp >= guardianAuthorityExpiry && msg.sender != address(this)) {
+            revert GuardianAuthorityExpired();
+        }
         Operation storage op = operations[id];
         require(!op.executed, "DaimonTimelock: already executed");
         op.canceled = true;
