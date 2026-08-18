@@ -715,7 +715,7 @@ suddivisa in tre componenti:
 | Marketing / operativo | 2% | 60% ai reward degli staker, 40% alle operazioni |
 | **Totale** | **4%** | |
 
-Due proprietà strutturali contano più dei numeri attuali.
+Tre proprietà strutturali contano più dei numeri attuali.
 
 **Il tetto.** Il contratto rifiuta qualsiasi configurazione in cui la fee
 totale superi il 10%. È imposto da un'istruzione `require`, non da una
@@ -727,6 +727,23 @@ limitata dal codice che governa.
 governance completato. L'attuale 4% è esso stesso il risultato di uno: la
 prima proposta nella storia di Daimon ha ridotto le fee dal 5% al 4%, e il suo
 registro completo compare nella Sezione 9.
+
+**Zero è legale — ed è un cambio di modello, non una regolazione.**
+L'intervallo ha un tetto e nessun minimo: la governance può portare ogni fee
+a zero. Farlo spegne quasi tutto ciò che le fee alimentano. La reflection si
+ferma; nessun nuovo BNB si accumula; buyback, burn, reward di staking e
+finanziamento operativo si esauriscono una volta speso l'inventario già
+raccolto; e finché le fee restano a zero, il floor dei 21 miliardi della 6.2
+è fuori portata per sempre. Ciò che resterebbe è un token liberamente
+trasferibile con una governance funzionante e uno staking ridotto a puro
+peso di voto. La decisione è reversibile per la stessa via che l'ha presa —
+un voto successivo può ripristinare qualsiasi totale fino al 10% — e tredici
+giorni di processo pubblico separano la proposta dal suo effetto: tempo
+sufficiente per accorgersene, se qualcuno guarda. Esiste una configurazione
+in cui lo zero ha senso: un protocollo che abbia già un'altra fonte di
+entrate può azzerare le fee di trasferimento per rimuovere attrito senza
+spegnere nulla. Quella fonte deve esistere prima — azzerare le fee non la
+crea.
 
 ## 6.4 Reflection
 

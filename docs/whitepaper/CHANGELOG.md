@@ -24,6 +24,18 @@ at the next released version, together with the final audit report.
   per-block budgets capping the aggregate. The old wording ("a sale to the
   liquidity pool occurs", "steps 2 and 4 are automatic") described the
   pre-fix model.
+- **§6.3, zeroing the fees is a model change** (EN and IT). `setFees` has a
+  ceiling and no minimum, so zero is a legal governance action — and it
+  switches off nearly everything the fees feed: reflection, new buyback
+  BNB, burn, staking rewards, operational funding, with the 21B floor of
+  §6.2 out of reach for as long as zero persists. Verified against the
+  integrated contracts before writing: no division-by-zero (the only
+  fee division is guarded), residual inventory keeps converting on pokes
+  (all proceeds join the buyback pool once the split is skipped) and the
+  accumulated BNB stays spendable down to the 1-BNB trigger. The section
+  states the reversibility, the 13-day window, and the one configuration
+  where zero is coherent (an existing alternative revenue source). Same
+  entry added to THREAT_MODEL par.2.4 as an accepted known limit.
 - **§6.2/§6.6, the floor as a bound, not a destination** (EN and IT).
   Nothing guarantees the supply will ever reach 21 billion: tokens in lost
   wallets stay in the total supply, keep accruing reflection (their balance

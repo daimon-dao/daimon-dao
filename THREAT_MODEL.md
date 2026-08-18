@@ -106,6 +106,24 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
   and is **accepted by design**: the defense is procedural (public 7-day
   delay + code in the clear + community reaction), not technical. *Tested:*
   only the Timelock can upgrade; guardian and EOAs cannot; state is preserved.
+- **Accepted known limit — fees can be zeroed.** `setFees` enforces the 10%
+  ceiling and **no minimum**: `setFees(0, 0, 0)` is a legal governance
+  action. It is not a parameter tweak but a **model change**. With every fee
+  at zero, reflection stops and no new fee inventory accrues. The poke-driven
+  automation keeps converting what the contract already holds — with
+  `liquidityFee` at zero the swap proceeds skip the marketing/staking split
+  entirely and join the buyback pool — and the buyback keeps spending that
+  BNB down to its 1-BNB trigger threshold. Once the residual inventory runs
+  dry, buyback, burn, staking rewards and operational funding all stop with
+  it, and for as long as fees stay at zero the 21B floor is unreachable —
+  never restored, permanently so. What remains is a freely transferable
+  token with working governance and staking as pure voting weight. The
+  decision is reversible by the same path that took it (a later vote, ≤10%),
+  and the 13-day cycle gives the community time to notice — but only if
+  someone is watching. One configuration would make it coherent: a protocol
+  that already has **another revenue source** can zero its transfer fees to
+  remove friction without switching anything off. That source has to exist
+  first — zeroing the fees does not create it.
 
 ### 2.5 Guardian
 

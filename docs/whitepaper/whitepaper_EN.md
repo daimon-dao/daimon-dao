@@ -682,7 +682,7 @@ into three components:
 | Marketing / operations | 2% | 60% to staker rewards, 40% to operations |
 | **Total** | **4%** | |
 
-Two structural properties matter more than the current numbers.
+Three structural properties matter more than the current numbers.
 
 **The ceiling.** The contract rejects any configuration where the total fee
 exceeds 10%. This is enforced by a `require` statement, not by policy. A
@@ -693,6 +693,22 @@ then revert on execution. Governance is bounded by the code it governs.
 completed governance cycle. The current 4% is itself the result of one: the
 first proposal in Daimon's history reduced fees from 5% to 4%, and its full
 record appears in Section 8.
+
+**Zero is legal — and it is a model change, not a tuning.** The range has a
+ceiling and no floor: governance can set every fee to zero. Doing so
+switches off nearly everything the fees feed. Reflection stops; no new BNB
+accrues; buyback, burn, staking rewards and operational funding run dry
+once the already-collected inventory is spent; and for as long as fees stay
+at zero, the 21-billion floor of 6.2 is out of reach for good. What would
+remain is a freely transferable token with working governance and staking
+as pure voting weight. The decision is reversible by the same path that
+took it — a later vote can restore any total up to 10% — and thirteen days
+of public process stand between the proposal and its effect, which is time
+enough to notice, if someone is watching. There is one configuration in
+which zero makes sense: a protocol that already has another source of
+revenue can drop its transfer fees to remove friction without switching
+anything off. That source has to exist first — zeroing the fees does not
+create it.
 
 ## 6.4 Reflection
 
