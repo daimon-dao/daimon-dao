@@ -681,6 +681,28 @@ il conteggio dei token collassa. Il floor è il punto in cui il protocollo
 smette di ridursi e inizia a operare in una modalità diversa — descritta in
 6.6.
 
+**Il floor è un limite, non una destinazione.** Nulla garantisce che la
+supply raggiungerà mai i 21 miliardi, e una forza lavora in silenzio contro:
+i wallet perduti. I token le cui chiavi sono andate perse restano parte
+della supply totale. Continuano ad accumulare reflection, quindi il loro
+saldo cresce; non possono mai essere venduti, quindi il buyback non può mai
+comprarli; non possono mai essere mossi, quindi nessuno può bruciarli. Col
+tempo la quota di supply che il burn può davvero raggiungere si riduce
+mentre quella irraggiungibile si accumula — e se abbastanza token finissero
+in wallet inaccessibili, il burn si fermerebbe da qualche parte sopra i 21
+miliardi, permanentemente al di qua del floor.
+
+Nessuna funzione esiste per intervenire, e nessuna potrebbe essere aggiunta,
+per costruzione: un contratto capace di togliere token a un indirizzo che
+non controlla non sarebbe più senza padrone — deterrebbe esattamente il
+potere che questo progetto esiste per rimuovere. Bitcoin convive con la
+stessa asimmetria: milioni di BTC giacciono in wallet perduti, quello di
+Satoshi incluso, e nessuno ha mai seriamente proposto di recuperarli, perché
+il rimedio sarebbe peggiore della perdita. Ciò che il floor garantisce
+resta intatto in ogni caso: il burn non può mai portare la supply sotto i 21
+miliardi. Quanto ci si avvicini è una questione di storia del mercato, non
+di codice.
+
 ## 6.3 Fee sulle transazioni
 
 Ogni trasferimento applica una fee, attualmente il 4% dell'importo trasferito,
@@ -790,7 +812,7 @@ far fallire la transazione del chiamante.
 
 ## 6.6 Cosa succede al floor
 
-Quando la supply totale raggiunge i 21 miliardi, il burn si ferma
+Se il burn portasse mai la supply totale a 21 miliardi, lì si fermerebbe
 permanentemente. Non riprende, e nessun voto può riavviarlo.
 
 A quel punto la componente buyback non ha più una destinazione che riduca la
@@ -799,8 +821,9 @@ destinate al burn vengono reindirizzate interamente agli staker — il
 meccanismo passa dal ridurre la supply al distribuire rendimento, in modo
 automatico, sulla base di un controllo sulla supply e non di una decisione.
 
-È uno scenario lontano. È descritto qui perché un protocollo dovrebbe
-specificare il proprio stato terminale, non perché sia imminente.
+È uno scenario lontano e — come spiega la 6.2 — non garantito. È descritto
+qui perché un protocollo dovrebbe specificare il proprio stato terminale,
+non perché quello stato sia promesso.
 
 ---
 

@@ -84,7 +84,10 @@ Works EVEN without a connected wallet (all public on-chain reads).
 - Progress from 1000B toward 21B, gold fill
 - Labels: "1000B → 21B", the amount burned
 - Below, the key sentence always visible:
-  "Once the floor is reached, 100% of the revenue will go to stakers"
+  "If and when the floor is reached, 100% of the revenue will go to stakers"
+  (conditional on purpose: the floor is a bound, not a guaranteed
+  destination — tokens in lost wallets can keep the burn permanently above
+  it; see whitepaper 6.2)
 
 **Quick-access cards (2):**
 - "Your staking" → if the wallet is not connected: "Connect your wallet to see

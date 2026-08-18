@@ -650,6 +650,26 @@ liquidity all degrade as the token count collapses. The floor is the point at
 which the protocol stops shrinking and starts operating in a different mode —
 described in 6.6.
 
+**The floor is a bound, not a destination.** Nothing guarantees that supply
+will ever reach 21 billion, and one force works quietly against it: lost
+wallets. Tokens whose keys are gone remain part of the total supply. They
+keep accruing reflection, so their balance grows; they can never be sold, so
+the buyback can never purchase them; they can never be moved, so no one can
+burn them. Over time the share of supply that burning can actually reach
+shrinks while the unreachable share compounds — and if enough tokens end up
+in inaccessible wallets, burning stalls somewhere above 21 billion,
+permanently short of the floor.
+
+No function exists to intervene, and none could be added, by construction: a
+contract able to take tokens from an address it does not control would no
+longer be ownerless — it would hold precisely the power this design exists
+to remove. Bitcoin lives with the same asymmetry: millions of BTC sit in
+lost wallets, Satoshi's among them, and no one has seriously proposed
+recovering them, because the remedy would be worse than the loss. What the
+floor guarantees is unaffected either way: burning can never take the supply
+below 21 billion. How close it comes is a question of market history, not of
+code.
+
 ## 6.3 Transaction fees
 
 Every transfer applies a fee, currently 4% of the transferred amount, split
@@ -752,8 +772,8 @@ next trigger rather than reverting the caller's transaction.
 
 ## 6.6 What happens at the floor
 
-When total supply reaches 21 billion, burning stops permanently. It does not
-resume, and no vote can restart it.
+If burning ever brings the total supply to 21 billion, it stops there
+permanently. It does not resume, and no vote can restart it.
 
 At that point the buyback component no longer has a destination that reduces
 supply. The protocol's design specifies that the revenue previously directed
@@ -761,8 +781,9 @@ to burning is redirected in full to stakers — the mechanism switches from
 reducing supply to distributing yield, automatically, based on a supply check
 rather than a decision.
 
-This is a distant scenario. It is described here because a protocol should
-specify its terminal state, not because it is imminent.
+This is a distant scenario, and — as 6.2 explains — not a guaranteed one. It
+is described here because a protocol should specify its terminal state, not
+because that state is promised.
 
 ---
 

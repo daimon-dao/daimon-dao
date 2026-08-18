@@ -24,6 +24,18 @@ at the next released version, together with the final audit report.
   per-block budgets capping the aggregate. The old wording ("a sale to the
   liquidity pool occurs", "steps 2 and 4 are automatic") described the
   pre-fix model.
+- **§6.2/§6.6, the floor as a bound, not a destination** (EN and IT).
+  Nothing guarantees the supply will ever reach 21 billion: tokens in lost
+  wallets stay in the total supply, keep accruing reflection (their balance
+  grows), can never be bought by the buyback nor burned by anyone, and no
+  function can intervene — by construction, since a contract able to take
+  tokens from an address it does not control would no longer be ownerless.
+  Enough lost tokens would stall the burn permanently above the floor.
+  §6.2 gains the full statement (with the Bitcoin lost-coins precedent);
+  §6.6's "when the supply reaches" becomes conditional and its closing
+  notes the terminal state is specified, not promised. Same conditional
+  applied to the dApp's floor tagline (DAPP_SPEC and en/it messages, key
+  `floorPromise` — the IT string promised arrival outright).
 - **Systematic precision pass** (EN and IT), following a claims-vs-code
   audit of the whole document. In order of weight: §6.5's "no one can
   prevent" the floor burn — false since the Zenith #5 fix, which gates
