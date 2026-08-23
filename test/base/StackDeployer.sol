@@ -86,6 +86,12 @@ abstract contract StackDeployer is Test {
 
         token.setStakingContract(address(staking));
 
+        // Mirrors the deploy script: 100% of the marketing share to the
+        // stakers from block one (legal-compliance launch configuration —
+        // the operational share stays at zero until a legal entity exists
+        // to receive it; restoring it takes a governance proposal).
+        token.setStakingRewardShareBps(1000);
+
         // 365 days = MAX_MIGRATION_DURATION (#13): the longest window the
         // contract accepts, so the migration stays open as long as possible
         // during the fuzz/invariant runs (the handler catches post-deadline

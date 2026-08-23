@@ -25,11 +25,12 @@ su mainnet devono essere multisig distinti.
 
 ## Verifiche automatiche
 
-- [ ] **`_assertDecentralized()` gira e passa su mainnet** (19 assert nello
+- [ ] **`_assertDecentralized()` gira e passa su mainnet** (20 assert nello
       script di deploy): timelock governa token/staking, deployer senza
       ruoli, nessun `DEFAULT_ADMIN`, supply interamente nella migration,
-      ruoli CANCELLER (guardian, governor, timelock stesso) e **scadenza
-      guardian identica nei tre contratti** (#36), ecc.
+      ruoli CANCELLER (guardian, governor, timelock stesso), **scadenza
+      guardian identica nei tre contratti** (#36) e **quota operativa a
+      zero** (`stakingRewardShareBps == 1000`, compliance al lancio), ecc.
 - [ ] Contratti **verificati su BscScan** (source + costruttori).
 - [ ] `MIN_DELAY` del Timelock = **7 giorni**; `MIN_SUPPLY` = **21B**;
       cap fee 10%; `MAX_PAUSE_DURATION` = **14 giorni** e
