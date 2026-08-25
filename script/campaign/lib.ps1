@@ -75,20 +75,24 @@ function Stop-Anvil {
 ## fresh in each run - so which recent block we pin to does not affect any
 ## result.
 function Resolve-ForkBlock { param([switch]$Force)
-  $pinFile = Join-Path $script:ROOT "script\campaign\forkpin.txt"
-  if (-not $Force -and (Test-Path $pinFile)) {
-    $cached = (Get-Content $pinFile -Raw).Trim()
-    if ($cached -match "^\d+$") {
-      $probe = cast code $script:ROUTER_ADDR --block $cached --rpc-url $script:FORK 2>&1
-      if ($LASTEXITCODE -eq 0 -and "$probe".Length -gt 10) { $script:PIN = [int]$cached; return $script:PIN }
+  $pinFile = Join-Path $script:ROOT (Join-Path "script" (Join-Path "campaign" "forkpin.txt"))
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"   # a pruned pin makes cast write to stderr
+  try {
+    if (-not $Force -and (Test-Path $pinFile)) {
+      $cached = (Get-Content $pinFile -Raw).Trim()
+      if ($cached -match "^\d+$") {
+        $probe = (cast code $script:ROUTER_ADDR --block $cached --rpc-url $script:FORK 2>&1 | Out-String)
+        if ($LASTEXITCODE -eq 0 -and $probe -match "^\s*0x[0-9a-fA-F]{20,}") { $script:PIN = [int]$cached; return $script:PIN }
+      }
     }
-  }
-  $latest = (cast block-number --rpc-url $script:FORK 2>&1)
-  if ($LASTEXITCODE -ne 0) { throw "cannot reach the fork endpoint: $latest" }
-  $pin = [int]$latest - 20
-  Set-Content -Path $pinFile -Value "$pin" -Encoding ascii
-  $script:PIN = $pin
-  return $pin
+    $latest = (cast block-number --rpc-url $script:FORK 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not ($latest -match "^\d+$")) { throw "cannot reach the fork endpoint: $latest" }
+    $pin = [int]$latest - 20
+    Set-Content -Path $pinFile -Value "$pin" -Encoding ascii
+    $script:PIN = $pin
+    return $pin
+  } finally { $ErrorActionPreference = $prev }
 }
 
 function Start-CampaignNode {
@@ -211,6 +215,10 @@ function Deploy-OldToken {
   $supply = BW "1000.00"
   $r = forge create script/campaign/CampaignOldDaimon.sol:CampaignOldDaimon --private-key $script:Key.deployer --rpc-url $script:RPC --broadcast --json --constructor-args "$supply" $script:Addr.deployer 2>&1
   if ($LASTEXITCODE -ne 0) { throw "old-token deploy failed: $r" }
+  # Same nonce hazard as the deploy script: a lingering forge process keeps a
+  # stale nonce view and every cast send after it ends up queued behind a gap.
+  Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 300
   $old = (($r | Out-String) | ConvertFrom-Json).deployedTo
   # Owner exempts the distributor so the model lands EXACT balances.
   Send "deployer" $old "excludeFromFee(address)" @($script:Addr.deployer) -NoInvariant | Out-Null

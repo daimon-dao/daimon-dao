@@ -398,3 +398,17 @@ The invariant Poneder asked for holds on a chain: whichever path is used first, 
 | E4.4 | The proposal's canceled flag | still false - no divergence was created | canceled=false | PASS |
 
 This is the exact configuration the finding described - an additional executor acting outside the Governor - and the fix holds where it counts: the Governor refuses to record as cancelled an action that already took effect on chain. The two contracts still agree.
+
+### E7 -- Compromised guardian: censorship is real, bounded, and ends by itself
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E7.1 | Governance moves to replace the compromised guardian | the guardian cancels it - censorship inside the mandate is real, not theoretical | proposal 1 state = Canceled | PASS |
+| E7.2 | With the token frozen, governance carries on | proposing and voting need no token transfer, so the pause cannot gag the DAO | proposal 2 state = Active, vote recorded | PASS |
+| E7.3 | But nobody can build NEW voting power while paused | staking needs a token transfer, so the pause freezes the electorate as it stands | approve went through (allowances are not frozen), stake attempt: reverted | PASS |
+| E7.4 | The guardian renews the pause over and over, up to the expiry | it CAN keep the token frozen for the whole mandate - at the cost of a visible transaction every fortnight |  renewals shown, then a final pause one day before the end: pauseUntil=1882290193 is clamped to guardianExpiry=1882290193, still paused = true | PASS |
+| E7.5 | Past the expiry, with the guardian refusing to lift anything | the pause lapses on its own and the token works again | isPaused=false, and a transfer went through | PASS |
+| E7.6 | The replacement it censored the first time | now uncancellable: it executes and the guardian is replaced | cancel attempt: reverted with GuardianAuthorityExpired; governor.guardian = 0x000000000000000000000000000000000000b005 | PASS |
+| E7.7 | The marketing wallet through the whole hostile sequence | zero, throughout | DMN=0 | PASS |
+
+The honest summary of the guardian's worst case: inside the mandate it can censor proposals and keep the token frozen, and the campaign shows it doing exactly that. What it cannot do is outlast the mandate - the pause lapses without its cooperation, both cancel paths die at the same instant, and the proposal it censored once executes with nobody able to stop it. The migration window, meanwhile, is handed back second for second (E6).
