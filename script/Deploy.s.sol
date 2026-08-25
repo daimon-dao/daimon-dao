@@ -158,6 +158,19 @@ contract Deploy is Script {
         staking.setGovernance(deployer, false);
 
         token.setStakingContract(address(staking));
+
+        // Quota operativa a ZERO dal primo blocco: decisione di compliance
+        // legale, non di tokenomics. Il 100% della quota marketing dei fee
+        // swap va agli staker finche' non esiste un'entita' giuridica che
+        // possa ricevere la parte operativa. Senza questa riga, tra il
+        // deploy e la prima proposta eseguita (minimo 13 giorni) il 40%
+        // fluirebbe al marketingWallet. Con share = 1000 il calcolo
+        // (marketingEth * 1000) / 1000 e' esatto: toMarketingWallet e' zero
+        // per qualsiasi importo e la call verso il wallet non parte proprio.
+        // Il ripristino di una quota operativa, quando l'entita' esistera',
+        // passa da una proposta di governance (setStakingRewardShareBps).
+        token.setStakingRewardShareBps(1000);
+
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
 
@@ -189,6 +202,9 @@ contract Deploy is Script {
         require(!token.hasRole(token.GOVERNANCE_ROLE(), deployer), "assert: deployer still governs the token");
         require(!token.hasRole(token.DEFAULT_ADMIN_ROLE(), deployer), "assert: deployer is token admin");
         require(token.hasRole(token.GUARDIAN_ROLE(), guardian), "assert: guardian has no pause role");
+        // Launch compliance: operational share at zero; the deploy fails if
+        // the configuration line is ever dropped.
+        require(token.stakingRewardShareBps() == 1000, "assert: operational share not zero (stakingRewardShareBps != 1000)");
 
         // Timelock: self-administers, the deployer has no role.
         require(timelock.hasRole(timelock.ADMIN_ROLE(), address(timelock)), "assert: timelock does not self-administer");
