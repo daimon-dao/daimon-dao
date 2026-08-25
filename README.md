@@ -8,6 +8,8 @@
 
 **[📄 Whitepaper v0.1 (EN)](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_EN_v0.1.pdf)** · [versione italiana](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_IT_v0.1.pdf) · [release](https://github.com/daimon-dao/daimon-dao/releases/tag/whitepaper-v0.1)
 
+**[🛡️ Zenith Audit Report (Aug 2026)](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)** — full report published: 37 findings, all resolved (29 fixed in code, 8 accepted with rationale). Audited reference frozen at tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
+
 </div>
 
 ---
@@ -16,6 +18,9 @@ Daimon is a BEP-20 token with reflection, vote-escrow staking, on-chain
 governance and a public timelock, on BNB Chain / PancakeSwap. No owner, no
 mint function, an immutable supply floor at 21 billion: everything is
 verifiable on-chain, and the deployer renounces every role after deploy.
+The Zenith security audit is complete — every finding fixed or accepted
+with a written rationale, and the exact audited code range is frozen
+forever at tag `audit-final`.
 
 ## Key properties
 
