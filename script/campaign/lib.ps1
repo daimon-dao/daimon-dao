@@ -103,14 +103,23 @@ function SendRaw { param($who, $to, [string]$data, [string]$value = "0")
 }
 function Expect-Revert { param($who, $to, $sig, [string[]]$revArgs = @(), [string]$errSig = "", [string]$value = "0")
   $extra = @(); if ($value -ne "0") { $extra += @("--value", $value) }
-  $r = cast send $to $sig @revArgs --private-key $script:Key[$who] --rpc-url $script:RPC --json @extra 2>&1 | Out-String
-  if ($LASTEXITCODE -eq 0) {
-    try { $j = $r | ConvertFrom-Json; if ($j.status -eq "0x1") { throw "EXPECTED REVERT but tx succeeded: $to $sig" } } catch [System.ArgumentException] {}
-  }
+  # cast prints the revert reason on stderr and exits non-zero. With
+  # $ErrorActionPreference = Stop that native stderr becomes a terminating
+  # error, so an EXPECTED revert would kill the runner: relax it here only.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $r = (cast send $to $sig @revArgs --private-key $script:Key[$who] --rpc-url $script:RPC --json @extra 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  if ($code -eq 0 -and $r -match '"status"\s*:\s*"0x1"') { throw "EXPECTED REVERT but tx succeeded: $to $sig" }
+  $flat = ($r -replace "\s+", " ").Trim()
   if ($errSig -ne "") {
+    $name = $errSig.Split("(")[0]
+    if ($flat -match [regex]::Escape($name)) { return "reverted with $name" }
     $sel = (cast sig $errSig 2>$null)
-    if ($sel -and ($r -notmatch [regex]::Escape($sel.Substring(2)))) { return "reverted (selector unverified: expected $errSig $sel; raw: $(($r -replace "\s+"," ").Substring(0, [Math]::Min(160, $r.Length))))" }
-    return "reverted with $errSig"
+    if ($sel -and ($flat -match [regex]::Escape("$sel".Substring(2)))) { return "reverted with $errSig" }
+    $tail = $flat.Substring(0, [Math]::Min(140, $flat.Length))
+    return "reverted, but NOT with $errSig (raw: $tail)"
   }
   return "reverted"
 }
@@ -157,7 +166,7 @@ function Log-Note { param([string]$text) Log-Line ""; Log-Line $text }
 # -- old-token deploy + realistic distribution ----------------------------
 function Deploy-OldToken {
   $supply = BW "1000.00"
-  $r = forge create script/campaign/CampaignOldDaimon.sol:CampaignOldDaimon --constructor-args "$supply" $script:Addr.deployer --private-key $script:Key.deployer --rpc-url $script:RPC --broadcast --json 2>&1
+  $r = forge create script/campaign/CampaignOldDaimon.sol:CampaignOldDaimon --private-key $script:Key.deployer --rpc-url $script:RPC --broadcast --json --constructor-args "$supply" $script:Addr.deployer 2>&1
   if ($LASTEXITCODE -ne 0) { throw "old-token deploy failed: $r" }
   $old = (($r | Out-String) | ConvertFrom-Json).deployedTo
   # Owner exempts the distributor so the model lands EXACT balances.
