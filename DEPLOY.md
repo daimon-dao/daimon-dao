@@ -4,9 +4,17 @@ Step-by-step guide to deploy the entire stack (DaimonV2 token + staking +
 governor + timelock + migration + mock of the old Daimon) on BSC testnet
 (chain id 97) with Foundry.
 
-## What the script does
+## What the scripts do
 
-[script/Deploy.s.sol](script/Deploy.s.sol) deploys, in a single run:
+The deploy is **two separate broadcasts**, run one after the other. The
+reason: the token's `guardianExpiry` is computed by `initialize()` from the
+block the proxy is MINED in, while a single-run script fixes the value it
+passes to the Timelock/Governor constructors during simulation — on a live
+chain the two skew by the simulation-to-inclusion delay. Phase 2 starts
+after the token is mined and reads the expiry from live chain state, so the
+three copies are identical by construction.
+
+**Phase 1 — [script/DeployPhase1.s.sol](script/DeployPhase1.s.sol):**
 
 1. **MockOldDaimon** — replica of the old token with a 5% fee, the entire
    old-supply to the deployer (to test the migration). Skipped if you set
@@ -16,14 +24,37 @@ governor + timelock + migration + mock of the old Daimon) on BSC testnet
    DaimonMigration**, whose address is precomputed from the deployer's CREATE
    nonce: the entire supply is born already inside the migration contract,
    excluded from fees, without ever passing through an EOA.
-3. **DaimonStaking**, **DaimonTimelock** (minDelay 7 days), **DaimonGovernor**
-   (quorum 10%, threshold 1000 DMN), **DaimonMigration** (30-day window,
-   configurable).
-4. **Full wiring**: governor = proposer + executor of the timelock, timelock =
-   governance of the token and staking, and a **final renounce of all the
-   deployer's bootstrap roles** (including the timelock's ADMIN_ROLE).
-5. **Final on-chain asserts**: the script fails if an EOA still holds an
-   administrative role or if the supply is not entirely in the migration.
+3. **DaimonMigration** (30-day window, configurable) — the LAST transaction
+   of phase 1, with its immutable `governance` bound to the PREDICTED
+   timelock address (the deployer's next CREATE). Phase-1 asserts (10), then
+   the addresses and expected nonce are written to
+   `deployments/two-phase-<chainid>.json` — deliberately no expiry value.
+
+⚠️ **Between the phases, send NOTHING from the deployer**: a nonce change
+makes the predicted timelock address unreachable and phase 2 refuses to run.
+If that happens, abandon the phase-1 contracts and rerun phase 1 fresh.
+
+**Phase 2 — [script/DeployPhase2.s.sol](script/DeployPhase2.s.sol):**
+
+4. **Preflight** (before broadcasting anything): the live chain must match
+   the state file — right chain and deployer, nonce untouched, code in
+   place, none at the predicted timelock address, supply in the migration.
+   Then it reads `token.guardianExpiry()` **from the live token** — the only
+   source; no file and no human ever carries the value.
+5. **DaimonTimelock** (minDelay 7 days; must land on the predicted address),
+   **DaimonStaking**, **DaimonGovernor** (quorum 10%, threshold 1000 DMN).
+6. **Full wiring**: governor = proposer + executor + canceller of the
+   timelock, timelock = governance of the token and staking,
+   `stakingRewardShareBps = 1000` (launch compliance), and a **final
+   renounce of all the deployer's bootstrap roles** (including the
+   timelock's ADMIN_ROLE). Phase-2 asserts (19). If interrupted
+   mid-broadcast, resume with `--resume` — a fresh rerun would refuse.
+
+**Post-broadcast verification — [script/verify-deploy.ps1](script/verify-deploy.ps1):**
+the mandatory final gate. The in-script asserts run in the simulation
+context; this runner re-reads 33 invariants from MINED state through plain
+`eth_call`, including the guardian expiry EXACTLY equal across the three
+contracts, and exits non-zero on any failure.
 
 > The guardian keeps only pause (token) and cancel (timelock/governor), by
 > design. On testnet it can be the deployer; **in production it must be a
@@ -96,26 +127,48 @@ only).
 
 ## 4. Simulation (recommended before deploy)
 
-The command without `--broadcast` runs everything in simulation against the
-real chain (including the calls to the PancakeSwap testnet router and the
-final asserts), **without sending anything**:
+The command without `--broadcast` runs phase 1 in simulation against the
+real chain (including the calls to the PancakeSwap testnet router),
+**without sending anything**:
 
 ```sh
-forge script script/Deploy.s.sol:Deploy --rpc-url bsc_testnet --account daimon-deployer -vvv
+forge script script/DeployPhase1.s.sol:DeployPhase1 --rpc-url bsc_testnet --account daimon-deployer -vvv
 ```
 
-Check in the log the expected addresses and that the confirmation that all
-decentralization asserts passed appears.
+Check in the log the expected addresses. (Phase 2 cannot be simulated before
+phase 1 has actually been broadcast: its preflight reads the live chain.)
 
 ## 5. Real deploy
 
+**Phase 1:**
+
 ```sh
-forge script script/Deploy.s.sol:Deploy `
+forge script script/DeployPhase1.s.sol:DeployPhase1 `
   --rpc-url bsc_testnet `
   --account daimon-deployer `
   --broadcast `
   --verify `
   -vvv
+```
+
+Wait for mining, then — **without sending anything else from the deployer** —
+
+**Phase 2** (no extra environment needed: everything comes from the state
+file, cross-checked against the live chain):
+
+```sh
+forge script script/DeployPhase2.s.sol:DeployPhase2 `
+  --rpc-url bsc_testnet `
+  --account daimon-deployer `
+  --broadcast `
+  --verify `
+  -vvv
+```
+
+**Verification gate:**
+
+```sh
+powershell -File script/verify-deploy.ps1 -Rpc <your-rpc-url>
 ```
 
 (In bash replace the backticks with `\`. With option B use `--private-key ...`
@@ -124,8 +177,10 @@ instead of `--account ...`.)
 - `--broadcast` sends the transactions.
 - `--verify` automatically verifies all the contracts on BscScan testnet at
   the end (requires `ETHERSCAN_API_KEY` in the environment, see below).
-- The deployed addresses are printed at the end of the script and saved in
-  `broadcast/Deploy.s.sol/97/run-latest.json`.
+- The deployed addresses are printed at the end of each phase, saved in
+  `broadcast/DeployPhase1.s.sol/97/run-latest.json` and
+  `broadcast/DeployPhase2.s.sol/97/run-latest.json`, and collected in
+  `deployments/two-phase-97.json`.
 
 ## 6. Verification on BscScan testnet
 
@@ -156,7 +211,7 @@ forge verify-contract <STAKING_ADDRESS> src/DaimonStaking.sol:DaimonStaking --ch
 
 `<INIT_DATA>` is the calldata of `initialize(...)`: you find it in the
 `arguments`/`transaction.input` field of the proxy inside
-`broadcast/Deploy.s.sol/97/run-latest.json`. On BscScan, after verifying the
+`broadcast/DeployPhase1.s.sol/97/run-latest.json`. On BscScan, after verifying the
 proxy use "More Options → Is this a proxy?" to link the implementation ABI.
 
 ## 7. Post-deploy smoke test

@@ -141,8 +141,15 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
   proposals/operations. No economic power, no execution.
 - **One mandate, three enforcement points (#36).** The token's
   `guardianExpiry` (36 months) is replicated as an immutable
-  `guardianAuthorityExpiry` in the Governor and the Timelock, asserted equal
-  at deploy. After that single instant: `setPaused(true)` reverts, BOTH
+  `guardianAuthorityExpiry` in the Governor and the Timelock. The replication
+  is exact by construction: the deploy runs in two phases, and phase 2 reads
+  the token's MINED `guardianExpiry` from the live chain before passing it
+  verbatim to both constructors — a single-broadcast deploy skews the values
+  by the simulation-to-inclusion delay (4 seconds observed on the Level 1
+  testnet campaign, deviation A1.8), because a script fixes what it passes
+  to constructors during simulation. A post-broadcast verification
+  (`script/verify-deploy.ps1`) re-checks the three values for exact,
+  no-tolerance equality on-chain. After that single instant: `setPaused(true)` reverts, BOTH
   cancellation paths (`Governor.cancel`, the Timelock's role-based `cancel`)
   revert, and any armed pause has already lapsed — definitive
   decentralization with no cooperation needed from the guardian.

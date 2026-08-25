@@ -561,10 +561,13 @@ GOVERNANCE_ROLE  →  held by DaimonTimelock, and nothing else
 ```
 
 The deployer holds no role. This is not a matter of intention: the deployment
-script renounces every role it temporarily holds during setup, and then
-asserts — with twenty separate checks that abort the deployment if any of
-them fails — that no externally owned account retains authority over any
-contract. If a single check fails, no deployment occurs.
+runs in two phases, and its scripts renounce every role they temporarily hold
+during setup, then assert — with twenty-nine separate checks across the two
+phases, each aborting the deployment if it fails — that no externally owned
+account retains authority over any contract. Because an assertion inside a
+deployment script proves the simulated state rather than the mined one, a
+standalone verification then re-reads thirty-three invariants from the live
+chain. If a single check fails, the launch does not proceed.
 
 Consequently, changing the fee, changing the marketing wallet, changing the
 staking contract, adding a lock option, sweeping unclaimed migration tokens,
@@ -1064,9 +1067,10 @@ frozen.
 
 **Everything expires, at one instant.** All guardian powers — the pause and
 both cancellation paths — end 36 months after deployment. The deadline is a
-timestamp fixed independently in the token, the governor and the timelock,
-verified identical across the three at deployment, and modifiable by no one,
-governance included. After it, new pauses and every cancellation are
+timestamp the token computes at deployment; the governor and the timelock,
+deployed in a second phase, receive that exact value read back from the
+chain, so the three copies are identical by construction — re-verified
+on-chain after deployment, and modifiable by no one, governance included. After it, new pauses and every cancellation are
 refused, and any pause still armed has already lapsed. From that moment
 governance proposals are uncancellable by any single authority: whatever
 passes the vote and the timelock, executes.
@@ -1271,9 +1275,10 @@ ends at the same 36-month expiry, after which any armed pause has already
 lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
-afterwards: the deployment script renounces every temporary permission and
-then verifies, with twenty assertions that abort deployment on failure,
-that no externally owned account retains authority anywhere in the system.
+afterwards: the deployment scripts renounce every temporary permission and
+then verify, with twenty-nine assertions across the two deployment phases
+and a thirty-three-check verification read back from the live chain, that
+no externally owned account retains authority anywhere in the system.
 
 The full threat model, including the reasoning behind each conclusion, is
 published as `THREAT_MODEL.md` in the repository.

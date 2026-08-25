@@ -61,20 +61,48 @@ it becomes an operational requirement:
 Note: on testnet marketing/treasury coincide with the deployer for testing
 only â€” on mainnet they must be distinct multisigs.
 
-## Automatic checks
+## Automatic checks -- two-phase deploy + post-broadcast verification
 
-- [ ] **`_assertDecentralized()` runs and passes on mainnet** (20 asserts in
-      the deploy script): the timelock governs the token/staking, the deployer
-      has no roles, no `DEFAULT_ADMIN`, the entire supply in the migration,
-      the CANCELLER roles (guardian, governor, the timelock itself), the
-      guardian expiry identical across the three contracts (#36), and the
-      operational share at zero at launch (`stakingRewardShareBps == 1000`,
-      legal-compliance launch configuration).
+The deploy is TWO separate broadcasts. The reason (Level 1 campaign,
+deviation A1.8): a single-broadcast script fixes the guardian expiry it
+passes to the Timelock/Governor constructors during SIMULATION, while the
+token computes its own from the block it is MINED in -- on a live chain the
+values skew by the simulation-to-inclusion delay, and no in-script assert
+can see it. Phase 2 reads the mined value from the live chain instead.
+
+- [ ] **Phase 1 -- `DeployPhase1.s.sol`** (Migration + token; 10 asserts):
+      supply entirely in the migration, migration fee-exempt, marketing
+      wallet as configured, guardian role live, migration wiring (all
+      immutable), and `migration.governance` bound to the PREDICTED timelock
+      address. Writes `deployments/two-phase-<chainid>.json` -- addresses and
+      expected nonce only, deliberately NO expiry value.
+- [ ] **Between the phases: send NOTHING from the deployer.** A nonce change
+      makes the predicted timelock address unreachable and phase 2 will
+      refuse. If phase 2 refuses for any reason, do NOT work around it:
+      abandon the phase-1 contracts and rerun phase 1 fresh (nothing public
+      has happened yet; the only cost is gas).
+- [ ] **Phase 2 -- `DeployPhase2.s.sol`** (Timelock + Staking + Governor +
+      wiring + renounce; 19 asserts): preflight refuses to broadcast unless
+      the live chain matches the state file (nonce, code, linkage, supply);
+      the guardian expiry is read from the LIVE token and passed verbatim --
+      no file and no human ever carries it; the timelock MUST land on the
+      address phase 1 predicted; `stakingRewardShareBps == 1000`
+      (legal-compliance launch configuration) set and asserted here. If
+      phase 2 is interrupted mid-broadcast, resume with `--resume` -- a
+      fresh rerun would shift nonces and refuse.
+- [ ] **Post-broadcast verification -- `script/verify-deploy.ps1 -Rpc <url>`
+      passes with exit code 0 (33 checks). MANDATORY LAUNCH GATE.** The
+      in-script asserts above run in the simulation context; this runner
+      re-reads every invariant from MINED state through plain `eth_call`:
+      roles, admin absence, supply placement, canceller roles, launch share
+      at 1000, migration wiring, and the guardian expiry EXACTLY equal
+      across the three contracts -- no tolerance window, since the
+      two-phase design removes the reason for one. Paste its full output
+      into the launch record.
 - [ ] Contracts **verified on BscScan** (source + constructors).
 - [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%;
-      `MAX_PAUSE_DURATION` = **14 days**; `guardianAuthorityExpiry` =
-      `token.guardianExpiry()` on Governor and Timelock (#36) â€” confirmed
-      on-chain post-deploy.
+      `MAX_PAUSE_DURATION` = **14 days** -- confirmed on-chain post-deploy
+      (the expiry parity line is covered by the verification above).
 
 ## Liquidity
 
