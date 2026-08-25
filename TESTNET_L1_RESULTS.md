@@ -412,3 +412,39 @@ This is the exact configuration the finding described - an additional executor a
 | E7.7 | The marketing wallet through the whole hostile sequence | zero, throughout | DMN=0 | PASS |
 
 The honest summary of the guardian's worst case: inside the mandate it can censor proposals and keep the token frozen, and the campaign shows it doing exactly that. What it cannot do is outlast the mandate - the pause lapses without its cooperation, both cancel paths die at the same instant, and the proposal it censored once executes with nobody able to stop it. The migration window, meanwhile, is handed back second for second (E6).
+
+### F1 -- The Timelock custodies BNB and BEP-20 tokens
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| F1.1 | Anyone sends 5 BNB to the Timelock | accepted: it has a receive() and cannot refuse funds | 0.0000 -> 5.0000 BNB | PASS |
+| F1.2 | Two different BEP-20s sent to the same address | both held: an ERC20 credit needs nothing from the recipient | DMN 1.9000 B, predecessor 0.8900 B | PASS |
+| F1.3 | A stranger tries to walk funds out of the Timelock | refused: execute() is role-gated and only the Governor holds it | reverted | PASS |
+| F1.4 | The guardian tries the same | refused too - its powers are negative only, never spending | reverted | PASS |
+
+Custody needs no new code: the Timelock accepts native BNB through its receive() and any BEP-20 by the ordinary credit, and the only door out is execute(), which the Governor alone can open - and only for an operation that has been through the vote and the delay.
+
+### F2 -- Treasury deploying capital: approve and deposit as two proposals in one window
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| F2.1 | The treasury holds both legs | DMN and BNB in the Timelock, ready to be deployed by vote | DMN 3.8001 B, BNB 4.0000 | PASS |
+| F2.2 | Both raised in the same window | one call per proposal, so a two-step operation is two proposals running in parallel | ids 0 and 1, both Pending/Pending | PASS |
+| F2.3 | First proposal executes: the treasury approves the router | an allowance now exists, set by vote and not by any individual | allowance = 3.8001 B | PASS |
+| F2.4 | Second proposal executes: the treasury deposits into the pool | reserves grow on both sides and the LP position is held by the Timelock itself | DMN reserve 3.8000 B -> 5.7000 B, BNB 3.8000 -> 5.8000, LP held = 60083.2755 | PASS |
+| F2.5 | Marketing wallet through a treasury operation | zero | DMN=0 | PASS |
+
+A two-call DeFi interaction is two proposals, not one transaction - but they can run side by side and land in the same window, so the cost is one 13-day cycle rather than two. The LP tokens come back to the Timelock, which means the position itself stays under the same governance that opened it.
+
+### F3 -- Treasury and the token's own rules: fees apply, maxTx does not
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| F3.1 | Is the Timelock fee-exempt out of the box? | no - the deploy script grants it governance, not a fee exemption | isExcludedFromFee(timelock) = false | PASS |
+| F3.2 | Sending 3.00 B into the treasury | it arrives net of the 5% fee: the treasury pays like anyone else | sent 3.0000 B, credited 2.8500 B | PASS |
+| F3.3 | Treasury balance now exceeds maxTxAmount | 6.00 B in, against a 5.00 B per-transaction cap for ordinary holders | held 5.7002 B, maxTxAmount 5.0000 B | PASS |
+| F3.4 | A governance-voted outflow of 6.00 B, above the per-transaction cap | it goes through: holding GOVERNANCE_ROLE exempts the sender from maxTxAmount | moved 5.7002 B in one transaction, recipient credited 5.4155 B | PASS |
+| F3.5 | Was that outflow taxed? | yes - the exemption and the cap are separate things | sent 5.7002 B, received 5.4155 B, fee 0.2847 B | PASS |
+| F3.6 | After a proposal exempts the treasury | transfers involving it stop paying the fee - a governance decision, with its own 13 days | isExcludedFromFee = true, 2.00 B sent arrived as 2.0000 B | PASS |
+
+Two independent properties that are easy to conflate: the Timelock is exempt from maxTxAmount by virtue of GOVERNANCE_ROLE, so a treasury outflow of any size clears in one transaction - but it is NOT fee-exempt, so every DMN movement in or out is taxed until a proposal says otherwise. A treasury holding DMN should decide that deliberately rather than discover it.

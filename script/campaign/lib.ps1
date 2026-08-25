@@ -125,9 +125,18 @@ function CQ { param($to, $sig, [string[]]$callArgs = @())
 }
 function Send { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$value = "0", [switch]$NoInvariant)
   $extra = @(); if ($value -ne "0") { $extra += @("--value", $value) }
-  $r = cast send $to $sig @sendArgs --private-key $script:Key[$who] --rpc-url $script:RPC --json @extra 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "SEND FAILED [$who -> $to $sig]: $r" }
-  $j = ($r | Out-String | ConvertFrom-Json)
+  # An UNEXPECTED revert must fail fast and loudly. Under
+  # ErrorActionPreference=Stop, cast's stderr becomes a terminating native
+  # error that can leave the runner wedged instead of throwing - so the call
+  # is made with the preference relaxed and the outcome judged explicitly.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $r = (cast send $to $sig @sendArgs --private-key $script:Key[$who] --rpc-url $script:RPC --json @extra 2>&1 | Out-String)
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+  if ($code -ne 0) { throw "SEND FAILED [$who -> $to $sig]: $(($r -replace '\s+',' ').Trim())" }
+  $j = $null
+  try { $j = ($r | ConvertFrom-Json) } catch { throw "SEND: unparseable output [$who -> $to $sig]: $(($r -replace '\s+',' ').Trim())" }
   if ($j.status -ne "0x1") { throw "TX REVERTED [$who -> $to $sig]: $($j.transactionHash)" }
   if (-not $NoInvariant) { Assert-Invariants "$who -> $sig" }
   return $j.transactionHash
@@ -320,10 +329,10 @@ function Bootstrap-Campaign { param([switch]$SkipTreasuryPreflight)
 # -- governance helpers ---------------------------------------------------
 ## Create a proposal; returns its id. Mines a block first so the staker's
 ## checkpoint sits in a SEALED block before the proposal (#12 snapshot).
-function Propose-Call { param($who, $target, [string]$data, [string]$desc, [switch]$NoMine)
+function Propose-Call { param($who, $target, [string]$data, [string]$desc, [string]$value = "0", [switch]$NoMine)
   $st = S
   if (-not $NoMine) { Mine 1 }
-  Send $who $st.governor "propose(address,uint256,bytes,string)" @($target, "0", $data, $desc) | Out-Null
+  Send $who $st.governor "propose(address,uint256,bytes,string)" @($target, $value, $data, $desc) | Out-Null
   $count = CQ $st.governor "proposalCount()(uint256)"
   return ($count - 1)
 }
@@ -504,3 +513,13 @@ function Prop-Field { param($id, [int]$idx)
   return (($lines[$idx] -split "\s+")[0]).Trim()
 }
 function Prop-Num { param($id, [int]$idx) return [System.Numerics.BigInteger]::Parse((Prop-Field $id $idx)) }
+
+## Plain native transfer: cast wants no function signature at all here.
+function SendValue { param($who, $to, [string]$value)
+  $r = cast send $to --value $value --private-key $script:Key[$who] --rpc-url $script:RPC --json 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "SENDVALUE FAILED [$who -> $to]: $r" }
+  $j = ($r | Out-String | ConvertFrom-Json)
+  if ($j.status -ne "0x1") { throw "TX REVERTED [$who -> $to value]: $($j.transactionHash)" }
+  Assert-Invariants "$who -> value"
+  return $j.transactionHash
+}
