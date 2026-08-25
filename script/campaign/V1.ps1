@@ -3,7 +3,7 @@
 Log-Scenario "V1" "script/verify-deploy.ps1 against the live node: every invariant from mined state"
 Start-CampaignNode
 $old = Deploy-OldToken
-$st = Run-MainDeploy $old
+$st = Run-MainDeploy $old -DerivedTreasury
 
 # Nested powershell through Start-Process with redirected files: piping the
 # child's stderr through Out-String can deadlock PS 5.1 when the child throws.

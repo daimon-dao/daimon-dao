@@ -246,16 +246,26 @@ function Deploy-OldToken {
 
 # -- the real deploy under test -------------------------------------------
 ## Two-phase deploy (branch deploy/two-phase): DeployPhase1 then DeployPhase2,
-## addresses read from the state file the scripts themselves maintain --
-## no broadcast-journal parsing needed any more.
-function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight)
-  if (-not $SkipTreasuryPreflight) {
-    Send "deployer" $oldToken "excludeFromFee(address)" @($script:TREASURY) -NoInvariant | Out-Null
-  }
+## addresses read from the state file the scripts themselves maintain.
+## Default: the campaign's separate keyless treasury via the loud
+## TESTNET_TREASURY_OVERRIDE opt-in (the A-scenarios assert against that
+## address). -DerivedTreasury drops the override and exercises the
+## mainnet-faithful path: the treasury IS the timelock.
+## The predecessor fee exemption now happens AFTER phase 2, mirroring the
+## launch order: the exemption is what opens the migration window, so it
+## comes last, once the deployment stands. -SkipTreasuryPreflight keeps its
+## historical name and meaning: no exemption at all (A0 uses it to show the
+## #29 AmountMismatch refusal).
+function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight, [switch]$DerivedTreasury)
   $env:OLD_DAIMON = $oldToken
   $env:GUARDIAN_ADDRESS = $script:Addr.guardian
   $env:MARKETING_WALLET = $script:MARKETING
-  $env:TREASURY_ADDRESS = $script:TREASURY
+  if ($DerivedTreasury) {
+    Remove-Item env:TESTNET_TREASURY_OVERRIDE -ErrorAction SilentlyContinue
+  } else {
+    $env:TESTNET_TREASURY_OVERRIDE = $script:TREASURY
+  }
+  Remove-Item env:TREASURY_ADDRESS -ErrorAction SilentlyContinue   # no longer read by the scripts
   $stateFile = Join-Path $script:ROOT (Join-Path "deployments" "two-phase-97.json")
   if (Test-Path $stateFile) { Remove-Item $stateFile -Force }
 
@@ -277,6 +287,14 @@ function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight)
 
   $dep = Get-Content $stateFile -Raw | ConvertFrom-Json
   if (-not $dep.governor) { throw "PHASE 2 did not complete the state file" }
+
+  # Launch-order step 4: the predecessor fee exemption, AFTER the deployment
+  # stands. Before this call, claim() reverts with AmountMismatch (#29) --
+  # between the phases no claim can have occurred.
+  if (-not $SkipTreasuryPreflight) {
+    Send "deployer" $oldToken "excludeFromFee(address)" @($dep.treasury) -NoInvariant | Out-Null
+  }
+
   $st = [ordered]@{
     old = $oldToken; token = $dep.token; impl = $dep.tokenImplementation
     staking = $dep.staking; timelock = $dep.timelock

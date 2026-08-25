@@ -35,7 +35,16 @@ import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
  * the recovery is to abandon these contracts and redeploy phase 1 fresh --
  * nothing public has happened yet, the only cost is gas.
  *
- * Environment variables: as the single-phase script (see DEPLOY.md).
+ * Environment variables: as the single-phase script (see DEPLOY.md), with
+ * two deliberate exceptions. TREASURY_ADDRESS no longer exists: the
+ * migration's immutable treasury IS the Timelock, derived from the same
+ * predicted address its governance is bound to (a hand-typed treasury is a
+ * launch-day input nobody should be able to get wrong). Local/testnet
+ * rehearsals may set TESTNET_TREASURY_OVERRIDE instead -- loudly logged,
+ * refused on BSC mainnet. And the predecessor fee exemption is NOT
+ * performed here any more: it is the act that opens the migration window,
+ * so it belongs AFTER the post-broadcast verification (see the launch
+ * order in CHECKLIST_MAINNET.md).
  * Output: deployments/two-phase-<chainid>.json, consumed by phase 2.
  */
 contract DeployPhase1 is Script {
@@ -48,10 +57,26 @@ contract DeployPhase1 is Script {
         address router = vm.envOr("ROUTER", PANCAKE_V2_ROUTER_TESTNET);
         address guardian = vm.envOr("GUARDIAN_ADDRESS", deployer);
         address marketingWallet = vm.envOr("MARKETING_WALLET", deployer);
-        address treasury = vm.envOr("TREASURY_ADDRESS", deployer);
         address oldDaimonAddr = vm.envOr("OLD_DAIMON", address(0));
         uint256 oldSupply = vm.envOr("OLD_SUPPLY", uint256(1_000_000_000 ether));
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
+
+        // The migration's treasury is NOT an input: it is DERIVED below (the
+        // treasury IS the Timelock). A separate treasury exists only for
+        // local/testnet rehearsals, as an explicit and loudly logged opt-in
+        // that refuses to run on BSC mainnet. The guard sits HERE, before any
+        // transaction, so a production run with the override set fails in
+        // simulation with nothing broadcast.
+        address treasuryOverride = vm.envOr("TESTNET_TREASURY_OVERRIDE", address(0));
+        bool treasuryOverridden = treasuryOverride != address(0);
+        if (treasuryOverridden) {
+            require(
+                block.chainid != 56,
+                "Phase1: TESTNET_TREASURY_OVERRIDE is not available on BSC mainnet (chain 56). The treasury IS the Timelock."
+            );
+            console2.log("!!! TESTNET-ONLY treasury override active - NOT a mainnet configuration:");
+            console2.log("    migration treasury =", treasuryOverride);
+        }
 
         // The migration deadline is immutable and arms the sweep: hard-stop
         // on an out-of-range duration BEFORE anything reaches the chain.
@@ -66,17 +91,20 @@ contract DeployPhase1 is Script {
         if (guardian == deployer) {
             console2.log("WARNING: GUARDIAN_ADDRESS = deployer. Acceptable on testnet ONLY.");
         }
-        if (treasury == deployer || marketingWallet == deployer) {
-            console2.log("WARNING: treasury/marketing = deployer. Acceptable on testnet ONLY.");
+        if (marketingWallet == deployer) {
+            console2.log("WARNING: marketing = deployer. Acceptable on testnet ONLY.");
         }
 
         // ---- 1. Old Daimon: mock on testnet if not provided ----
+        // NOTE: the mock's fee exemption for the treasury is NOT set here any
+        // more. Without it, claim() reverts with AmountMismatch (#29) -- and
+        // that is now the point: the exemption is the act that makes claims
+        // possible, so it happens LAST in the launch order, after both phases
+        // AND the post-broadcast verification are green. Between the phases
+        // no claim can occur.
         if (oldDaimonAddr == address(0)) {
             MockOldDaimon oldMock = new MockOldDaimon(oldSupply, deployer);
             oldDaimonAddr = address(oldMock);
-            // Without excluding the treasury from the old token's fees,
-            // claim() reverts with AmountMismatch (by design).
-            oldMock.excludeFromFee(treasury);
         }
 
         // ---- 2. Token implementation ----
@@ -89,6 +117,15 @@ contract DeployPhase1 is Script {
         uint256 nonce = vm.getNonce(deployer);
         address predictedMigration = vm.computeCreateAddress(deployer, nonce + 1);
         address predictedTimelock = vm.computeCreateAddress(deployer, nonce + 2);
+
+        // ---- 3b. The treasury IS the Timelock: derived, never typed ----
+        // DaimonMigration.treasury is immutable and receives every migrating
+        // holder's old tokens plus the post-deadline sweep. A hand-typed
+        // value is exactly the class of launch-day input this design exists
+        // to remove: it is the predicted timelock address, the same one the
+        // migration's governance is bound to, and phase 2 verifies the
+        // prediction came true for both fields.
+        address treasury = treasuryOverridden ? treasuryOverride : predictedTimelock;
 
         // ---- 4. UUPS proxy with atomic initialize ----
         // The REAL migration is the _migrationContract: it receives the
@@ -115,7 +152,9 @@ contract DeployPhase1 is Script {
 
         vm.stopBroadcast();
 
-        _assertPhase1(token, migration, deployer, guardian, marketingWallet, treasury, oldDaimonAddr, predictedTimelock);
+        _assertPhase1(
+            token, migration, deployer, guardian, marketingWallet, treasury, oldDaimonAddr, predictedTimelock, treasuryOverridden
+        );
 
         // ---- 6. Persist what phase 2 needs ----
         // Addresses and the expected nonce only -- deliberately NO expiry
@@ -134,6 +173,7 @@ contract DeployPhase1 is Script {
         vm.serializeAddress(json, "token", address(token));
         vm.serializeAddress(json, "migration", address(migration));
         vm.serializeAddress(json, "predictedTimelock", predictedTimelock);
+        vm.serializeBool(json, "treasuryOverridden", treasuryOverridden);
         string memory out = vm.serializeUint(json, "expectedPhase2Nonce", nonce + 2);
         string memory path = string.concat("deployments/two-phase-", vm.toString(block.chainid), ".json");
         vm.writeJson(out, path);
@@ -142,6 +182,7 @@ contract DeployPhase1 is Script {
         console2.log("DaimonV2 (proxy):     ", address(token));
         console2.log("DaimonMigration:      ", address(migration));
         console2.log("Timelock (predicted): ", predictedTimelock);
+        console2.log("Migration treasury:   ", treasury, treasuryOverridden ? "(TESTNET OVERRIDE)" : "(= predicted timelock)");
         console2.log("State file:           ", path);
         console2.log("");
         console2.log("NEXT: wait for mining, then run DeployPhase2 IMMEDIATELY.");
@@ -161,7 +202,8 @@ contract DeployPhase1 is Script {
         address marketingWallet,
         address treasury,
         address oldDaimonAddr,
-        address predictedTimelock
+        address predictedTimelock,
+        bool treasuryOverridden
     ) internal view {
         // Supply: entirely in the migration, never through an EOA.
         require(token.totalSupply() == token.INITIAL_SUPPLY(), "assert-p1: unexpected total supply");
@@ -174,7 +216,14 @@ contract DeployPhase1 is Script {
         // Migration wiring (all immutable -- wrong here is wrong forever).
         require(address(migration.newDaimon()) == address(token), "assert-p1: migration.newDaimon mismatch");
         require(address(migration.oldDaimon()) == oldDaimonAddr, "assert-p1: migration.oldDaimon mismatch");
-        require(migration.treasury() == treasury, "assert-p1: migration.treasury mismatch");
+        // The treasury check is REAL now, not an echo of an input: on the
+        // mainnet path it must be the predicted timelock; only the loud
+        // testnet override compares against a supplied value.
+        if (treasuryOverridden) {
+            require(migration.treasury() == treasury, "assert-p1: migration.treasury != testnet override");
+        } else {
+            require(migration.treasury() == predictedTimelock, "assert-p1: migration.treasury != predicted timelock");
+        }
         require(migration.governance() == predictedTimelock, "assert-p1: migration.governance != predicted timelock");
     }
 }

@@ -72,6 +72,7 @@ $token     = $st.token;     $timelock = $st.timelock; $governor = $st.governor
 $staking   = $st.staking;   $migration = $st.migration
 $deployer  = $st.deployer;  $guardian = $st.guardian
 $treasury  = $st.treasury;  $marketingWallet = $st.marketingWallet
+$treasuryOverridden = [bool]$st.treasuryOverridden
 $oldDaimon = $st.oldDaimon
 
 Write-Output "Post-broadcast verification -- chain $chainId"
@@ -142,6 +143,15 @@ Check "migration: governance is the timelock"   (CastCall $migration "governance
 Check "migration: newDaimon is the token"       (CastCall $migration "newDaimon()(address)") $token
 Check "migration: oldDaimon as configured"      (CastCall $migration "oldDaimon()(address)") $oldDaimon
 Check "migration: treasury as configured"       (CastCall $migration "treasury()(address)") $treasury
+# The treasury IS the Timelock (derived in phase 1, fulfilled in phase 2).
+# A testnet rehearsal may have opted into a separate treasury: that is NOT a
+# mainnet-valid configuration and the row says so out loud.
+if ($treasuryOverridden) {
+  Write-Output "!!! TESTNET-ONLY treasury override was active on this deploy - NOT a mainnet-valid configuration."
+  Check "migration: treasury override (TESTNET ONLY)" (CastCall $migration "treasury()(address)") $treasury
+} else {
+  Check "migration: treasury is the timelock"  (CastCall $migration "treasury()(address)") $timelock
+}
 
 # ---- Pair exists ----
 $pairAddr = CastCall $token "uniswapV2Pair()(address)"

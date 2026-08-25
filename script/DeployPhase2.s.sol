@@ -48,6 +48,8 @@ contract DeployPhase2 is Script {
         DaimonMigration migration = DaimonMigration(vm.parseJsonAddress(json, ".migration"));
         address predictedTimelock = vm.parseJsonAddress(json, ".predictedTimelock");
         uint256 expectedNonce = vm.parseJsonUint(json, ".expectedPhase2Nonce");
+        address fileTreasury = vm.parseJsonAddress(json, ".treasury");
+        bool treasuryOverridden = vm.parseJsonBool(json, ".treasuryOverridden");
 
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
@@ -68,6 +70,16 @@ contract DeployPhase2 is Script {
             migration.governance() == predictedTimelock,
             "Phase2: migration.governance does not match the predicted timelock"
         );
+        // The treasury IS the Timelock (derived in phase 1). The testnet
+        // override is re-guarded here too: a state file produced with the
+        // override can never drive a mainnet phase 2.
+        require(migration.treasury() == fileTreasury, "Phase2: migration.treasury does not match the state file");
+        if (treasuryOverridden) {
+            require(block.chainid != 56, "Phase2: the state file carries a testnet treasury override - not valid on BSC mainnet");
+            console2.log("!!! TESTNET-ONLY treasury override active on this deploy:", fileTreasury);
+        } else {
+            require(fileTreasury == predictedTimelock, "Phase2: state file treasury is not the predicted timelock");
+        }
         require(address(migration.newDaimon()) == address(token), "Phase2: migration is not bound to this token");
         require(
             token.balanceOf(address(migration)) == token.INITIAL_SUPPLY(),
@@ -138,7 +150,7 @@ contract DeployPhase2 is Script {
 
         vm.stopBroadcast();
 
-        _assertPhase2(token, staking, timelock, governor, migration, deployer, guardian);
+        _assertPhase2(token, staking, timelock, governor, migration, deployer, guardian, fileTreasury, treasuryOverridden);
 
         // ---- 7. Rewrite the state file, complete: phase 1 + phase 2 ----
         // (three-arg writeJson replaces a key, it does not merge objects;
@@ -157,13 +169,14 @@ contract DeployPhase2 is Script {
         vm.serializeAddress(j2, "timelock", address(timelock));
         vm.serializeAddress(j2, "staking", address(staking));
         vm.serializeAddress(j2, "governor", address(governor));
+        vm.serializeBool(j2, "treasuryOverridden", treasuryOverridden);
         string memory out = vm.serializeUint(j2, "guardianAuthorityExpiry", token.guardianExpiry());
         vm.writeJson(out, path);
         _logDeployment(token, staking, timelock, governor, migration);
     }
 
     /// Phase-2 asserts: the 17 original decentralization asserts that need
-    /// the governance contracts, plus 2 linkage asserts (19 total). Note the
+    /// the governance contracts, plus 3 linkage asserts (20 total). Note the
     /// expiry-parity ones are now meaningful even here: all three values are
     /// either live chain state or a constructor argument copied verbatim.
     /// The authoritative gate remains script/verify-deploy.ps1.
@@ -174,7 +187,9 @@ contract DeployPhase2 is Script {
         DaimonGovernor governor,
         DaimonMigration migration,
         address deployer,
-        address guardian
+        address guardian,
+        address expectedTreasury,
+        bool treasuryOverridden
     ) internal view {
         // Token: governed only by the timelock, no DEFAULT_ADMIN assigned.
         require(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "assert: timelock does not govern the token");
@@ -205,9 +220,15 @@ contract DeployPhase2 is Script {
         require(staking.isGovernance(address(timelock)), "assert: timelock does not govern staking");
         require(!staking.isGovernance(deployer), "assert: deployer still governs staking");
 
-        // Linkage (new): the phase-1 prediction came true, and the token
-        // knows its staking contract.
+        // Linkage (new): the phase-1 predictions came true -- governance AND
+        // treasury both resolve to the timelock deployed this phase -- and
+        // the token knows its staking contract.
         require(migration.governance() == address(timelock), "assert: migration governance is not the timelock");
+        if (treasuryOverridden) {
+            require(migration.treasury() == expectedTreasury, "assert: migration treasury != testnet override");
+        } else {
+            require(migration.treasury() == address(timelock), "assert: migration treasury is not the timelock");
+        }
         require(token.stakingContract() == address(staking), "assert: token staking contract mismatch");
     }
 

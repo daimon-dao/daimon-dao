@@ -3,7 +3,7 @@
 Log-Scenario "A1-2p" "Two-phase deploy on a live node: the A1.8 skew is gone, exactly"
 Start-CampaignNode
 $old = Deploy-OldToken
-$st = Run-MainDeploy $old
+$st = Run-MainDeploy $old -DerivedTreasury
 
 Log-Step "A1-2p.1" "Both phases broadcast against the live node" "five contracts up, addresses recorded by the scripts own state file" "token=$($st.token), timelock=$($st.timelock), governor=$($st.governor)" $(if ($st.token -and $st.timelock -and $st.governor) { "PASS" } else { "DEVIATION" })
 
@@ -32,7 +32,12 @@ Log-Step "A1-2p.5" "Supply placement across the phase boundary" "the entire supp
 $migGov = CQRaw $st.migration "governance()(address)"
 Log-Step "A1-2p.6" "The phase-1 prediction came true" "migration.governance (immutable, set in phase 1) IS the timelock deployed in phase 2" "migration.governance=$migGov, timelock=$($st.timelock)" $(if ("$migGov".ToLower() -eq "$($st.timelock)".ToLower()) { "PASS" } else { "DEVIATION" })
 
+# Item 1 follow-up: the treasury is DERIVED (it IS the timelock), never typed.
+$migTreasury = CQRaw $st.migration "treasury()(address)"
+Log-Step "A1-2p.7" "The migration treasury, read live" "it IS the timelock: derived in phase 1 from the same prediction as the governance, fulfilled in phase 2" "migration.treasury=$migTreasury, timelock=$($st.timelock)" $(if ("$migTreasury".ToLower() -eq "$($st.timelock)".ToLower()) { "PASS" } else { "DEVIATION" })
+$depState = Get-Content (Join-Path $script:ROOT (Join-Path "deployments" "two-phase-97.json")) -Raw | ConvertFrom-Json
+Log-Step "A1-2p.8" "How the treasury value came to be" "no hand-typed input anywhere: the state file records treasuryOverridden=false" "treasuryOverridden=$($depState.treasuryOverridden), env override present=$(if ($env:TESTNET_TREASURY_OVERRIDE) { 'yes' } else { 'no' })" $(if (-not $depState.treasuryOverridden) { "PASS" } else { "DEVIATION" })
 $mk = CQ $st.token "balanceOf(address)(uint256)" @($script:MARKETING)
-Log-Step "A1-2p.7" "Marketing wallet after the full two-phase deploy" "zero, as always" "DMN=$mk" $(if ($mk -eq 0) { "PASS" } else { "DEVIATION" })
+Log-Step "A1-2p.9" "Marketing wallet after the full two-phase deploy" "zero, as always" "DMN=$mk" $(if ($mk -eq 0) { "PASS" } else { "DEVIATION" })
 Stop-Anvil
 Write-Output "A1-2p COMPLETE"
