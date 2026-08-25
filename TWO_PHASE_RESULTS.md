@@ -91,3 +91,43 @@ VERIFICATION PASSED: 33/33 checks green against live chain state.
 
 ```
 | V1.2 | Counter-proof: a state file with a wrong governor address | the verification fails loudly with a non-zero exit code | exit=5 | PASS |
+
+### A2 -- Partial migration: 1:1 credit, old tokens out of circulation
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A2.1 | tp1 (76.90 B of old) migrates 30.00 B | receives exactly 30.00 B DMN | 30.0000 B | PASS |
+| A2.2 | tp1 old-token balance after the partial claim | 76.90 - 30.00 = 46.90 B left | 46.9000 B (was 76.9000 B) | PASS |
+| A2.3 | Where the old tokens went | the treasury holds them: out of circulation, not burned | treasury +30.0000 B | PASS |
+| A2.4 | Migration DMN reserve | down by exactly what it credited | -30.0000 B | PASS |
+| A2.5 | Migration internal accounting | migratedAmount[tp1] = totalMigrated = 30.00 B | per-account=30.0000 B, total=30.0000 B | PASS |
+
+### A3 -- Second claim by the same holder: the remainder, with no double counting
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A3.1 | tp1 claims the remaining 46.90 B after the earlier 30.00 B | holds 76.90 B DMN in total, 1:1 across two claims | 76.9000 B | PASS |
+| A3.2 | tp1 old balance | zero: fully migrated | 0.0000 B | PASS |
+| A3.3 | Per-account accounting after two claims | migratedAmount[tp1] = 76.90 B, counted once, not twice | 76.9000 B | PASS |
+| A3.4 | Protocol-wide total | totalMigrated = 76.90 B, matching the treasury old-token holding | total=76.9000 B, treasury=76.9000 B | PASS |
+| A3.5 | tp1 tries a third claim with nothing left | fails: allowance and balance are both exhausted, nothing is credited twice | reverted | PASS |
+
+### A4 -- Full migration in one call: exact 1:1
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A4.1 | tp2 migrates its entire holding in one transaction | DMN received equals the old balance exactly, to the wei | old was 75.4180 B, DMN now 75.4180 B | PASS |
+| A4.2 | tp2 old balance afterwards | zero | 0.0000 B | PASS |
+| A4.3 | Treasury custody | holds exactly the migrated amount | 75.4180 B | PASS |
+
+### A5 -- Everyone migrates: total migratable against the deploy script funding logic
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A5.1 | Migration DMN funding, as the deploy script leaves it | the entire INITIAL_SUPPLY: the script funds it by making Migration the initialize() recipient | 1000.0000 B | PASS |
+| A5.2 | Non-migratable old tokens | dead address plus the old contract itself, unreachable by any claim | dead=20.0000 B + contract=13.4700 B = 33.4700 B | PASS |
+| A5.3 | Every reachable holder migrates 100 percent | total migrated = supply minus non-migratable = 966.53 B | 966.5300 B (expected 966.5300 B) | PASS |
+| A5.4 | Was the funding sufficient | yes with room to spare: no claim can ever be refused for lack of DMN | funded 1000.0000 B vs claimed 966.5300 B, surplus left 33.4700 B | PASS |
+| A5.5 | Global invariant after a full-supply migration | marketing wallet still at zero | DMN=0 | PASS |
+
+The funding question has a structural answer rather than an arithmetic one: the script never computes a migration budget, it makes Migration the recipient of the entire INITIAL_SUPPLY in initialize(). Funding therefore cannot fall short - it exceeds the migratable amount by exactly the tokens nobody can claim (dead address and the old contract), which the post-deadline sweep later routes to the treasury.
