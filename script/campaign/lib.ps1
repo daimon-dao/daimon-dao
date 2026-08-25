@@ -350,12 +350,16 @@ function Govern { param($voter, $target, [string]$data, [string]$desc)
 }
 
 # -- the operation id the Governor derives for a queued proposal ----------
+## The Timelock operation id behind a queued proposal, derived exactly as the
+## Governor derives it (the Timelock's own hashOperation is the authority).
 function Op-Id { param($id)
   $st = S
-  $p = cast call $st.governor "proposals(uint256)(address,address,uint256,bytes,string,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bytes32,uint256)" "$id" --rpc-url $script:RPC 2>&1
-  $lines = ("$p" -split "\r?\n") | Where-Object { $_ -ne "" }
-  $target = $lines[1].Trim(); $value = ($lines[2] -split "\s+")[0].Trim(); $data = $lines[3].Trim(); $salt = $lines[15].Trim()
-  return (CQ $st.timelock "hashOperation(address,uint256,bytes,bytes32,bytes32)(bytes32)" @($target, $value, $data, "0x0000000000000000000000000000000000000000000000000000000000000000", $salt))
+  $target = Prop-Field $id 1
+  $value  = Prop-Field $id 2
+  $data   = Prop-Field $id 3
+  $salt   = Prop-Field $id 15
+  $zero = "0x0000000000000000000000000000000000000000000000000000000000000000"
+  return (CQRaw $st.timelock "hashOperation(address,uint256,bytes,bytes32,bytes32)(bytes32)" @($target, $value, $data, $zero, $salt))
 }
 
 # -- liquidity (real PancakeSwap router on the fork) ----------------------

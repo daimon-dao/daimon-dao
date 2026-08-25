@@ -353,3 +353,48 @@ The whale that appeared mid-vote is exactly the actor the snapshot exists to neu
 | D4.7 | A second execute() of the same proposal | refused: no replay | reverted with AlreadyExecuted | PASS |
 
 This is the historical proposal #0 replayed end to end - fees from 5% to 4% - through the real script's deployment: thirteen days of process compressed into warps, with every ordering guard refusing on its own terms.
+
+### E1 -- Guardian pause and unpause
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E1.1 | The guardian pauses the token | paused, with a window that ends at most MAX_PAUSE_DURATION out | isPaused=true, pauseUntil-now = 14 days, MAX_PAUSE_DURATION = 14 days | PASS |
+| E1.2 | An ordinary transfer while paused | refused | reverted with ContractIsPaused | PASS |
+| E1.3 | The permissionless burn while paused | also refused - the pause covers the supply accounting too (#5) | reverted | PASS |
+| E1.4 | The guardian unpauses | transfers work again, and the window is cleared | isPaused=false, pauseUntil=0, bob now holds 0.9500 B | PASS |
+| E1.5 | Anyone else trying to pause | refused: the role is the guardian's alone | reverted | PASS |
+
+### E2 -- The pause window lapses on its own (Zenith #36)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E2.1 | Pause armed | a 14-day window, and the same 14 days credited to the migration clock | pauseUntil=1788885874, cumulativePauseSeconds=14 days | PASS |
+| E2.2 | Thirteen days later, nobody has touched anything | still paused: the window has not run out | isPaused=true | PASS |
+| E2.3 | Past the fourteenth day, still with NO transaction from anyone | the pause has lapsed by itself and transfers work | isPaused=false, and a transfer went through | PASS |
+| E2.4 | The raw flag afterwards | still true - which is why interfaces must read isPaused(), not paused() | paused()=true vs isPaused()=false | PASS |
+| E2.5 | The guardian renews the pause | a fresh window, and the credit grows again - every renewal is a visible transaction | credit 14 -> 28 days | PASS |
+
+A pause cannot persist through inaction: keeping the token frozen takes a renewal every fortnight, each one an on-chain event. A lost guardian key stops mattering fourteen days later.
+
+### E3 -- Both cancel paths on the same operation: the flags converge, nothing reverts (Zenith #26)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E3.1 | A proposal reaches the Timelock | queued on both sides: the Governor says Queued, the operation is scheduled | state=Queued, operation=1788799597 [1.788e9] false false | PASS |
+| E3.2 | The guardian cancels directly at the Timelock | the Governor already reflects it: state reads Canceled, not Queued (#26 pt.4-6) | Canceled | PASS |
+| E3.3 | Governor.cancel() on an operation already cancelled at the Timelock | succeeds: it sees the operation is cancelled and does NOT call cancel again (which would revert) | proposal.canceled=true, operation=1788799597 [1.788e9] false true | PASS |
+| E3.4 | Executing it afterwards | impossible from either side | reverted | PASS |
+| E3.5 | Cancelling the operation a second time at the Timelock | refused - which is exactly why the Governor had to check first | reverted with OperationAlreadyCanceled | PASS |
+
+The invariant Poneder asked for holds on a chain: whichever path is used first, the two contracts never disagree about whether the operation can still execute, and the second path converges instead of reverting.
+
+### E4 -- Already executed at the Timelock: Governor.cancel refuses (Zenith #26)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E4.1 | Governance adds a second executor | a legitimate configuration - and the one that made this edge reachable | stranger holds EXECUTOR_ROLE = true | PASS |
+| E4.2 | The second executor runs the operation straight at the Timelock | it takes effect on the token, while the Governor's own executed flag stays false | fees now 4%, proposal.executed flag = false | PASS |
+| E4.3 | The guardian tries to cancel it afterwards | refused with AlreadyExecuted: the Governor reads the Timelock and will not call something cancelled that already happened | reverted with AlreadyExecuted | PASS |
+| E4.4 | The proposal's canceled flag | still false - no divergence was created | canceled=false | PASS |
+
+This is the exact configuration the finding described - an additional executor acting outside the Governor - and the fix holds where it counts: the Governor refuses to record as cancelled an action that already took effect on chain. The two contracts still agree.
