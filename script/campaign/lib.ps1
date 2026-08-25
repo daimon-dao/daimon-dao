@@ -75,6 +75,7 @@ function Start-CampaignNode {
     try { $cid = cast chain-id --rpc-url $script:RPC 2>$null; if ($cid -eq "97") { $ok = $true; break } } catch {}
   }
   if (-not $ok) { throw "anvil did not come up" }
+  Sanitize-Accounts
 }
 
 # -- cast wrappers --------------------------------------------------------
@@ -233,10 +234,13 @@ function FmtB { param($wei)
 ## Format wei as plain token units, 4 decimals.
 function FmtT { param($wei)
   $b = [System.Numerics.BigInteger]$wei
+  $neg = ($b -lt [System.Numerics.BigInteger]::Zero)
+  if ($neg) { $b = -$b }
   $whole = [System.Numerics.BigInteger]::Divide($b, $script:E18)
   $rem = $b - ($whole * $script:E18)
   $frac = [System.Numerics.BigInteger]::Divide($rem * 10000, $script:E18)
-  return "$whole.$($frac.ToString().PadLeft(4,'0'))"
+  $s = "$whole.$($frac.ToString().PadLeft(4,'0'))"
+  if ($neg) { return "-$s" } else { return $s }
 }
 
 ## Migrate: approve the old token to Migration, then claim 1:1.
@@ -409,3 +413,24 @@ function SendAsync { param($who, $to, $sig, [string[]]$sendArgs = @())
 function Automine { param([bool]$on) RpcCall "evm_setAutomine" @("$($on.ToString().ToLower())") | Out-Null }
 ## The DMN fee inventory sitting in the token contract, not yet converted.
 function Fee-Inventory { $st = S; return (CQ $st.token "balanceOf(address)(uint256)" @($st.token)) }
+
+## The public dev-mnemonic accounts are NOT clean on a public testnet: on the
+## forked chain every one of them carries an EIP-7702 delegation (0xef0100 +
+## address, 23 bytes) to a sweeper that forwards any native balance it
+## receives. Left in place it silently drains a role account the moment the
+## router pays it - the campaign needs plain EOAs, so the delegation is
+## cleared and the balance restored on the local fork only.
+function Sanitize-Accounts {
+  $all = @()
+  foreach ($k in $script:Addr.Keys) { $all += $script:Addr[$k] }
+  $all += $script:MARKETING; $all += $script:TREASURY; $all += $script:POOLSIM
+  foreach ($s in $script:TP_SILENT) { $all += $s }
+  foreach ($a in $all) {
+    RpcCall "anvil_setCode" @($a, "0x") | Out-Null
+  }
+  # Role signers get gas money; the keyless constants (marketing, treasury)
+  # are deliberately left at zero so the global invariant stays meaningful.
+  foreach ($k in $script:Addr.Keys) {
+    RpcCall "anvil_setBalance" @($script:Addr[$k], "0x21E19E0C9BAB2400000") | Out-Null  # 10000 ether
+  }
+}

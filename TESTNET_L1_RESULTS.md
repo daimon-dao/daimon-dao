@@ -204,3 +204,37 @@ Operational note surfaced by running it: maxTxAmount is 5.00 B at deploy (0.5% o
 | B1.2 | A second transfer, bob back to alice | the contract's fee inventory grows by 4% of each transfer | inventory 480038402.5601 -> 560049203.4882 | PASS |
 | B1.3 | carol never sends or receives anything during the two transfers | her balance GROWS anyway: reflection accrues to passive holders | 3800152006.0802 -> 3800228010.2604 (+76004.1801) | PASS |
 | B1.4 | Total supply across the reflection | unchanged: reflection redistributes, it does not mint or burn | 1000.0000 B | PASS |
+
+### B2 -- Router sell above minimumTokensBeforeSwap: the sell passes, the automation stays put (Zenith #1)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B2.1 | Fee inventory before the sell | at or above minimumTokensBeforeSwap, so the automation is armed | inventory 0.5600 B vs threshold 0.2000 B | PASS |
+| B2.2 | alice sells 1.00 B through the real PancakeSwap router | the sell goes through: she receives BNB | alice BNB +0.7587 | PASS |
+| B2.3 | Did the fee swap fire during the sell? | NO - a router-initiated transfer skips the automation, so no DMN was converted | inventory 0.5600 B -> 0.6000 B (only grew, by the sell's own fee) | PASS |
+| B2.4 | Did any BNB reach the token contract? | none: no conversion happened at all | contract BNB 0.0000 -> 0.0000 | PASS |
+| B2.5 | Did the staking pool receive anything? | no: with nothing converted there is nothing to distribute | staking BNB 0.0000 -> 0.0000 | PASS |
+
+This is the #1 fix behaving exactly as designed, and it is the behaviour the whitepaper now describes: ordinary sales through the router no longer convert fees, because doing so inside the router's own reserve window is what let a liquidity deposit be mispriced. The inventory simply accumulates until somebody pokes.
+
+#### Harness note (not a protocol finding): the dev accounts are not EOAs on a public fork
+
+The first B2 run showed alice losing her entire 10,000 BNB in a transaction
+that sent zero value and burned 0.0000239 BNB of gas. `cast run` on that
+transaction shows why:
+
+```
+- [9496] 0x3C44...93BC::fallback{value: 758783513405362144}()
+   - [0] 0x1330d9...8869::fallback{value: 10000758751550905362144}()
+```
+
+Every one of the ten well-known Anvil/Hardhat dev addresses carries 23 bytes
+of code on BSC testnet - `0xef0100` + address, an **EIP-7702 delegation** to a
+sweeper that forwards the whole native balance the instant the account is
+paid. The keys are public, so the accounts are farmed. Nothing to do with the
+protocol: DMN transfers were unaffected (no callback), only native payouts.
+
+The harness now clears that code (`anvil_setCode(addr, "0x")`) and restores
+balances on the local fork at node start, so the roles behave as plain EOAs.
+Worth carrying into Level 2: on a real Chapel deployment these addresses must
+never be used for anything that receives BNB.
