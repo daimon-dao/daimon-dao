@@ -9,7 +9,7 @@ $script:FORK = "https://bsc-testnet.publicnode.com"
 $script:ROUTER_ADDR = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"   # PancakeSwap V2, BSC testnet
 $script:PIN  = 0            # resolved at runtime by Resolve-ForkBlock
 $script:ROOT = (git rev-parse --show-toplevel)
-$script:STATE = Join-Path $ROOT "script\campaign\state.json"
+$script:STATE = Join-Path $ROOT (Join-Path "script" (Join-Path "campaign" "state-$PID.json"))  # per-process: two runners can never contend
 $script:LOG   = Join-Path $ROOT "TESTNET_L1_RESULTS.md"
 
 # -- Anvil dev accounts (public dev mnemonic) -----------------------------
@@ -188,7 +188,14 @@ function Assert-Invariants { param([string]$label = "")
 }
 
 # -- results log ----------------------------------------------------------
-function Log-Line { param([string]$text) Add-Content -Path $script:LOG -Value $text -Encoding utf8 }
+function Log-Line { param([string]$text)
+  # A stalled runner from an earlier attempt can still hold the file open;
+  # retry rather than dying on a transient lock.
+  foreach ($try in 1..10) {
+    try { Add-Content -Path $script:LOG -Value $text -Encoding utf8 -ErrorAction Stop; return } catch { Start-Sleep -Milliseconds 300 }
+  }
+  throw "could not write to the results log after 10 attempts"
+}
 function Log-Scenario { param([string]$id, [string]$title)
   Log-Line ""; Log-Line "### $id -- $title"; Log-Line ""
   Log-Line "| step | action | expected | observed | verdict |"
@@ -466,3 +473,17 @@ function Sanitize-Accounts {
     RpcCall "anvil_setBalance" @($script:Addr[$k], "0x21E19E0C9BAB2400000") | Out-Null  # 10000 ether
   }
 }
+
+## Read one field of the Proposal struct by index.
+## 0 proposer, 1 target, 2 value, 3 data, 4 description, 5 snapshotBlock,
+## 6 snapshotTotalVotingPower, 7 voteStart, 8 voteEnd, 9 for, 10 against,
+## 11 abstain, 12 canceled, 13 executed, 14 queued, 15 salt, 16 quorumBps.
+function Prop-Field { param($id, [int]$idx)
+  $st = S
+  $sig = "proposals(uint256)(address,address,uint256,bytes,string,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bytes32,uint256)"
+  $r = (cast call $st.governor $sig "$id" --rpc-url $script:RPC 2>&1 | Out-String)
+  $lines = @()
+  foreach ($l in ($r -split "`n")) { $t = $l.Trim(); if ($t -ne "") { $lines += $t } }
+  return (($lines[$idx] -split "\s+")[0]).Trim()
+}
+function Prop-Num { param($id, [int]$idx) return [System.Numerics.BigInteger]::Parse((Prop-Field $id $idx)) }

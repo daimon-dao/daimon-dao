@@ -304,3 +304,21 @@ Worth recording because it caught out the first version of this very test: alice
 | C5.4 | Everything accounted for | the shares sum to the notification bar a few wei of integer-division dust, which stays in the contract - never leaks out | sum=3141592653589793230 wei vs notified=3141592653589793238 wei, dust retained = 8 wei | PASS |
 | C5.5 | alice claims | she receives what was pending, minus her own gas | pending was 0.6283, balance moved 0.6283 | PASS |
 | C5.6 | The zero-staker reserve during a normal distribution | stays at zero: this path never touches it | 0.0000 BNB | PASS |
+
+### D1 -- propose(): voting power and the quorum bar are frozen at creation
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| D1.1 | A proposal is created | its snapshot block is the block BEFORE its own - already sealed (#12) | created in block 127177397, snapshotBlock = 127177396 | PASS |
+| D1.2 | The quorum denominator recorded with it | the aggregate voting power at that same sealed block | snapshotTotalVotingPower = 18.0000 B, live total = 18.0000 B | PASS |
+| D1.3 | The quorum bps captured per proposal (#37) | the bps in force at creation, stored on the proposal itself | quorumBpsSnapshot = 1000, live quorumBps = 1000 | PASS |
+| D1.4 | Someone stakes more AFTER the proposal exists | the live total moves, the proposal's denominator does not | live total 18.0000 B -> 22.0000 B, proposal still 18.0000 B | PASS |
+| D1.5 | Proposal state right after creation | Pending: the one-day voting delay has not elapsed | Pending | PASS |
+
+**Operational property surfaced while writing D1:** `maxTxAmount` (5.00 B at
+deploy, 0.5% of supply) applies to **staking deposits** as well, because
+`stake()` moves the tokens with an ordinary `transferFrom` and the staker is
+not fee-exempt. A holder wanting to lock more than 5.00 B has to split it
+across several transactions - each paying the transfer fee. The first version
+of this scenario tried to stake 10.00 B in one call and the transaction never
+came back; worth knowing before a whale tries it on mainnet.
