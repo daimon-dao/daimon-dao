@@ -170,3 +170,15 @@ is human.
 | A4.1 | tp2 migrates its entire holding in one transaction | DMN received equals the old balance exactly, to the wei | old was 75.4180 B, DMN now 75.4180 B | PASS |
 | A4.2 | tp2 old balance afterwards | zero | 0.0000 B | PASS |
 | A4.3 | Treasury custody | holds exactly the migrated amount | 75.4180 B | PASS |
+
+### A5 -- Everyone migrates: total migratable against the deploy script funding logic
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A5.1 | Migration DMN funding, as the deploy script leaves it | the entire INITIAL_SUPPLY: the script funds it by making Migration the initialize() recipient | 1000.0000 B | PASS |
+| A5.2 | Non-migratable old tokens | dead address plus the old contract itself, unreachable by any claim | dead=20.0000 B + contract=13.4700 B = 33.4700 B | PASS |
+| A5.3 | Every reachable holder migrates 100 percent | total migrated = supply minus non-migratable = 966.53 B | 966.5300 B (expected 966.5300 B) | PASS |
+| A5.4 | Was the funding sufficient | yes with room to spare: no claim can ever be refused for lack of DMN | funded 1000.0000 B vs claimed 966.5300 B, surplus left 33.4700 B | PASS |
+| A5.5 | Global invariant after a full-supply migration | marketing wallet still at zero | DMN=0 | PASS |
+
+The funding question has a structural answer rather than an arithmetic one: the script never computes a migration budget, it makes Migration the recipient of the entire INITIAL_SUPPLY in initialize(). Funding therefore cannot fall short - it exceeds the migratable amount by exactly the tokens nobody can claim (dead address and the old contract), which the post-deadline sweep later routes to the treasury.
