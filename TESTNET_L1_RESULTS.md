@@ -239,6 +239,17 @@ balances on the local fork at node start, so the roles behave as plain EOAs.
 Worth carrying into Level 2: on a real Chapel deployment these addresses must
 never be used for anything that receives BNB.
 
+### B3 -- The poke: 1 wei to the pair from a stranger converts exactly one chunk (#1 + #28)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B3.1 | State before the poke | inventory armed, no BNB anywhere yet | inventory=0.4000 B, contract BNB=0.0000, staking BNB=0.0000 | PASS |
+| B3.2 | The stranger - no role, no permission - sends 1 wei of DMN to the pair | the conversion fires: exactly ONE threshold-sized chunk is sold | inventory consumed = 0.2000 B, threshold = 0.2000 B | PASS |
+| B3.3 | Where the proceeds went | the whole marketing share to the staking pool (share = 1000), the buyback share retained | staking +0.0948 BNB, contract +0.0948 BNB | PASS |
+| B3.4 | The marketing wallet during a real conversion | nothing: with the share at 1000 the transfer branch is never even entered | DMN=0, native=0.0000 | PASS |
+
+This is the launch configuration doing its job on a live conversion: the BNB the marketing wallet would have received is instead notified to the staking pool in the same transaction, and the wallet is not even called.
+
 ### B4 -- Three pokes in the same block: the #28 per-block budget holds
 
 | step | action | expected | observed | verdict |
@@ -294,6 +305,31 @@ Worth recording because it caught out the first version of this very test: alice
 | C2.3 | One day before expiry (29 of 30 days elapsed) | still refused - the boundary is respected to the second | reverted with LockStillActive | PASS |
 | C2.4 | Just past 30 days | the withdrawal goes through, voting power returns to zero, principal comes back | vp=0.0000 B, balance=3.8001 B | PASS |
 
+### C3 -- Checkpoints across epochs: historical voting power at past blocks holds
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| C3.1 | alice's voting power at a block BEFORE she ever staked | zero - the history knows she had none | at block 127190374 = 0.0000 B | PASS |
+| C3.2 | At the block of her first stake | her first position, and nothing more | at block 127190376 = 2.0000 B, live then = 2.0000 B | PASS |
+| C3.3 | At a later block, while only bob acted | unchanged: nobody else's action moves her history | at block 127190381 = 2.0000 B | PASS |
+| C3.4 | At the block of her second stake | both positions counted | at block 127190386 = 6.0000 B, live = 6.0000 B | PASS |
+| C3.5 | The aggregate history - the quorum denominator (#12) | the total tracks the same epochs: alice alone, then alice+bob, then both of alice's | at A=2.0000 B, at B=10.0000 B, at C=14.0000 B, live=14.0000 B | PASS |
+| C3.6 | Checkpoints actually written | one per position change for alice, and a global series alongside | alice=2, global=3 | PASS |
+
+This is the machinery the #12 fix rests on, exercised on a chain for the first time: both the per-account series and the aggregate are keyed by block number, and a query about a past block returns what was true then - not what is true now.
+
+### C4 -- Zero-staker backlog vs an atomic dust stake + claim (Zenith #35)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| C4.1 | 4 BNB notified while totalVotingPower is zero | set aside in the dedicated reserve, NOT added to the distribution accumulator | zeroStakerReserve = 4.0000 BNB, totalVotingPower = 0 | PASS |
+| C4.2 | Attacker stakes 1 wei and claims in the SAME transaction | it sees nothing pending and gains nothing: the backlog was never distributable | pendingReward seen = 0 wei, BNB gained = 0 wei | PASS |
+| C4.3 | The reserve after the attempt | untouched - 4 BNB still set aside | 4.0000 BNB | PASS |
+| C4.4 | A stranger tries to move the reserve | refused: recovery is governance-only | reverted | PASS |
+| C4.5 | The Timelock recovers the reserve | it moves only through governance, and only where governance points it | reserve 4.0000 -> 0.0000, recipient +4.0000 BNB | PASS |
+
+The finding is dead in the way the fix intended: rewards that arrive with nobody staking never enter the distribution accumulator at all, so there is no backlog for a dust stake to capture - the first staker to arrive sees zero pending, atomically or not. The money is not lost either: it waits in a named reserve that only a governance decision can move.
+
 ### C5 -- notifyRewardAmount with an awkward amount: strict pro-rata, no dust leaks
 
 | step | action | expected | observed | verdict |
@@ -323,10 +359,18 @@ across several transactions - each paying the transfer fee. The first version
 of this scenario tried to stake 10.00 B in one call and the transaction never
 came back; worth knowing before a whale tries it on mainnet.
 
-### D4 -- queue, the 7-day timelock, execute - and what happens out of order
+### D2 -- Stake in the SAME block as propose(): it does not count (Zenith #12)
 
 | step | action | expected | observed | verdict |
 |---|---|---|---|---|
+| D2.1 | alice's stake and the proposal land in the same block | identical block numbers - the exact race the finding described | stake block=0x794c563, propose block=0x794c563 | PASS |
+| D2.2 | alice's stake actually happened | she holds real voting power now | live vp = 12.0000 B (was 0.0000 B) | PASS |
+| D2.3 | Her voting power AT the proposal's snapshot block | zero: the snapshot is the previous, already-sealed block | votingPowerAt(alice, 127190370) = 0.0000 B | PASS |
+| D2.4 | The quorum denominator of that proposal | excludes her stake as well - both sides of the fraction are pre-proposal | snapshotTotal = 16.0000 B, live total = 28.0000 B | PASS |
+| D2.5 | alice tries to vote on the proposal she raced | refused: with zero weight at the snapshot she cannot vote at all | reverted with InsufficientVotingPower | PASS |
+| D2.6 | The proposer, staked in an earlier block, can vote | yes - the rule excludes the race, not participation | 16000000000000000000000000000 forVotes recorded | PASS |
+
+This is the Critical finding closed and verified where it actually matters: on a chain, with two transactions genuinely sharing a block. Before the fix the snapshot was a timestamp, and BSC seals two blocks per second - so 'same timestamp' and 'reacting to a proposal already in the mempool' were indistinguishable. Keyed to the previous block, the race is simply not available.
 
 ### D3 -- Vote and quorum: the bar is the snapshot, and later staking cannot move it
 
@@ -399,6 +443,33 @@ The invariant Poneder asked for holds on a chain: whichever path is used first, 
 
 This is the exact configuration the finding described - an additional executor acting outside the Governor - and the fix holds where it counts: the Governor refuses to record as cancelled an action that already took effect on chain. The two contracts still agree.
 
+### E5 -- guardianExpiry: three authorities end at one instant (Zenith #36)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E5.1 | A proposal to replace the guardian is queued | Queued, waiting out the timelock | Queued | PASS |
+| E5.2 | The guardian pauses one day before its mandate ends | the window is clamped to the expiry, not 14 days past it | pauseUntil=1882290115, guardianExpiry=1882290115 | PASS |
+| E5.3 | Past the expiry, with nobody doing anything | the pause has lapsed by itself - decentralization completes without cooperation | isPaused=false | PASS |
+| E5.4 | The guardian tries to pause again | refused forever | reverted with GuardianExpired | PASS |
+| E5.5 | The guardian tries to cancel a proposal | refused: the Governor path is dead too | reverted with GuardianAuthorityExpired | PASS |
+| E5.6 | The guardian tries to cancel the queued operation at the Timelock | refused: the third authority is gone at the same instant | reverted with GuardianAuthorityExpired | PASS |
+| E5.7 | The recovery proposal executes | uncancellable by anyone: whatever passed the vote and the timelock, executes | governor.guardian = 0x000000000000000000000000000000000000b004 (was 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) | PASS |
+
+One instant, three authorities. After it the pause is gone without anyone lifting it, both cancellation paths refuse, and a proposal already through the public process cannot be stopped by any single actor - which is exactly what makes the post-expiry recovery path credible.
+
+### E6 -- A pause during the migration window extends the claim deadline by exactly that time
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| E6.1 | Before any pause | the effective deadline equals the immutable base deadline | base=1790274114, effective=1790274114 | PASS |
+| E6.2 | The guardian pauses with the window open | the claim deadline moves out by exactly the pause window | credit=14 days, effective deadline = base + 14 days | PASS |
+| E6.3 | A holder tries to claim while paused | refused - which is exactly the harm the credit repays | reverted | PASS |
+| E6.4 | Now past the ORIGINAL deadline, inside the credited extension | the base deadline has passed, the effective one has not | now=1790360637, base=1790274114 (passed: True), effective=1791483714 | PASS |
+| E6.5 | A claim in that window | goes through: the holder gets back the time the pause took | received 5.0000 B DMN after the base deadline | PASS |
+| E6.6 | The sweep while the credit still holds the window open | refused even for governance: the claim window is not over | stranger: reverted; timelock: reverted (MigrationStillOpen) | PASS |
+| E6.7 | Past the effective deadline | claims end and the sweep finally runs, once | claim: reverted with MigrationEnded; sweepExecuted=true | PASS |
+
+Censorship can delay the exchange and cannot consume it: every second the guardian froze is handed back to holders, and the sweep - the thing that would make unclaimed tokens irrecoverable - cannot fire while that credit is still running.
 ### E7 -- Compromised guardian: censorship is real, bounded, and ends by itself
 
 | step | action | expected | observed | verdict |
@@ -448,3 +519,129 @@ A two-call DeFi interaction is two proposals, not one transaction - but they can
 | F3.6 | After a proposal exempts the treasury | transfers involving it stop paying the fee - a governance decision, with its own 13 days | isExcludedFromFee = true, 2.00 B sent arrived as 2.0000 B | PASS |
 
 Two independent properties that are easy to conflate: the Timelock is exempt from maxTxAmount by virtue of GOVERNANCE_ROLE, so a treasury outflow of any size clears in one transaction - but it is NOT fee-exempt, so every DMN movement in or out is taxed until a proposal says otherwise. A treasury holding DMN should decide that deliberately rather than discover it.
+
+
+---
+
+# Level 1 closed
+
+**31 scenarios, 162 asserted steps, 1 deviation.** Every scenario ran against
+a real `script/Deploy.s.sol` broadcast to a live node forking BSC testnet, with
+the real PancakeSwap V2 periphery.
+
+## Summary
+
+| scenario | steps | result |
+|---|---|---|
+| A0 | 6 | PASS |
+| A1 | 9 | 1 DEVIATION |
+| A2 | 5 | PASS |
+| A3 | 5 | PASS |
+| A4 | 3 | PASS |
+| A5 | 5 | PASS |
+| B0 | 4 | PASS |
+| B1 | 4 | PASS |
+| B2 | 5 | PASS |
+| B3 | 4 | PASS |
+| B4 | 4 | PASS |
+| B5 | 5 | PASS |
+| C1 | 4 | PASS |
+| C2 | 4 | PASS |
+| C3 | 6 | PASS |
+| C4 | 5 | PASS |
+| C5 | 6 | PASS |
+| D1 | 5 | PASS |
+| D2 | 6 | PASS |
+| D3 | 5 | PASS |
+| D4 | 7 | PASS |
+| E1 | 5 | PASS |
+| E2 | 5 | PASS |
+| E3 | 5 | PASS |
+| E4 | 4 | PASS |
+| E5 | 7 | PASS |
+| E6 | 7 | PASS |
+| E7 | 7 | PASS |
+| F1 | 4 | PASS |
+| F2 | 5 | PASS |
+| F3 | 6 | PASS |
+
+## The global invariant
+
+**The marketing wallet received nothing, ever.** Checked programmatically by
+the runner after every state-changing transaction of every scenario - not by
+eye, not once per scenario - as `balanceOf(DMN) == 0` together with a native
+balance unchanged from genesis. Across the campaign that assertion ran on
+every send in all 31 scenarios and never fired. Two scenarios stress it
+directly: B3, where a real conversion routes the entire marketing share to
+the staking pool and never even enters the wallet's transfer branch, and E7,
+where a hostile guardian censors, freezes and renews for the length of its
+mandate with the wallet still at zero.
+
+The three companion invariants held throughout as well: `totalSupply()` never
+left the 21B floor, the Governor and the Timelock never disagreed about an
+operation's executability (E3 and E4 push exactly that edge from both sides),
+and nothing left the Timelock except through an executed proposal (F1).
+
+## Deviations
+
+### 1. A1.8 - the "single guardian expiry" is not single after a real broadcast
+
+The only deviation of the campaign, and it is on the **expectation** side
+rather than in the contracts. Detail and proof are in the A1 section above;
+in short: `Deploy.s.sol` reads `token.guardianExpiry()` at run time and feeds
+it to the Timelock and Governor constructors, but `forge script` fixes that
+value during **simulation** while `initialize()` computes the token's own from
+the block the proxy actually lands in. On a live broadcast they differ - 3 to
+4 seconds here, however long simulation-to-inclusion takes on a public chain.
+`_assertDecentralized()` cannot catch it because those asserts execute in the
+simulation context, where the two sides agree by construction.
+
+**Which side is wrong.** Not `src/`, which does exactly what it says. The
+wrong side is the belief that an in-script assert proves anything about
+post-broadcast chain state, and the mechanism it guards - deriving a value at
+run time from a contract deployed in the same script. Impact is negligible in
+magnitude (the pause authority outlives the two cancellation authorities by
+seconds out of 36 months) and material in kind: THREAT_MODEL par.2.5 and the
+whitepaper state the expiry is "verified identical across the three at
+deployment", which on a real deploy is false as written. No fix attempted.
+
+### Test-side errors, corrected and recorded rather than hidden
+
+Three assertions were wrong before the code was:
+
+- **C1.3** compared two stakers' voting power head to head and failed at
+  3.9998x. Two nominally identical 4.00 B transfers do not leave identical
+  balances in a reflection token; normalized per unit staked the multipliers
+  are exact.
+- **C5.3** allowed 1 wei of rounding against a two-step accumulator and
+  flagged bob's 6 wei. The tolerance was wrong; the wei-level deltas are now
+  reported outright, with the 8 wei of dust shown staying in the contract.
+- **E7.3** expected `approve()` to be blocked by the pause. It is not -
+  allowances are bookkeeping, not movement - and the freeze correctly bites
+  one step later, on the transfer inside `stake()`.
+
+## Operational findings worth carrying to Level 2
+
+1. **`maxTxAmount` (5.00 B) binds more than trading.** It caps staking
+   deposits, so a holder locking more than 0.5% of supply must split across
+   transactions; and it caps the DMN leg of a liquidity add, so a realistic
+   initial position cannot be provided in one transaction by a non-exempt
+   address (B0.4, D1 note).
+2. **The Timelock is maxTx-exempt but not fee-exempt** (F3): a treasury
+   outflow of any size clears in one transaction, and pays the transfer fee
+   until a proposal says otherwise.
+3. **Interfaces must read `isPaused()`, not `paused()`** (E2.4): after a
+   window lapses the raw flag stays true while the token is fully operational.
+4. **The public dev accounts are not EOAs on a public chain** (B2 note): all
+   ten carry EIP-7702 delegations to a sweeper on BSC testnet. They must never
+   hold or receive value on Chapel.
+5. **A pinned fork block has a shelf life of hours** (B5 note): public
+   endpoints prune it.
+
+## What Level 1 does not cover
+
+Real block times and real mempool ordering (every "same block" here was
+constructed with `evm_setAutomine`), real gas markets, third-party
+integrations, and anything that depends on wall-clock patience rather than
+`evm_increaseTime`. That is Level 2, on Chapel, and it starts only once this
+report has been reviewed.
