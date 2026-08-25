@@ -562,11 +562,11 @@ GOVERNANCE_ROLE  →  held by DaimonTimelock, and nothing else
 
 The deployer holds no role. This is not a matter of intention: the deployment
 runs in two phases, and its scripts renounce every role they temporarily hold
-during setup, then assert — with twenty-nine separate checks across the two
+during setup, then assert — with thirty separate checks across the two
 phases, each aborting the deployment if it fails — that no externally owned
 account retains authority over any contract. Because an assertion inside a
 deployment script proves the simulated state rather than the mined one, a
-standalone verification then re-reads thirty-three invariants from the live
+standalone verification then re-reads thirty-four invariants from the live
 chain. If a single check fails, the launch does not proceed.
 
 Consequently, changing the fee, changing the marketing wallet, changing the
@@ -1276,8 +1276,8 @@ lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
 afterwards: the deployment scripts renounce every temporary permission and
-then verify, with twenty-nine assertions across the two deployment phases
-and a thirty-three-check verification read back from the live chain, that
+then verify, with thirty assertions across the two deployment phases
+and a thirty-four-check verification read back from the live chain, that
 no externally owned account retains authority anywhere in the system.
 
 The full threat model, including the reasoning behind each conclusion, is

@@ -25,14 +25,22 @@ three copies are identical by construction.
    nonce: the entire supply is born already inside the migration contract,
    excluded from fees, without ever passing through an EOA.
 3. **DaimonMigration** (30-day window, configurable) — the LAST transaction
-   of phase 1, with its immutable `governance` bound to the PREDICTED
-   timelock address (the deployer's next CREATE). Phase-1 asserts (10), then
-   the addresses and expected nonce are written to
-   `deployments/two-phase-<chainid>.json` — deliberately no expiry value.
+   of phase 1, with its immutable `governance` AND its immutable `treasury`
+   both bound to the PREDICTED timelock address (the deployer's next
+   CREATE): the treasury IS the Timelock, derived rather than typed, and
+   `TREASURY_ADDRESS` no longer exists (rehearsals may set
+   `TESTNET_TREASURY_OVERRIDE` — loudly logged, refused on chain 56).
+   Phase-1 asserts (10), then the addresses and expected nonce are written
+   to `deployments/two-phase-<chainid>.json` — deliberately no expiry value.
+   Note the predecessor fee exemption is NOT performed here: without it
+   `claim()` reverts with `AmountMismatch` (#29), which keeps the migration
+   inert until the deployment is verified — see step 4 below.
 
 ⚠️ **Between the phases, send NOTHING from the deployer**: a nonce change
 makes the predicted timelock address unreachable and phase 2 refuses to run.
-If that happens, abandon the phase-1 contracts and rerun phase 1 fresh.
+If that happens, abandon the phase-1 contracts and rerun phase 1 fresh:
+the predecessor fee exemption is not yet in place, so no claim can have
+occurred -- the cost is gas only.
 
 **Phase 2 — [script/DeployPhase2.s.sol](script/DeployPhase2.s.sol):**
 
@@ -47,18 +55,20 @@ If that happens, abandon the phase-1 contracts and rerun phase 1 fresh.
    timelock, timelock = governance of the token and staking,
    `stakingRewardShareBps = 1000` (launch compliance), and a **final
    renounce of all the deployer's bootstrap roles** (including the
-   timelock's ADMIN_ROLE). Phase-2 asserts (19). If interrupted
+   timelock's ADMIN_ROLE). Phase-2 asserts (20). If interrupted
    mid-broadcast, resume with `--resume` — a fresh rerun would refuse.
 
 **Post-broadcast verification — [script/verify-deploy.ps1](script/verify-deploy.ps1):**
 the mandatory final gate. The in-script asserts run in the simulation
-context; this runner re-reads 33 invariants from MINED state through plain
+context; this runner re-reads 34 invariants from MINED state through plain
 `eth_call`, including the guardian expiry EXACTLY equal across the three
-contracts, and exits non-zero on any failure.
+contracts and the migration treasury being the Timelock, and exits non-zero
+on any failure.
 
 > The guardian keeps only pause (token) and cancel (timelock/governor), by
 > design. On testnet it can be the deployer; **in production it must be a
-> multisig**, and treasury/marketing wallet dedicated addresses.
+> multisig**, with a dedicated marketing wallet. The migration treasury is
+> derived -- it IS the Timelock -- and is not an address you choose.
 
 ## 1. Prerequisites
 
@@ -120,10 +130,12 @@ Then you will use `--private-key $env:PRIVATE_KEY` (PowerShell) or
 ### Role configuration (optional on testnet)
 
 In the same `.env` (or as environment variables) you can set
-`GUARDIAN_ADDRESS`, `MARKETING_WALLET`, `TREASURY_ADDRESS`,
-`ETHERSCAN_API_KEY`, `OLD_DAIMON`, `MIGRATION_DURATION`. If you leave them
-empty the script uses the deployer and logs a warning (acceptable on testnet
-only).
+`GUARDIAN_ADDRESS`, `MARKETING_WALLET`, `ETHERSCAN_API_KEY`, `OLD_DAIMON`,
+`MIGRATION_DURATION`. If you leave them empty the script uses the deployer
+and logs a warning (acceptable on testnet only). There is NO treasury
+variable: the migration treasury is derived (it IS the Timelock).
+`TESTNET_TREASURY_OVERRIDE` exists for rehearsals only -- loudly logged,
+refused on chain 56.
 
 ## 4. Simulation (recommended before deploy)
 
@@ -170,6 +182,18 @@ forge script script/DeployPhase2.s.sol:DeployPhase2 `
 ```sh
 powershell -File script/verify-deploy.ps1 -Rpc <your-rpc-url>
 ```
+
+**Step 4 — ONLY after the verification is green: open the migration.**
+The predecessor fee exemption is what makes claims possible (without it,
+`claim()` reverts with `AmountMismatch`, #29), so it goes last, after the
+deployment is verified:
+
+```sh
+cast send <OLD_DAIMON> "excludeFromFee(address)" <TIMELOCK> --rpc-url bsc_testnet --account <old-token-owner>
+```
+
+The immutable migration deadline started at phase 1; claims open here — a
+difference of minutes against a window of months, accepted deliberately.
 
 (In bash replace the backticks with `\`. With option B use `--private-key ...`
 instead of `--account ...`.)

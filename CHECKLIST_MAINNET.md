@@ -5,27 +5,37 @@ tag [`audit-scope-v2`](https://github.com/daimon-dao/daimon-dao/releases/tag/aud
 (English-commented contracts in `src/`, bytecode identical to `audit-scope-v1`).
 Every line is blocking.
 
-## âš ï¸ Predecessor token configuration (Zenith #29)
+## Predecessor token configuration (Zenith #29) -- and WHEN it happens
 
-BLOCKING: migration cannot work without this, and the deadline is immutable
-once Migration is deployed.
+The Migration contract is only the allowance spender. The actual old-token
+transfer is claimant -> treasury. DMX disables fees only when `from` or `to`
+is exempt, so exempting Migration has no effect: the exemption target is the
+TREASURY -- which, since the two-phase deploy, IS the Timelock.
 
-The Migration contract is only the allowance spender. The actual old token
-transfer is claimant â†’ treasury. DMX disables fees only when `from` or `to`
-is exempt, so exempting Migration has no effect.
+The exemption is what makes claims possible: without it, `claim()` reverts
+with `AmountMismatch` (#29 -- by design, and proven on-chain by campaign
+scenario A0). So it is performed LAST, after both deploy phases AND the
+post-broadcast verification are green: no claim can occur against a
+deployment that has not been verified, and between the phases the migration
+is inert by construction.
 
-- [ ] Call `oldDaimon.excludeFromFee(TREASURY_ADDRESS)` â€” the treasury, NOT
-      the Migration contract
+BEFORE phase 1 (de-risking the immutable deadline, which starts at phase 1):
+
+- [ ] Confirm the DMX owner still has authority to set fee exemptions
+      (ownership was never renounced -- verify it is still the case). If it
+      cannot, the migration can never open: do NOT deploy anything.
+- [ ] Rehearse on a fork: exempt a test recipient, simulate a transfer from
+      a non-exempt holder to it, confirm exact receipt with no fee deducted.
+
+AFTER the post-broadcast verification -- launch order step 4:
+
+- [ ] Call `oldDaimon.excludeFromFee(<TIMELOCK>)` -- the treasury (= the
+      Timelock deployed in phase 2), NOT the Migration contract
 - [ ] Verify on-chain that the exemption is active
-- [ ] Confirm the DMX owner still has authority to set exemptions (ownership
-      was never renounced â€” verify it is still the case)
-- [ ] Simulate a transfer from a non-exempt holder to treasury and confirm
-      exact receipt, no fee deducted
-- [ ] Only after all of the above: deploy Migration.
-      Do NOT start the immutable deadline before this is confirmed
-
-Correct the misleading comment in `DaimonMigration.sol` that instructs
-exempting the Migration contract.
+- [ ] Simulate one claim end-to-end and confirm exact 1:1 receipt
+- [ ] The migration window effectively OPENS here. The immutable deadline
+      started at phase 1, claims open at this step: a difference of minutes
+      against a window of months, accepted deliberately.
 
 **Legacy token custody (Zenith #6)**
 
@@ -46,10 +56,15 @@ it becomes an operational requirement:
 - [ ] **`marketingWallet` â†’ MULTISIG.** Never an EOA. Receives the marketing
       share of the fees. Modifiable only via governance/timelock, but it must
       be set correctly already at deploy (`initialize`).
-- [ ] **Migration `treasury` â†’ carefully chosen MULTISIG.** âš ï¸ It is
-      **`immutable`**: fixed in the `DaimonMigration` constructor and **cannot
-      be changed** afterwards, not even via governance. Destination of the old
-      tokens and of the post-deadline sweep. Getting it wrong is irreversible.
+- [ ] **Migration `treasury` = the Timelock, DERIVED -- there is nothing to
+      set.** It is **`immutable`** (fixed in the `DaimonMigration`
+      constructor, unchangeable even by governance) and receives the old
+      tokens and the post-deadline sweep. Since the two-phase deploy it is
+      NOT an input: phase 1 binds it to the same predicted timelock address
+      as the migration's governance, phase 2 verifies the prediction came
+      true, and the post-broadcast verification re-checks it from live
+      state. `TREASURY_ADDRESS` no longer exists; rehearsals may use
+      `TESTNET_TREASURY_OVERRIDE` (loudly logged, refused on chain 56).
 - [ ] **`guardian` â†’ dedicated Ledger or multisig.** Defensive powers only
       (pause â‰¤36 months, cancel proposals). Must not coincide with the
       deployer.
@@ -58,8 +73,9 @@ it becomes an operational requirement:
 - [ ] **`_governance` (Timelock) = the only GOVERNANCE_ROLE.** The deployer
       must end up with no roles after the wiring.
 
-Note: on testnet marketing/treasury coincide with the deployer for testing
-only â€” on mainnet they must be distinct multisigs.
+Note: on testnet the marketing wallet may coincide with the deployer for
+testing only -- on mainnet it must be a distinct multisig. The treasury is
+derived on every chain.
 
 ## Automatic checks -- two-phase deploy + post-broadcast verification
 
@@ -73,32 +89,39 @@ can see it. Phase 2 reads the mined value from the live chain instead.
 - [ ] **Phase 1 -- `DeployPhase1.s.sol`** (Migration + token; 10 asserts):
       supply entirely in the migration, migration fee-exempt, marketing
       wallet as configured, guardian role live, migration wiring (all
-      immutable), and `migration.governance` bound to the PREDICTED timelock
-      address. Writes `deployments/two-phase-<chainid>.json` -- addresses and
-      expected nonce only, deliberately NO expiry value.
+      immutable), and `migration.governance` AND `migration.treasury` both
+      bound to the PREDICTED timelock address -- the treasury is DERIVED,
+      there is no treasury input. Writes `deployments/two-phase-<chainid>.json`
+      -- addresses and expected nonce only, deliberately NO expiry value.
 - [ ] **Between the phases: send NOTHING from the deployer.** A nonce change
       makes the predicted timelock address unreachable and phase 2 will
       refuse. If phase 2 refuses for any reason, do NOT work around it:
-      abandon the phase-1 contracts and rerun phase 1 fresh (nothing public
-      has happened yet; the only cost is gas).
+      abandon the phase-1 contracts and rerun phase 1 fresh. Nothing public
+      has happened yet -- in particular the predecessor fee exemption is not
+      in place, so NO CLAIM can have occurred: the only cost is gas.
 - [ ] **Phase 2 -- `DeployPhase2.s.sol`** (Timelock + Staking + Governor +
-      wiring + renounce; 19 asserts): preflight refuses to broadcast unless
+      wiring + renounce; 20 asserts): preflight refuses to broadcast unless
       the live chain matches the state file (nonce, code, linkage, supply);
       the guardian expiry is read from the LIVE token and passed verbatim --
       no file and no human ever carries it; the timelock MUST land on the
-      address phase 1 predicted; `stakingRewardShareBps == 1000`
+      address phase 1 predicted (fulfilling BOTH predictions: governance and
+      treasury); `stakingRewardShareBps == 1000`
       (legal-compliance launch configuration) set and asserted here. If
       phase 2 is interrupted mid-broadcast, resume with `--resume` -- a
       fresh rerun would shift nonces and refuse.
 - [ ] **Post-broadcast verification -- `script/verify-deploy.ps1 -Rpc <url>`
-      passes with exit code 0 (33 checks). MANDATORY LAUNCH GATE.** The
+      passes with exit code 0 (34 checks). MANDATORY LAUNCH GATE.** The
       in-script asserts above run in the simulation context; this runner
       re-reads every invariant from MINED state through plain `eth_call`:
       roles, admin absence, supply placement, canceller roles, launch share
-      at 1000, migration wiring, and the guardian expiry EXACTLY equal
+      at 1000, migration wiring including treasury == the Timelock read
+      live, and the guardian expiry EXACTLY equal
       across the three contracts -- no tolerance window, since the
       two-phase design removes the reason for one. Paste its full output
       into the launch record.
+- [ ] **ONLY THEN, launch order step 4: the predecessor fee exemption** --
+      see the #29 section above. The migration window opens there, against a
+      deployment that has already passed every gate.
 - [ ] Contracts **verified on BscScan** (source + constructors).
 - [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%;
       `MAX_PAUSE_DURATION` = **14 days** -- confirmed on-chain post-deploy

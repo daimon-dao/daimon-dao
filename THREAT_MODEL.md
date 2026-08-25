@@ -256,8 +256,12 @@ and partly already addressed; none is blocking.
 
 - The **deployer** runs the official script and renounces every role
   (verified on-chain by the script's asserts and the invariant tests).
-- **Guardian, treasury and marketing wallet** are distinct multisigs in
-  production (on testnet they coincide with the deployer, for testing only).
+- **Guardian and marketing wallet** are distinct multisigs in production (on
+  testnet they may coincide with the deployer, for testing only). The
+  **migration treasury** is no longer a trust assumption at all: it IS the
+  Timelock, derived at deploy from the same predicted address as the
+  migration's governance and verified on-chain post-broadcast — there is no
+  hand-typed treasury input to get wrong.
 - The **community** monitors proposals during the 7-day delay: it is the last
   line of defense against a malicious upgrade or parameter change.
 - The **OpenZeppelin v5.4.0 libraries** (AccessControl, UUPS, Initializable,

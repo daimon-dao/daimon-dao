@@ -14,8 +14,8 @@ at the next released version, together with the final audit report.
 
 - **§5 and threat-model summary, deployment checks** (EN and IT): the deploy
   is now two phases plus a standalone post-broadcast verification. The
-  assertion count changes from twenty to twenty-nine across the two phases,
-  and thirty-three further checks are re-read from the live chain — because
+  assertion count changes from twenty to thirty across the two phases,
+  and thirty-four further checks are re-read from the live chain — because
   an assertion inside a deployment script proves the simulated state, not
   the mined one (Level 1 testnet campaign, deviation A1.8). The guardian
   expiry passage changes from "fixed independently ... verified identical"

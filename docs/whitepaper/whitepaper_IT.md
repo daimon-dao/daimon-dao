@@ -588,11 +588,11 @@ GOVERNANCE_ROLE  →  detenuto da DaimonTimelock, e da nient'altro
 Chi ha fatto il deploy non detiene alcun ruolo. Non è una questione di
 intenzioni: il deploy avviene in due fasi, e i suoi script rinunciano a ogni
 ruolo che detengono temporaneamente durante la configurazione, poi verificano
-— con ventinove controlli separati distribuiti sulle due fasi, ognuno dei
+— con trenta controlli separati distribuiti sulle due fasi, ognuno dei
 quali interrompe il deploy se fallisce — che nessun account esterno mantenga
 autorità su alcun contratto. Poiché un'asserzione dentro uno script di deploy
 prova lo stato simulato e non quello minato, una verifica autonoma rilegge
-poi trentatré invarianti dalla chain viva. Se un solo controllo fallisce, il
+poi trentaquattro invarianti dalla chain viva. Se un solo controllo fallisce, il
 lancio non procede.
 
 Di conseguenza, cambiare le fee, cambiare il wallet marketing, cambiare il
@@ -1341,8 +1341,8 @@ quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
 detiene alcun ruolo in seguito: gli script di deploy rinunciano a ogni
-permesso temporaneo e poi verificano, con ventinove asserzioni distribuite
-sulle due fasi del deploy e una verifica di trentatré controlli riletti
+permesso temporaneo e poi verificano, con trenta asserzioni distribuite
+sulle due fasi del deploy e una verifica di trentaquattro controlli riletti
 dalla chain viva, che nessun account esterno mantenga autorità in alcun
 punto del sistema.
 
