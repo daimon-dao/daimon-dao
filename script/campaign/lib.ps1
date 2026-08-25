@@ -321,13 +321,22 @@ function Add-InitialLiquidity { param($who, $dmnGross, $bnbForNet, [switch]$OnGr
     $st.token, "$dmnGross", "0", "0", $script:Addr[$who], $deadline) -value "$bnb" | Out-Null
   return (CQ $st.pair "getReserves()(uint112,uint112,uint32)")
 }
-## Reserves of the DMN/WBNB pair as [dmn, wbnb].
+## Reserves of the DMN/WBNB pair as [dmn, wbnb], whatever order the pair uses.
 function Pair-Reserves {
   $st = S
-  $r = cast call $st.pair "getReserves()(uint112,uint112,uint32)" --rpc-url $script:RPC 2>&1
-  $vals = ("$r" -split "\r?\n") | Where-Object { $_ -ne "" } | ForEach-Object { [System.Numerics.BigInteger]::Parse((($_ -split "\s+")[0])) }
-  $t0 = (CQ $st.pair "token0()(address)")
-  if ("$t0".ToLower() -eq "$($st.token)".ToLower()) { return @($vals[0], $vals[1]) } else { return @($vals[1], $vals[0]) }
+  # cast appends a scientific-notation hint ("3800000000000000000 [3.8e18]"),
+  # so only the FIRST token of each line is the actual number.
+  $raw = (cast call $st.pair "getReserves()(uint112,uint112,uint32)" --rpc-url $script:RPC 2>&1 | Out-String)
+  $nums = @()
+  foreach ($line in ($raw -split "`n")) {
+    $t = $line.Trim()
+    if ($t -eq "") { continue }
+    $first = ($t -split "\s+")[0]
+    if ($first -match "^\d+$") { $nums += [System.Numerics.BigInteger]::Parse($first) }
+  }
+  $a = [System.Numerics.BigInteger]$nums[0]; $b = [System.Numerics.BigInteger]$nums[1]
+  $t0 = CQRaw $st.pair "token0()(address)"
+  if ("$t0".ToLower() -eq "$($st.token)".ToLower()) { return ,@($a, $b) } else { return ,@($b, $a) }
 }
 ## The poke: 1 wei of DMN straight to the pair, from any address.
 function Poke { param($who = "stranger")

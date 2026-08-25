@@ -182,3 +182,16 @@ is human.
 | A5.5 | Global invariant after a full-supply migration | marketing wallet still at zero | DMN=0 | PASS |
 
 The funding question has a structural answer rather than an arithmetic one: the script never computes a migration budget, it makes Migration the recipient of the entire INITIAL_SUPPLY in initialize(). Funding therefore cannot fall short - it exceeds the migratable amount by exactly the tokens nobody can claim (dead address and the old contract), which the post-deadline sweep later routes to the treasury.
+
+### B0 -- Initial pool pricing (Zenith #17): price on what the pair RECEIVES, with counter-proof
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B0.1 | Send 4.00 B DMN gross; the pair receives it net of the 5% fee | the pair's DMN reserve is the NET amount, 3.80 B - not the 4.00 B sent | reserve DMN = 3.8000 B, expected net = 3.8000 B | PASS |
+| B0.2 | Pair BNB with the contribution computed on the NET receipt | opening price exactly 1 BNB = 1,000,000,000 DMN | implied = 1000000000 DMN/BNB (off by 0 bps) | PASS |
+| B0.3 | COUNTER-PROOF, throwaway state: same 4.00 B gross, BNB computed on the GROSS | the pool opens at the WRONG price - fewer DMN per BNB than intended | implied = 950000000 DMN/BNB (off by 500 bps, i.e. DMN opens 5% too expensive) | PASS |
+| B0.4 | Size limit on a single liquidity add | maxTxAmount caps the DMN leg: 5.00 B per transaction for a non-exempt provider | maxTxAmount = 5.0000 B; this run used 4.00 B gross to stay under it | NOTE |
+
+Both halves land exactly where the checklist says they should. Pricing on the gross opens the pool 5.26% off - the mirror image of the 5% fee - and the error is silent: nothing reverts, the pool simply starts at a price nobody chose. Pricing on the net receipt lands on the intended ratio to the wei.
+
+Operational note surfaced by running it: maxTxAmount is 5.00 B at deploy (0.5% of supply), so a realistic initial-liquidity position cannot be added in one transaction by a non-exempt provider - it has to be split into chunks, each paying the 5% fee and each needing its BNB leg computed on that chunk's NET receipt. Exempting the provider from fees instead would remove both the fee and the maxTx limit, and with them the #17 problem - but that exemption is a governance action with its own consequences, not a launch shortcut.
