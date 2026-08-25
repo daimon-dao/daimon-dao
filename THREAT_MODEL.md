@@ -141,8 +141,15 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
   proposals/operations. No economic power, no execution.
 - **One mandate, three enforcement points (#36).** The token's
   `guardianExpiry` (36 months) is replicated as an immutable
-  `guardianAuthorityExpiry` in the Governor and the Timelock, asserted equal
-  at deploy. After that single instant: `setPaused(true)` reverts, BOTH
+  `guardianAuthorityExpiry` in the Governor and the Timelock. The replication
+  is exact by construction: the deploy runs in two phases, and phase 2 reads
+  the token's MINED `guardianExpiry` from the live chain before passing it
+  verbatim to both constructors — a single-broadcast deploy skews the values
+  by the simulation-to-inclusion delay (4 seconds observed on the Level 1
+  testnet campaign, deviation A1.8), because a script fixes what it passes
+  to constructors during simulation. A post-broadcast verification
+  (`script/verify-deploy.ps1`) re-checks the three values for exact,
+  no-tolerance equality on-chain. After that single instant: `setPaused(true)` reverts, BOTH
   cancellation paths (`Governor.cancel`, the Timelock's role-based `cancel`)
   revert, and any armed pause has already lapsed — definitive
   decentralization with no cooperation needed from the guardian.
@@ -249,8 +256,12 @@ and partly already addressed; none is blocking.
 
 - The **deployer** runs the official script and renounces every role
   (verified on-chain by the script's asserts and the invariant tests).
-- **Guardian, treasury and marketing wallet** are distinct multisigs in
-  production (on testnet they coincide with the deployer, for testing only).
+- **Guardian and marketing wallet** are distinct multisigs in production (on
+  testnet they may coincide with the deployer, for testing only). The
+  **migration treasury** is no longer a trust assumption at all: it IS the
+  Timelock, derived at deploy from the same predicted address as the
+  migration's governance and verified on-chain post-broadcast — there is no
+  hand-typed treasury input to get wrong.
 - The **community** monitors proposals during the 7-day delay: it is the last
   line of defense against a malicious upgrade or parameter change.
 - The **OpenZeppelin v5.4.0 libraries** (AccessControl, UUPS, Initializable,

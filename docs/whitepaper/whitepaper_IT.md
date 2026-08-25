@@ -586,11 +586,14 @@ GOVERNANCE_ROLE  →  detenuto da DaimonTimelock, e da nient'altro
 ```
 
 Chi ha fatto il deploy non detiene alcun ruolo. Non è una questione di
-intenzioni: lo script di deploy rinuncia a ogni ruolo che detiene
-temporaneamente durante la configurazione, e poi verifica — con venti
-controlli separati che interrompono il deploy se anche uno solo fallisce — che
-nessun account esterno mantenga autorità su alcun contratto. Se un solo
-controllo fallisce, il deploy non avviene.
+intenzioni: il deploy avviene in due fasi, e i suoi script rinunciano a ogni
+ruolo che detengono temporaneamente durante la configurazione, poi verificano
+— con trenta controlli separati distribuiti sulle due fasi, ognuno dei
+quali interrompe il deploy se fallisce — che nessun account esterno mantenga
+autorità su alcun contratto. Poiché un'asserzione dentro uno script di deploy
+prova lo stato simulato e non quello minato, una verifica autonoma rilegge
+poi trentaquattro invarianti dalla chain viva. Se un solo controllo fallisce, il
+lancio non procede.
 
 Di conseguenza, cambiare le fee, cambiare il wallet marketing, cambiare il
 contratto di staking, aggiungere un'opzione di lock, trasferire i token di
@@ -1120,9 +1123,11 @@ un guardian silente non possono lasciare il protocollo congelato.
 
 **Tutto scade, in un solo istante.** Tutti i poteri del guardian — la pausa
 ed entrambi i percorsi di annullamento — terminano 36 mesi dopo il deploy.
-La scadenza è un timestamp fissato indipendentemente nel token, nel governor
-e nel timelock, verificato identico nei tre al deploy, e modificabile da
-nessuno, governance inclusa. Dopo di essa, nuove pause e ogni annullamento
+La scadenza è un timestamp che il token calcola al deploy; il governor e il
+timelock, deployati in una seconda fase, ricevono quello stesso valore
+riletto dalla chain, quindi le tre copie sono identiche per costruzione —
+riverificate on-chain dopo il deploy, e modificabili da nessuno, governance
+inclusa. Dopo di essa, nuove pause e ogni annullamento
 vengono rifiutati, e qualsiasi pausa ancora armata è già decaduta. Da quel
 momento le proposte di governance non sono annullabili da nessuna autorità
 singola: ciò che supera il voto e il timelock, viene eseguito.
@@ -1335,9 +1340,10 @@ ognuno di questi poteri termina alla stessa scadenza di 36 mesi, dopo la
 quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
-detiene alcun ruolo in seguito: lo script di deploy rinuncia a ogni permesso
-temporaneo e poi verifica, con venti asserzioni che interrompono il deploy
-in caso di fallimento, che nessun account esterno mantenga autorità in alcun
+detiene alcun ruolo in seguito: gli script di deploy rinunciano a ogni
+permesso temporaneo e poi verificano, con trenta asserzioni distribuite
+sulle due fasi del deploy e una verifica di trentaquattro controlli riletti
+dalla chain viva, che nessun account esterno mantenga autorità in alcun
 punto del sistema.
 
 Il modello di minaccia completo, incluso il ragionamento dietro ogni

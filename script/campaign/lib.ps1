@@ -10,7 +10,7 @@ $script:ROUTER_ADDR = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"   # PancakeSw
 $script:PIN  = 0            # resolved at runtime by Resolve-ForkBlock
 $script:ROOT = (git rev-parse --show-toplevel)
 $script:STATE = Join-Path $ROOT (Join-Path "script" (Join-Path "campaign" "state-$PID.json"))  # per-process: two runners can never contend
-$script:LOG   = Join-Path $ROOT "TESTNET_L1_RESULTS.md"
+$script:LOG   = Join-Path $ROOT "TWO_PHASE_RESULTS.md"
 
 # -- Anvil dev accounts (public dev mnemonic) -----------------------------
 $script:Addr = [ordered]@{
@@ -245,36 +245,66 @@ function Deploy-OldToken {
 }
 
 # -- the real deploy under test -------------------------------------------
-function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight)
-  if (-not $SkipTreasuryPreflight) {
-    Send "deployer" $oldToken "excludeFromFee(address)" @($script:TREASURY) -NoInvariant | Out-Null
-  }
+## Two-phase deploy (branch deploy/two-phase): DeployPhase1 then DeployPhase2,
+## addresses read from the state file the scripts themselves maintain.
+## Default: the campaign's separate keyless treasury via the loud
+## TESTNET_TREASURY_OVERRIDE opt-in (the A-scenarios assert against that
+## address). -DerivedTreasury drops the override and exercises the
+## mainnet-faithful path: the treasury IS the timelock.
+## The predecessor fee exemption now happens AFTER phase 2, mirroring the
+## launch order: the exemption is what opens the migration window, so it
+## comes last, once the deployment stands. -SkipTreasuryPreflight keeps its
+## historical name and meaning: no exemption at all (A0 uses it to show the
+## #29 AmountMismatch refusal).
+function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight, [switch]$DerivedTreasury)
   $env:OLD_DAIMON = $oldToken
   $env:GUARDIAN_ADDRESS = $script:Addr.guardian
   $env:MARKETING_WALLET = $script:MARKETING
-  $env:TREASURY_ADDRESS = $script:TREASURY
-  $out = forge script script/Deploy.s.sol --rpc-url $script:RPC --broadcast --private-key $script:Key.deployer 2>&1 | Out-String
-  if ($LASTEXITCODE -ne 0) { throw "DEPLOY FAILED:`n$out" }
-  # Robust address extraction: the broadcast journal, by contract name.
-  $bc = Get-Content (Join-Path $script:ROOT "broadcast\Deploy.s.sol\97\run-latest.json") -Raw | ConvertFrom-Json
-  $by = @{}
-  foreach ($tx in $bc.transactions) { if ($tx.transactionType -eq "CREATE") { $by[$tx.contractName] = $tx.contractAddress } }
-  $token = $by["ERC1967Proxy"]
-  $st = [ordered]@{
-    old = $oldToken; token = $token; impl = $by["DaimonV2"]
-    staking = $by["DaimonStaking"]; timelock = $by["DaimonTimelock"]
-    governor = $by["DaimonGovernor"]; migration = $by["DaimonMigration"]
-    pair = (CQ $token "uniswapV2Pair()(address)")
-    marketingNativeGenesis = "$(Bal $script:MARKETING)"
-    invariantChecks = 0
-    deployOutTail = (($out -split "`r?`n" | Select-Object -Last 6) -join " | ")
+  if ($DerivedTreasury) {
+    Remove-Item env:TESTNET_TREASURY_OVERRIDE -ErrorAction SilentlyContinue
+  } else {
+    $env:TESTNET_TREASURY_OVERRIDE = $script:TREASURY
   }
-  Save-State $st
-  # forge script can outlive its own broadcast; while it lingers it keeps a
-  # nonce view of the deployer, and the cast sends that follow then open a
-  # nonce gap which leaves every later transaction queued forever. Clear it.
+  Remove-Item env:TREASURY_ADDRESS -ErrorAction SilentlyContinue   # no longer read by the scripts
+  $stateFile = Join-Path $script:ROOT (Join-Path "deployments" "two-phase-97.json")
+  if (Test-Path $stateFile) { Remove-Item $stateFile -Force }
+
+  # PHASE 1: migration + token. Its last log lines announce the predicted
+  # timelock; the state file carries it to phase 2.
+  $out1 = forge script script/DeployPhase1.s.sol --rpc-url $script:RPC --broadcast --private-key $script:Key.deployer 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) { throw "PHASE 1 FAILED:`n$out1" }
   Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Milliseconds 400
+  if (-not (Test-Path $stateFile)) { throw "PHASE 1 wrote no state file" }
+
+  # PHASE 2: timelock + staking + governor + wiring. Needs NO env vars:
+  # everything comes from the state file, cross-checked against live state,
+  # and the guardian expiry only ever from the live token.
+  $out2 = forge script script/DeployPhase2.s.sol --rpc-url $script:RPC --broadcast --private-key $script:Key.deployer 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) { throw "PHASE 2 FAILED:`n$out2" }
+  Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 400
+
+  $dep = Get-Content $stateFile -Raw | ConvertFrom-Json
+  if (-not $dep.governor) { throw "PHASE 2 did not complete the state file" }
+
+  # Launch-order step 4: the predecessor fee exemption, AFTER the deployment
+  # stands. Before this call, claim() reverts with AmountMismatch (#29) --
+  # between the phases no claim can have occurred.
+  if (-not $SkipTreasuryPreflight) {
+    Send "deployer" $oldToken "excludeFromFee(address)" @($dep.treasury) -NoInvariant | Out-Null
+  }
+
+  $st = [ordered]@{
+    old = $oldToken; token = $dep.token; impl = $dep.tokenImplementation
+    staking = $dep.staking; timelock = $dep.timelock
+    governor = $dep.governor; migration = $dep.migration
+    pair = (CQRaw $dep.token "uniswapV2Pair()(address)")
+    marketingNativeGenesis = "$(Bal $script:MARKETING)"
+    invariantChecks = 0
+    deployOutTail = (($out2 -split "`r?`n" | Select-Object -Last 6) -join " | ")
+  }
+  Save-State $st
   Assert-Invariants "post-deploy"
   return (Load-State)
 }

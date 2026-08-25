@@ -12,6 +12,16 @@ Corrections applied to the `.md` sources ahead of the post-audit release.
 The v0.1 PDFs intentionally do NOT include them: sources and PDFs realign
 at the next released version, together with the final audit report.
 
+- **§5 and threat-model summary, deployment checks** (EN and IT): the deploy
+  is now two phases plus a standalone post-broadcast verification. The
+  assertion count changes from twenty to thirty across the two phases,
+  and thirty-four further checks are re-read from the live chain — because
+  an assertion inside a deployment script proves the simulated state, not
+  the mined one (Level 1 testnet campaign, deviation A1.8). The guardian
+  expiry passage changes from "fixed independently ... verified identical"
+  to identical **by construction**: phase 2 reads the token's mined value
+  from the chain and passes it verbatim to the governor and timelock
+  constructors.
 - **§6.5, burn cycle, step 2** (EN and IT): the contract does not sell "the
   accumulated tokens" — it sells one threshold-sized tranche per qualifying
   sell, at most one per block (per-block budgets introduced by the Zenith
