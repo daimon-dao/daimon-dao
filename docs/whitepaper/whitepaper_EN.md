@@ -17,10 +17,14 @@ mathematically impossible.
 Every parameter that governs the protocol — transaction fees, staking
 mechanics, treasury allocation, even the code itself — can be changed only
 through an on-chain vote followed by a mandatory seven-day public timelock.
-No individual, including those who built it, holds the power to alter, pause
-permanently, accelerate, or bypass that process. This is not a commitment we
-ask you to trust: it is a property of the deployed contracts, verifiable by
-anyone at any time.
+No individual, including those who built it, holds the power to alter,
+accelerate, or bypass that process. One safeguard account exists — the
+guardian — and its powers are purely negative: it can pause the token in
+windows of at most fourteen days that expire on their own, and it can veto
+an in-flight decision before execution. Every one of those powers ends at an
+unmovable deadline 36 months after deployment; nothing it armed survives
+that instant. This is not a commitment we ask you to trust: it is a property
+of the deployed contracts, verifiable by anyone at any time.
 
 Holders who lock their tokens receive voting power proportional to both the
 amount and the duration of their commitment, along with rewards paid in BNB —
@@ -108,17 +112,18 @@ assigned by a higher power; it is chosen by the one who will be guided, and
 chosen in advance.
 
 ```solidity
-votingPowerAt(voter, proposal.snapshotTimestamp)
+votingPowerAt(voter, proposal.snapshotBlock)
 ```
 
-Voting power is evaluated at the moment a proposal was created, not at the
-moment of voting. Influence over a decision derives from a commitment made
-before that decision existed as a question.
+Voting power is evaluated at the last block sealed *before* a proposal was
+created, not at the moment of voting. Influence over a decision derives from
+a commitment made before that decision existed as a question.
 
 The practical effect is that power cannot be acquired in reaction to
-something. You cannot see a proposal you dislike, buy influence, and use it.
-The choice precedes the question — which is precisely what Plato described,
-and precisely what a snapshot enforces.
+something already on chain: when a proposal lands, the snapshot block behind
+it is already sealed, so influence bought afterwards — even in the very same
+block — counts for nothing. The choice precedes the question — which is
+precisely what Plato described, and precisely what a snapshot enforces.
 
 ## 2.4 Heraclitus — the guide and the guided are the same
 
@@ -411,8 +416,8 @@ a better one.
 | Minting | not possible | not possible |
 | Supply reduction | tokens moved, supply unchanged | **supply actually reduced** |
 | Supply floor | none | **21B, immutable** |
-| Exclusion from reflection | owner-toggleable at runtime | **immutable set, dead address only** |
-| Swap slippage protection | none — accepts any output | bounded, with quote from router |
+| Exclusion from reflection | owner-toggleable at runtime | **immutable set, fixed at deployment: dead address and liquidity pair** |
+| Swap slippage protection | none — accepts any output | bounded against the router's own quote — not a bound on MEV loss |
 | Marketing recipient | same address as the owner | governance-set, expected to be a multisig |
 | Staking | none | vote-escrow, rewards in BNB |
 | Governance | none | full on-chain governance |
@@ -584,16 +589,22 @@ the migration treasury are fixed at deployment and cannot be changed by
 anyone — not by the deployer, not by governance, not by an upgrade. Some
 destinations should not be redirectable, even by a majority.
 
-**The guardian.** One account holds one power: it can pause the contract in
-an emergency. It cannot change fees, move funds, alter governance, mint, or
-upgrade anything. It exists because in the early life of a protocol, seven
-days of timelock is too slow a response to an exploit in progress.
+**The guardian.** One account holds a narrow set of defensive powers outside
+the governance cycle: it can pause the contract in an emergency — for at
+most fourteen days per activation, after which the pause lapses on its own —
+and it can cancel an in-flight governance proposal, or the scheduled
+timelock operation behind it, before execution. It cannot change fees, move
+funds, alter governance parameters, mint, or upgrade anything, and it cannot
+execute: every one of its powers is a brake, never an engine. It exists
+because in the early life of a protocol, seven days of timelock is too slow
+a response to an exploit in progress.
 
-The guardian's authority expires 36 months after deployment. This is not a
-commitment to renounce it; it is a timestamp comparison in the code that no
-one can remove or postpone. After that date the pause function stops working
-permanently — while the unpause function continues to work, so that no one
-can leave the protocol frozen.
+Every guardian power expires at the same instant, 36 months after
+deployment. This is not a commitment to renounce; it is a timestamp fixed
+independently in three contracts — token, governor, timelock — that no one,
+governance included, can remove or postpone. After that date pausing and
+cancelling stop working, and any pause still armed has already lapsed:
+decentralization completes itself without anyone's cooperation.
 
 Section 8.6 describes the guardian's constraints in full.
 
@@ -639,6 +650,26 @@ liquidity all degrade as the token count collapses. The floor is the point at
 which the protocol stops shrinking and starts operating in a different mode —
 described in 6.6.
 
+**The floor is a bound, not a destination.** Nothing guarantees that supply
+will ever reach 21 billion, and one force works quietly against it: lost
+wallets. Tokens whose keys are gone remain part of the total supply. They
+keep accruing reflection, so their balance grows; they can never be sold, so
+the buyback can never purchase them; they can never be moved, so no one can
+burn them. Over time the share of supply that burning can actually reach
+shrinks while the unreachable share compounds — and if enough tokens end up
+in inaccessible wallets, burning stalls somewhere above 21 billion,
+permanently short of the floor.
+
+No function exists to intervene, and none could be added, by construction: a
+contract able to take tokens from an address it does not control would no
+longer be ownerless — it would hold precisely the power this design exists
+to remove. Bitcoin lives with the same asymmetry: millions of BTC sit in
+lost wallets, Satoshi's among them, and no one has seriously proposed
+recovering them, because the remedy would be worse than the loss. What the
+floor guarantees is unaffected either way: burning can never take the supply
+below 21 billion. How close it comes is a question of market history, not of
+code.
+
 ## 6.3 Transaction fees
 
 Every transfer applies a fee, currently 4% of the transferred amount, split
@@ -651,7 +682,7 @@ into three components:
 | Marketing / operations | 2% | 60% to staker rewards, 40% to operations |
 | **Total** | **4%** | |
 
-Two structural properties matter more than the current numbers.
+Three structural properties matter more than the current numbers.
 
 **The ceiling.** The contract rejects any configuration where the total fee
 exceeds 10%. This is enforced by a `require` statement, not by policy. A
@@ -662,6 +693,22 @@ then revert on execution. Governance is bounded by the code it governs.
 completed governance cycle. The current 4% is itself the result of one: the
 first proposal in Daimon's history reduced fees from 5% to 4%, and its full
 record appears in Section 8.
+
+**Zero is legal — and it is a model change, not a tuning.** The range has a
+ceiling and no floor: governance can set every fee to zero. Doing so
+switches off nearly everything the fees feed. Reflection stops; no new BNB
+accrues; buyback, burn, staking rewards and operational funding run dry
+once the already-collected inventory is spent; and for as long as fees stay
+at zero, the 21-billion floor of 6.2 is out of reach for good. What would
+remain is a freely transferable token with working governance and staking
+as pure voting weight. The decision is reversible by the same path that
+took it — a later vote can restore any total up to 10% — and thirteen days
+of public process stand between the proposal and its effect, which is time
+enough to notice, if someone is watching. There is one configuration in
+which zero makes sense: a protocol that already has another source of
+revenue can drop its transfer fees to remove friction without switching
+anything off. That source has to exist first — zeroing the fees does not
+create it.
 
 ## 6.4 Reflection
 
@@ -698,36 +745,51 @@ is a consequence of trading.
 ```
 1.  Trading occurs → fees accumulate as DMN inside the contract
 
-2.  Once accumulated fees exceed a threshold, and a sale to the
-    liquidity pool occurs, the contract sells the accumulated
-    tokens on the market → receives BNB
+2.  Once accumulated fees exceed a threshold, any direct transfer
+    of DMN to the liquidity pair — one wei is enough, sent by
+    anyone — makes the contract sell one threshold-sized tranche
+    on the market, at most one per block → receives BNB
 
 3.  The BNB is split:
         marketing share  →  60% to the staking reward pool
                             40% to operations
         buyback share    →  retained in the contract
 
-4.  When the retained BNB exceeds a threshold, the contract buys
-    DMN on the open market and sends it to the dead address
+4.  On the same trigger, when the retained BNB exceeds a threshold,
+    the contract buys DMN on the open market and sends it to the
+    dead address — at most one slice per block
 
 5.  burnDeadBalanceToFloor() removes that balance from total
     supply — permanently, and down to the floor at most
 ```
 
-Step 5 is **permissionless**: any address can call it, at any time, with no
-special role required. No one can prevent it, and no one can force it past
-the floor. The function has no privileged caller because it needs none — its
-only possible effect is to reduce supply toward a bound fixed in the code.
+Step 5 is **permissionless**: any address can call it, with no special role
+required. No one can force it past the floor, and exactly one thing can
+delay it: the function respects the guardian's emergency pause — a
+deliberate choice, because it writes the same supply accounting an incident
+responder would want frozen. During an armed pause window the burn waits, at
+most fourteen days per window; otherwise no one can prevent it, and once the
+guardian's 36-month mandate ends, nothing can pause it ever again. The
+function has no privileged caller because it needs none — its only possible
+effect is to reduce supply toward a bound fixed in the code.
 
-Steps 2 and 4 are automatic and use the public liquidity pool. The swaps are
-protected by a slippage bound and wrapped so that a failed swap cannot block
-transfers: if market conditions make a swap unfavourable, it is skipped and
-retried later rather than reverting the user's transaction.
+Steps 2 and 4 fire on a permissionless trigger and use the public liquidity
+pool. Ordinary sales through the router deliberately do **not** trigger
+them: the router computes its amounts from a snapshot of the pool's
+reserves, and running the protocol's own swaps inside that window would let
+a liquidity deposit be mispriced (audit finding #1). The trigger is
+therefore a plain transfer of DMN to the pair — anyone can send one wei to
+advance the cycle, and per-block budgets cap the aggregate regardless of who
+calls or how often. If nobody triggers, fees simply accumulate until someone
+does: nothing is lost and nothing blocks. The swaps are protected by a
+slippage bound and wrapped so that a failed swap cannot block transfers: if
+market conditions make a swap unfavourable, it is skipped and retried at the
+next trigger rather than reverting the caller's transaction.
 
 ## 6.6 What happens at the floor
 
-When total supply reaches 21 billion, burning stops permanently. It does not
-resume, and no vote can restart it.
+If burning ever brings the total supply to 21 billion, it stops there
+permanently. It does not resume, and no vote can restart it.
 
 At that point the buyback component no longer has a destination that reduces
 supply. The protocol's design specifies that the revenue previously directed
@@ -735,8 +797,9 @@ to burning is redirected in full to stakers — the mechanism switches from
 reducing supply to distributing yield, automatically, based on a supply check
 rather than a decision.
 
-This is a distant scenario. It is described here because a protocol should
-specify its terminal state, not because it is imminent.
+This is a distant scenario, and — as 6.2 explains — not a guaranteed one. It
+is described here because a protocol should specify its terminal state, not
+because that state is promised.
 
 ---
 
@@ -794,23 +857,27 @@ The combined effect is that staking removes tokens from circulation while
 returning value that does not have to be sold back into the same market.
 
 Rewards accrue continuously and are claimed on demand. If rewards arrive at a
-moment when no tokens are staked, they are held and distributed to the next
-stakers rather than lost.
+moment when no tokens are staked, they are set aside in a dedicated reserve
+rather than lost — recoverable only by an explicit governance decision, and
+never silently folded into a later distribution, where the first staker to
+arrive could have captured them.
 
 ## 7.3 Voting power checkpoints
 
 The staking contract does not only record current voting power. It records
 its history.
 
-Every change — a new lock, a withdrawal — writes a checkpoint with a
-timestamp. This allows the governance contract to ask a specific question:
-*what was this address's voting power at the moment proposal N was created?*
+Every change — a new lock, a withdrawal — writes a checkpoint keyed by block
+number. This allows the governance contract to ask a specific question:
+*what was this address's voting power at the block sealed just before
+proposal N was created?*
 
 This is what prevents the most obvious governance attack. Without historical
 checkpoints, an actor could observe a proposal they dislike, acquire and
 stake a large position, and vote it down with power purchased after the
-question was raised. With them, the vote is settled against a snapshot taken
-at proposal creation: power acquired afterwards counts for nothing.
+question was raised. With them, the vote is settled against a snapshot of an
+already-sealed block: power acquired afterwards — even in the proposal's own
+block — counts for nothing.
 
 We tested this specifically, with a simulated attacker holding an
 overwhelming position staked immediately after a proposal's creation. Their
@@ -971,32 +1038,50 @@ coming.
 
 ## 8.6 The guardian
 
-One account holds one power outside the governance cycle. The guardian can
-**pause the contract**. That is the entire scope of its authority.
+One account holds a small set of powers outside the governance cycle, all
+defensive. The guardian can **pause the contract**, and it can **cancel** a
+governance proposal — or the scheduled timelock operation behind it — before
+it executes. That is the entire scope of its authority: brakes, never an
+engine.
 
 It cannot change fees, move funds, alter governance parameters, mint,
-upgrade, or influence a vote. It can stop transfers, and nothing else.
+upgrade, propose, or vote. It can stop transfers for a bounded window and it
+can stop a specific governance action from executing; nothing else.
 
-It exists for a narrow reason: in the early life of a protocol, seven days of
-timelock is not a viable response time to an exploit in progress. The
-guardian is the fire alarm, not a seat at the table.
+It exists for a narrow reason: in the early life of a protocol, seven days
+of timelock is not a viable response time to an exploit in progress — and a
+malicious proposal caught mid-flight needs a faster off-switch than a
+counter-proposal. The guardian is the fire alarm, not a seat at the table.
 
-Three constraints define it:
+Four constraints define it:
 
-**It expires.** The guardian's authority ends 36 months after deployment.
-This is a timestamp comparison in the code, not a commitment — no one,
-including governance, can remove or extend it. After that date the pause
-function stops working permanently.
+**A pause is a window, not a switch.** Activating the pause arms it for at
+most fourteen days — enough to cover one full governance response cycle —
+and then it lapses on its own, with no transaction needed. Keeping the token
+paused requires actively renewing the window, and every renewal is a public,
+visible act. A lost key or a silent guardian cannot leave the protocol
+frozen.
 
-**It cannot trap the protocol.** The unpause function continues to work after
-the guardian's expiry. The power to freeze disappears; the power to resume
-does not. No one can leave Daimon paused indefinitely.
+**Everything expires, at one instant.** All guardian powers — the pause and
+both cancellation paths — end 36 months after deployment. The deadline is a
+timestamp fixed independently in the token, the governor and the timelock,
+verified identical across the three at deployment, and modifiable by no one,
+governance included. After it, new pauses and every cancellation are
+refused, and any pause still armed has already lapsed. From that moment
+governance proposals are uncancellable by any single authority: whatever
+passes the vote and the timelock, executes.
 
-**It is visible.** Pausing is an on-chain event. There is no way to use this
-power quietly.
+**It cannot cost holders the migration.** Every second of pause is credited
+to the migration deadline: if a pause blocks claims, the claim window is
+extended by exactly the blocked time. Censorship can delay the exchange; it
+cannot consume it.
 
-The guardian is a temporary compromise with reality, bounded in scope, bounded
-in time, and designed to disappear without requiring anyone's cooperation.
+**It is visible.** Pausing, renewing a pause, and cancelling are on-chain
+events. There is no way to use these powers quietly.
+
+The guardian is a temporary compromise with reality, bounded in scope,
+bounded in time, and designed to disappear without requiring anyone's
+cooperation.
 
 ---
 
@@ -1179,12 +1264,15 @@ fees above 10%, cannot lower the quorum below 10% or the timelock below seven
 days, cannot redirect the dead address or the migration treasury. The
 protocol constrains its own governance.
 
-**The guardian.** Can pause the contract. Cannot do anything else, and loses
-even that after 36 months.
+**The guardian.** Can pause the contract in self-terminating fourteen-day
+windows, and cancel an in-flight governance action before it executes.
+Cannot touch funds, parameters, or execution — and every one of these powers
+ends at the same 36-month expiry, after which any armed pause has already
+lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
 afterwards: the deployment script renounces every temporary permission and
-then verifies, with fourteen assertions that abort deployment on failure,
+then verifies, with nineteen assertions that abort deployment on failure,
 that no externally owned account retains authority anywhere in the system.
 
 The full threat model, including the reasoning behind each conclusion, is
@@ -1403,10 +1491,16 @@ receives the marketing share is set by a governance-only function: the DAO
 can redirect that revenue stream at any time, by vote. What it does not do is
 approve each individual payment.
 
-Two addresses are permanently outside anyone's reach, including governance:
-the dead address that receives burned tokens, and the migration treasury.
-Both are `immutable`, fixed at deployment. Some destinations should not be
-redirectable by a majority.
+Two *destinations* are permanently fixed, beyond even governance's power to
+redirect: the dead address that receives burned tokens, and the migration
+treasury. Both pointers are `immutable`, set at deployment. The distinction
+deserves precision, because the two cases are not the same. Tokens at the
+dead address are beyond anyone's reach, forever. The migration treasury is a
+multisig: its **address** cannot be changed by anyone, but the funds it
+holds are managed by its signers — under the custody commitment made for the
+migration, which keeps the collected legacy tokens out of circulation for
+the entire claim window. What no majority can do is quietly point either
+stream somewhere else.
 
 ## 11.4 Commitments
 

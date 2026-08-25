@@ -18,9 +18,14 @@ Ogni parametro che governa il protocollo — le fee sulle transazioni, il
 funzionamento dello staking, l'allocazione della tesoreria, e il codice stesso
 — può essere modificato soltanto attraverso un voto on-chain seguito da un
 timelock pubblico obbligatorio di sette giorni. Nessun individuo, inclusi
-coloro che lo hanno costruito, detiene il potere di alterare, mettere in pausa
-permanentemente, accelerare o aggirare quel processo. Non è un impegno che
-chiediamo di credere sulla parola: è una proprietà dei contratti deployati,
+coloro che lo hanno costruito, detiene il potere di alterare, accelerare o
+aggirare quel processo. Esiste un solo account di salvaguardia — il guardian
+— e i suoi poteri sono puramente negativi: può mettere in pausa il token in
+finestre di al massimo quattordici giorni che decadono da sole, e può porre
+il veto a una decisione in corso prima dell'esecuzione. Ognuno di quei
+poteri termina a una scadenza inamovibile, 36 mesi dopo il deploy; nulla di
+ciò che ha armato sopravvive a quell'istante. Non è un impegno che chiediamo
+di credere sulla parola: è una proprietà dei contratti deployati,
 verificabile da chiunque in qualsiasi momento.
 
 Chi blocca i propri token riceve potere di voto proporzionale sia alla
@@ -111,17 +116,20 @@ guida non è assegnata da un potere superiore; è scelta da chi verrà guidato, 
 scelta in anticipo.
 
 ```solidity
-votingPowerAt(voter, proposal.snapshotTimestamp)
+votingPowerAt(voter, proposal.snapshotBlock)
 ```
 
-Il potere di voto è valutato nel momento in cui una proposta è stata creata,
-non nel momento del voto. L'influenza su una decisione deriva da un impegno
-preso prima che quella decisione esistesse come questione.
+Il potere di voto è valutato all'ultimo blocco sigillato *prima* che la
+proposta fosse creata, non nel momento del voto. L'influenza su una decisione
+deriva da un impegno preso prima che quella decisione esistesse come
+questione.
 
 L'effetto pratico è che il potere non può essere acquisito in reazione a
-qualcosa. Non si può vedere una proposta sgradita, comprare influenza, e
-usarla. La scelta precede la questione — che è precisamente ciò che Platone
-descriveva, e precisamente ciò che uno snapshot impone.
+qualcosa che è già on-chain: quando una proposta atterra, il blocco di
+snapshot alle sue spalle è già sigillato, e l'influenza comprata dopo — anche
+nello stesso identico blocco — non conta nulla. La scelta precede la
+questione — che è precisamente ciò che Platone descriveva, e precisamente ciò
+che uno snapshot impone.
 
 ## 2.4 Eraclito — la guida e il guidato sono la stessa cosa
 
@@ -424,8 +432,8 @@ una migliore.
 | Emissione | non possibile | non possibile |
 | Riduzione supply | token spostati, supply invariata | **supply realmente ridotta** |
 | Floor di supply | nessuno | **21B, immutabile** |
-| Esclusione da reflection | modificabile dal proprietario | **insieme immutabile, solo dead address** |
-| Protezione slippage | nessuna — accetta qualsiasi output | limitata, con quote dal router |
+| Esclusione da reflection | modificabile dal proprietario | **insieme immutabile, fissato al deploy: dead address e pair di liquidità** |
+| Protezione slippage | nessuna — accetta qualsiasi output | limitata rispetto al quote del router stesso — non un limite alla perdita MEV |
 | Destinatario marketing | stesso indirizzo del proprietario | impostato dalla governance, previsto multisig |
 | Staking | nessuno | vote-escrow, reward in BNB |
 | Governance | nessuna | governance on-chain completa |
@@ -609,17 +617,23 @@ cambiati da nessuno — né da chi ha fatto il deploy, né dalla governance, né
 un aggiornamento. Alcune destinazioni non dovrebbero essere reindirizzabili,
 nemmeno da una maggioranza.
 
-**Il guardian.** Un account detiene un potere: può mettere in pausa il
-contratto in caso di emergenza. Non può cambiare le fee, muovere fondi,
-alterare la governance, emettere token o aggiornare alcunché. Esiste perché
-nella prima fase di vita di un protocollo sette giorni di timelock sono una
-risposta troppo lenta a un exploit in corso.
+**Il guardian.** Un account detiene un insieme ristretto di poteri
+difensivi, fuori dal ciclo di governance: può mettere in pausa il contratto
+in caso di emergenza — per al massimo quattordici giorni per attivazione,
+dopo i quali la pausa decade da sola — e può annullare una proposta di
+governance in corso, o l'operazione già programmata nel timelock che ne
+deriva, prima dell'esecuzione. Non può cambiare le fee, muovere fondi,
+alterare i parametri di governance, emettere token o aggiornare alcunché, e
+non può eseguire: ognuno dei suoi poteri è un freno, mai un motore. Esiste
+perché nella prima fase di vita di un protocollo sette giorni di timelock
+sono una risposta troppo lenta a un exploit in corso.
 
-L'autorità del guardian scade 36 mesi dopo il deploy. Non è un impegno a
-rinunciarvi; è un confronto tra timestamp nel codice che nessuno può rimuovere
-o posticipare. Dopo quella data la funzione di pausa smette di funzionare
-permanentemente — mentre la funzione di riattivazione continua a funzionare,
-così che nessuno possa lasciare il protocollo congelato.
+Ogni potere del guardian scade nello stesso istante, 36 mesi dopo il deploy.
+Non è un impegno a rinunciarvi; è un timestamp fissato indipendentemente in
+tre contratti — token, governor, timelock — che nessuno, governance inclusa,
+può rimuovere o posticipare. Dopo quella data pausa e annullamenti smettono
+di funzionare, e qualsiasi pausa ancora armata è già decaduta: la
+decentralizzazione si completa senza la collaborazione di nessuno.
 
 La Sezione 8.6 descrive i vincoli del guardian per intero.
 
@@ -667,6 +681,28 @@ il conteggio dei token collassa. Il floor è il punto in cui il protocollo
 smette di ridursi e inizia a operare in una modalità diversa — descritta in
 6.6.
 
+**Il floor è un limite, non una destinazione.** Nulla garantisce che la
+supply raggiungerà mai i 21 miliardi, e una forza lavora in silenzio contro:
+i wallet perduti. I token le cui chiavi sono andate perse restano parte
+della supply totale. Continuano ad accumulare reflection, quindi il loro
+saldo cresce; non possono mai essere venduti, quindi il buyback non può mai
+comprarli; non possono mai essere mossi, quindi nessuno può bruciarli. Col
+tempo la quota di supply che il burn può davvero raggiungere si riduce
+mentre quella irraggiungibile si accumula — e se abbastanza token finissero
+in wallet inaccessibili, il burn si fermerebbe da qualche parte sopra i 21
+miliardi, permanentemente al di qua del floor.
+
+Nessuna funzione esiste per intervenire, e nessuna potrebbe essere aggiunta,
+per costruzione: un contratto capace di togliere token a un indirizzo che
+non controlla non sarebbe più senza padrone — deterrebbe esattamente il
+potere che questo progetto esiste per rimuovere. Bitcoin convive con la
+stessa asimmetria: milioni di BTC giacciono in wallet perduti, quello di
+Satoshi incluso, e nessuno ha mai seriamente proposto di recuperarli, perché
+il rimedio sarebbe peggiore della perdita. Ciò che il floor garantisce
+resta intatto in ogni caso: il burn non può mai portare la supply sotto i 21
+miliardi. Quanto ci si avvicini è una questione di storia del mercato, non
+di codice.
+
 ## 6.3 Fee sulle transazioni
 
 Ogni trasferimento applica una fee, attualmente il 4% dell'importo trasferito,
@@ -679,7 +715,7 @@ suddivisa in tre componenti:
 | Marketing / operativo | 2% | 60% ai reward degli staker, 40% alle operazioni |
 | **Totale** | **4%** | |
 
-Due proprietà strutturali contano più dei numeri attuali.
+Tre proprietà strutturali contano più dei numeri attuali.
 
 **Il tetto.** Il contratto rifiuta qualsiasi configurazione in cui la fee
 totale superi il 10%. È imposto da un'istruzione `require`, non da una
@@ -691,6 +727,23 @@ limitata dal codice che governa.
 governance completato. L'attuale 4% è esso stesso il risultato di uno: la
 prima proposta nella storia di Daimon ha ridotto le fee dal 5% al 4%, e il suo
 registro completo compare nella Sezione 9.
+
+**Zero è legale — ed è un cambio di modello, non una regolazione.**
+L'intervallo ha un tetto e nessun minimo: la governance può portare ogni fee
+a zero. Farlo spegne quasi tutto ciò che le fee alimentano. La reflection si
+ferma; nessun nuovo BNB si accumula; buyback, burn, reward di staking e
+finanziamento operativo si esauriscono una volta speso l'inventario già
+raccolto; e finché le fee restano a zero, il floor dei 21 miliardi della 6.2
+è fuori portata per sempre. Ciò che resterebbe è un token liberamente
+trasferibile con una governance funzionante e uno staking ridotto a puro
+peso di voto. La decisione è reversibile per la stessa via che l'ha presa —
+un voto successivo può ripristinare qualsiasi totale fino al 10% — e tredici
+giorni di processo pubblico separano la proposta dal suo effetto: tempo
+sufficiente per accorgersene, se qualcuno guarda. Esiste una configurazione
+in cui lo zero ha senso: un protocollo che abbia già un'altra fonte di
+entrate può azzerare le fee di trasferimento per rimuovere attrito senza
+spegnere nulla. Quella fonte deve esistere prima — azzerare le fee non la
+crea.
 
 ## 6.4 Reflection
 
@@ -729,37 +782,54 @@ particolare. È una conseguenza dell'attività di scambio.
 ```
 1.  Avvengono scambi → le fee si accumulano come DMN nel contratto
 
-2.  Quando le fee accumulate superano una soglia, e avviene una
-    vendita verso la pool di liquidità, il contratto vende i token
-    accumulati sul mercato → riceve BNB
+2.  Quando le fee accumulate superano una soglia, un qualsiasi
+    trasferimento diretto di DMN alla pair di liquidità — basta un
+    wei, inviato da chiunque — fa vendere al contratto una tranche
+    pari alla soglia, al massimo una per blocco → riceve BNB
 
 3.  Il BNB viene suddiviso:
         quota marketing  →  60% al pool reward dello staking
                             40% alle operazioni
         quota buyback    →  trattenuta nel contratto
 
-4.  Quando il BNB trattenuto supera una soglia, il contratto compra
-    DMN sul mercato aperto e li invia all'indirizzo morto
+4.  Sullo stesso innesco, quando il BNB trattenuto supera una
+    soglia, il contratto compra DMN sul mercato aperto e li invia
+    all'indirizzo morto — al massimo una fetta per blocco
 
 5.  burnDeadBalanceToFloor() rimuove quel saldo dalla supply totale
     — permanentemente, e al massimo fino al floor
 ```
 
-Il passaggio 5 è **permissionless**: qualsiasi indirizzo può chiamarlo, in
-qualsiasi momento, senza alcun ruolo speciale. Nessuno può impedirlo, e
-nessuno può forzarlo oltre il floor. La funzione non ha un chiamante
-privilegiato perché non ne ha bisogno — il suo unico effetto possibile è
+Il passaggio 5 è **permissionless**: qualsiasi indirizzo può chiamarlo,
+senza alcun ruolo speciale. Nessuno può forzarlo oltre il floor, ed
+esattamente una cosa può ritardarlo: la funzione rispetta la pausa di
+emergenza del guardian — una scelta deliberata, perché scrive la stessa
+contabilità della supply che chi risponde a un incidente vorrebbe congelata.
+Durante una finestra di pausa armata il burn attende, al massimo quattordici
+giorni per finestra; altrimenti nessuno può impedirlo, e una volta terminato
+il mandato di 36 mesi del guardian, niente potrà più metterlo in pausa. La
+funzione non ha un chiamante privilegiato perché non ne ha bisogno — il suo
+unico effetto possibile è
 ridurre la supply verso un limite fissato nel codice.
 
-I passaggi 2 e 4 sono automatici e usano la pool di liquidità pubblica. Gli
-swap sono protetti da un limite di slippage e incapsulati in modo che uno swap
-fallito non possa bloccare i trasferimenti: se le condizioni di mercato
-rendono uno swap sfavorevole, viene saltato e ritentato più tardi invece di
-far fallire la transazione dell'utente.
+I passaggi 2 e 4 scattano su un innesco permissionless e usano la pool di
+liquidità pubblica. Le vendite ordinarie attraverso il router,
+deliberatamente, **non** li innescano: il router calcola i propri importi da
+un'istantanea delle riserve della pool, e far girare gli swap del protocollo
+dentro quella finestra permetterebbe di prezzare male un deposito di
+liquidità (finding #1 dell'audit). L'innesco è quindi un semplice
+trasferimento di DMN alla pair — chiunque può inviare un wei per far
+avanzare il ciclo, e budget per blocco limitano l'aggregato indipendentemente
+da chi chiama e quanto spesso. Se nessuno innesca, le fee si accumulano
+finché qualcuno non lo fa: nulla si perde e nulla si blocca. Gli swap sono
+protetti da un limite di slippage e incapsulati in modo che uno swap fallito
+non possa bloccare i trasferimenti: se le condizioni di mercato rendono uno
+swap sfavorevole, viene saltato e ritentato all'innesco successivo invece di
+far fallire la transazione del chiamante.
 
 ## 6.6 Cosa succede al floor
 
-Quando la supply totale raggiunge i 21 miliardi, il burn si ferma
+Se il burn portasse mai la supply totale a 21 miliardi, lì si fermerebbe
 permanentemente. Non riprende, e nessun voto può riavviarlo.
 
 A quel punto la componente buyback non ha più una destinazione che riduca la
@@ -768,8 +838,9 @@ destinate al burn vengono reindirizzate interamente agli staker — il
 meccanismo passa dal ridurre la supply al distribuire rendimento, in modo
 automatico, sulla base di un controllo sulla supply e non di una decisione.
 
-È uno scenario lontano. È descritto qui perché un protocollo dovrebbe
-specificare il proprio stato terminale, non perché sia imminente.
+È uno scenario lontano e — come spiega la 6.2 — non garantito. È descritto
+qui perché un protocollo dovrebbe specificare il proprio stato terminale,
+non perché quello stato sia promesso.
 
 ---
 
@@ -830,25 +901,29 @@ L'effetto combinato è che lo staking rimuove token dalla circolazione
 restituendo valore che non deve essere rivenduto sullo stesso mercato.
 
 I reward maturano continuamente e si riscuotono su richiesta. Se dei reward
-arrivano in un momento in cui nessun token è in staking, vengono trattenuti e
-distribuiti agli staker successivi invece di andare persi.
+arrivano in un momento in cui nessun token è in staking, vengono accantonati
+in una riserva dedicata invece di andare persi — recuperabile solo con una
+decisione esplicita della governance, e mai ripiegata silenziosamente in una
+distribuzione successiva, dove il primo staker ad arrivare avrebbe potuto
+catturarli.
 
 ## 7.3 Checkpoint del potere di voto
 
 Il contratto di staking non registra solo il potere di voto attuale. Ne
 registra la storia.
 
-Ogni cambiamento — un nuovo lock, un ritiro — scrive un checkpoint con un
-timestamp. Questo permette al contratto di governance di porre una domanda
-specifica: *qual era il potere di voto di questo indirizzo nel momento in cui
-la proposta N è stata creata?*
+Ogni cambiamento — un nuovo lock, un ritiro — scrive un checkpoint indicizzato
+per numero di blocco. Questo permette al contratto di governance di porre una
+domanda specifica: *qual era il potere di voto di questo indirizzo al blocco
+sigillato appena prima che la proposta N fosse creata?*
 
 È ciò che impedisce l'attacco alla governance più evidente. Senza checkpoint
 storici, un attore potrebbe osservare una proposta che non gli piace,
 acquisire e mettere in staking una posizione ingente, e votarla contro con
 potere acquistato dopo che la questione è stata sollevata. Con i checkpoint,
-il voto viene risolto contro uno snapshot preso alla creazione della proposta:
-il potere acquisito in seguito non conta nulla.
+il voto viene risolto contro lo snapshot di un blocco già sigillato: il
+potere acquisito in seguito — anche nello stesso blocco della proposta — non
+conta nulla.
 
 Lo abbiamo testato specificamente, con un attaccante simulato che deteneva una
 posizione schiacciante messa in staking subito dopo la creazione di una
@@ -1017,32 +1092,48 @@ possa essere visto arrivare.
 
 ## 8.6 Il guardian
 
-Un account detiene un potere fuori dal ciclo di governance. Il guardian può
-**mettere in pausa il contratto**. Questo è l'intero raggio della sua
-autorità.
+Un account detiene un piccolo insieme di poteri fuori dal ciclo di
+governance, tutti difensivi. Il guardian può **mettere in pausa il
+contratto**, e può **annullare** una proposta di governance — o l'operazione
+già programmata nel timelock che ne deriva — prima che venga eseguita.
+Questo è l'intero raggio della sua autorità: freni, mai un motore.
 
 Non può cambiare le fee, muovere fondi, alterare i parametri di governance,
-emettere token, aggiornare, o influenzare un voto. Può fermare i
-trasferimenti, e nient'altro.
+emettere token, aggiornare, proporre o votare. Può fermare i trasferimenti
+per una finestra limitata e può impedire l'esecuzione di una specifica
+azione di governance; nient'altro.
 
 Esiste per una ragione precisa: nella prima fase di vita di un protocollo,
 sette giorni di timelock non sono un tempo di risposta praticabile a un
-exploit in corso. Il guardian è l'allarme antincendio, non un posto al tavolo.
+exploit in corso — e una proposta malevola colta in volo ha bisogno di un
+interruttore più rapido di una contro-proposta. Il guardian è l'allarme
+antincendio, non un posto al tavolo.
 
-Tre vincoli lo definiscono:
+Quattro vincoli lo definiscono:
 
-**Scade.** L'autorità del guardian termina 36 mesi dopo il deploy. È un
-confronto tra timestamp nel codice, non un impegno — nessuno, governance
-inclusa, può rimuoverlo o prorogarlo. Dopo quella data la funzione di pausa
-smette di funzionare permanentemente.
+**Una pausa è una finestra, non un interruttore.** Attivare la pausa la arma
+per al massimo quattordici giorni — abbastanza da coprire un intero ciclo di
+risposta della governance — e poi decade da sola, senza bisogno di alcuna
+transazione. Tenere il token in pausa richiede di rinnovare attivamente la
+finestra, e ogni rinnovo è un atto pubblico e visibile. Una chiave persa o
+un guardian silente non possono lasciare il protocollo congelato.
 
-**Non può intrappolare il protocollo.** La funzione di riattivazione continua
-a funzionare anche dopo la scadenza del guardian. Il potere di congelare
-scompare; quello di ripartire no. Nessuno può lasciare Daimon in pausa a tempo
-indefinito.
+**Tutto scade, in un solo istante.** Tutti i poteri del guardian — la pausa
+ed entrambi i percorsi di annullamento — terminano 36 mesi dopo il deploy.
+La scadenza è un timestamp fissato indipendentemente nel token, nel governor
+e nel timelock, verificato identico nei tre al deploy, e modificabile da
+nessuno, governance inclusa. Dopo di essa, nuove pause e ogni annullamento
+vengono rifiutati, e qualsiasi pausa ancora armata è già decaduta. Da quel
+momento le proposte di governance non sono annullabili da nessuna autorità
+singola: ciò che supera il voto e il timelock, viene eseguito.
 
-**È visibile.** Mettere in pausa è un evento on-chain. Non c'è modo di usare
-questo potere in silenzio.
+**Non può costare agli holder la migrazione.** Ogni secondo di pausa è
+accreditato alla scadenza della migrazione: se una pausa blocca i claim, la
+finestra di claim si estende esattamente del tempo bloccato. La censura può
+ritardare lo scambio; non può consumarlo.
+
+**È visibile.** Mettere in pausa, rinnovare una pausa e annullare sono
+eventi on-chain. Non c'è modo di usare questi poteri in silenzio.
 
 Il guardian è un compromesso temporaneo con la realtà, limitato nel raggio,
 limitato nel tempo, e progettato per scomparire senza richiedere la
@@ -1237,12 +1328,15 @@ il 10% o il timelock sotto i sette giorni, non può reindirizzare l'indirizzo
 morto o la tesoreria della migrazione. Il protocollo limita la propria stessa
 governance.
 
-**Il guardian.** Può mettere in pausa il contratto. Non può fare nient'altro,
-e perde anche quello dopo 36 mesi.
+**Il guardian.** Può mettere in pausa il contratto in finestre di quattordici
+giorni che decadono da sole, e annullare un'azione di governance in corso
+prima che venga eseguita. Non può toccare fondi, parametri o esecuzione — e
+ognuno di questi poteri termina alla stessa scadenza di 36 mesi, dopo la
+quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
 detiene alcun ruolo in seguito: lo script di deploy rinuncia a ogni permesso
-temporaneo e poi verifica, con quattordici asserzioni che interrompono il deploy
+temporaneo e poi verifica, con diciannove asserzioni che interrompono il deploy
 in caso di fallimento, che nessun account esterno mantenga autorità in alcun
 punto del sistema.
 
@@ -1469,10 +1563,17 @@ quota marketing è impostato da una funzione riservata alla governance: la DAO
 può reindirizzare quel flusso di entrate in qualsiasi momento, con un voto.
 Ciò che non fa è approvare ogni singolo pagamento.
 
-Due indirizzi sono permanentemente fuori dalla portata di chiunque, governance
-inclusa: l'indirizzo morto che riceve i token bruciati, e la tesoreria della
-migrazione. Entrambi sono `immutable`, fissati al deploy. Alcune destinazioni
-non dovrebbero essere reindirizzabili da una maggioranza.
+Due *destinazioni* sono fissate permanentemente, oltre il potere di
+reindirizzo persino della governance: l'indirizzo morto che riceve i token
+bruciati, e la tesoreria della migrazione. Entrambi i puntatori sono
+`immutable`, impostati al deploy. La distinzione merita precisione, perché i
+due casi non sono uguali. I token all'indirizzo morto sono fuori dalla
+portata di chiunque, per sempre. La tesoreria della migrazione è un multisig:
+il suo **indirizzo** non può essere cambiato da nessuno, ma i fondi che
+detiene sono gestiti dai suoi firmatari — sotto l'impegno di custodia
+assunto per la migrazione, che tiene i vecchi token raccolti fuori dalla
+circolazione per l'intera finestra di claim. Ciò che nessuna maggioranza può
+fare è puntare in silenzio uno dei due flussi altrove.
 
 ## 11.4 Impegni
 

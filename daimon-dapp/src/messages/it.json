@@ -107,7 +107,7 @@
     "deflationRange": "1000B → 21B",
     "burnedAmount": "{amount} DMN bruciati",
     "floorLabel": "floor: 21B",
-    "floorPromise": "Quando il floor sarà raggiunto, il 100% della revenue andrà agli staker",
+    "floorPromise": "Se e quando il floor sarà raggiunto, il 100% della revenue andrà agli staker",
     "yourStaking": "Il tuo staking",
     "connectForStaking": "Connetti il wallet per vedere posizioni e reward.",
     "inStake": "In stake: ",

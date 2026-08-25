@@ -84,7 +84,10 @@ Works EVEN without a connected wallet (all public on-chain reads).
 - Progress from 1000B toward 21B, gold fill
 - Labels: "1000B → 21B", the amount burned
 - Below, the key sentence always visible:
-  "Once the floor is reached, 100% of the revenue will go to stakers"
+  "If and when the floor is reached, 100% of the revenue will go to stakers"
+  (conditional on purpose: the floor is a bound, not a guaranteed
+  destination — tokens in lost wallets can keep the burn permanently above
+  it; see whitepaper 6.2)
 
 **Quick-access cards (2):**
 - "Your staking" → if the wallet is not connected: "Connect your wallet to see
@@ -201,6 +204,29 @@ Executed/Defeated/Canceled → status badge
      proposal descriptions (content written by the proposers).
    - Number formatting UNCHANGED between languages (floor-truncation
      included); dates and countdowns localized (it-IT ↔ en-US, "3g" ↔ "3d").
+
+### 8.x Liquidity operations: disclose the real cost (Zenith #16, #17)
+
+The token charges a transfer fee, and liquidity operations cross the token
+twice. The contracts accept this; the **interface must not let a user discover
+it after signing**.
+
+- **Removing liquidity pays the fee TWICE**: once on pair → router, once on
+  router → user. The interface must state that two fees apply and show the
+  amount the user will actually receive, not the router's gross figure.
+- **Adding liquidity yields fewer LP tokens than the router quotes**: the
+  router computes on the gross amount while the pair receives the net. The
+  interface must present the effective figure, and must not repeat the
+  router's estimate as if it were the outcome.
+- Wherever an amount is shown before signing, it is the **net the user gets**,
+  with the fee stated separately — the same rule already applied to transfers
+  in §8.5.
+
+⚠️ **Never propose exempting the pair or the router as a workaround.** It
+would disable fees on every buy and sell, and would open a fee-free transfer
+route: pre-deposit tokens, then call liquidity removal to take them out
+untaxed. The double fee is by far the lesser cost. See
+[THREAT_MODEL.md §7](THREAT_MODEL.md).
 
 ## 9. What NOT to include (explicit decisions)
 
