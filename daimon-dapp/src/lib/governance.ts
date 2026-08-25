@@ -5,9 +5,11 @@ import { encodeAbiParameters, keccak256, parseAbiParameters, zeroHash } from "vi
  *
  * Tuple of DaimonGovernor's public getter `proposals(id)`:
  *  0 proposer, 1 target, 2 value, 3 data, 4 description,
- *  5 snapshotTimestamp, 6 snapshotTotalVotingPower, 7 voteStart, 8 voteEnd,
+ *  5 snapshotBlock (numero di BLOCCO, fix #12), 6 snapshotTotalVotingPower,
+ *  7 voteStart, 8 voteEnd,
  *  9 forVotes, 10 againstVotes, 11 abstainVotes,
- *  12 canceled, 13 executed, 14 queued, 15 timelockSalt
+ *  12 canceled, 13 executed, 14 queued, 15 timelockSalt,
+ *  16 quorumBpsSnapshot (bps catturati alla creazione, fix #37)
  */
 export type ProposalTuple = readonly [
   `0x${string}`, // proposer
@@ -15,7 +17,7 @@ export type ProposalTuple = readonly [
   bigint, // value
   `0x${string}`, // data
   string, // description
-  bigint, // snapshotTimestamp
+  bigint, // snapshotBlock
   bigint, // snapshotTotalVotingPower
   bigint, // voteStart
   bigint, // voteEnd
@@ -26,6 +28,7 @@ export type ProposalTuple = readonly [
   boolean, // executed
   boolean, // queued
   `0x${string}`, // timelockSalt
+  bigint, // quorumBpsSnapshot
 ];
 
 export type PhaseKey =

@@ -38,7 +38,6 @@ export default function Governance() {
   const { data: countData, isLoading: countLoading } = useReadContracts({
     contracts: [
       { ...governor, functionName: "proposalCount" },
-      { ...governor, functionName: "quorumBps" },
       { ...governor, functionName: "proposalThreshold" },
     ],
   });
@@ -60,8 +59,9 @@ export default function Governance() {
     }
     prevCount.current = proposalCount;
   }, [proposalCount, countData]);
-  const quorumBps = (countData?.[1]?.result as bigint | undefined) ?? 1000n;
-  const threshold = countData?.[2]?.result as bigint | undefined;
+  // Il quorum bps NON si legge piu' live: ogni proposta porta il proprio
+  // quorumBpsSnapshot (indice 16 del tuple, fix #37) e la card usa quello.
+  const threshold = countData?.[1]?.result as bigint | undefined;
 
   // Sort from most recent
   const ids = useMemo(
@@ -99,7 +99,6 @@ export default function Governance() {
             <ProposalCard
               key={id.toString()}
               id={id}
-              quorumBps={quorumBps}
               highlight={justCreated && i === 0}
             />
           ))}
@@ -118,11 +117,9 @@ export default function Governance() {
 
 function ProposalCard({
   id,
-  quorumBps,
   highlight = false,
 }: {
   id: bigint;
-  quorumBps: bigint;
   highlight?: boolean;
 }) {
   const { t, locale } = useI18n();
@@ -192,7 +189,10 @@ function ProposalCard({
   const abstainVotes = p[11];
   const totalVotes = forVotes + againstVotes + abstainVotes; // only for the bars' %
   // Quorum: for + abstain, EXCLUDING against (consistent with the Governor —
-  // against votes do not count toward quorum).
+  // against votes do not count toward quorum). The bps are the ones captured
+  // at proposal creation (fix #37), not the live value: a quorum change in
+  // flight does not move the bar of existing proposals.
+  const quorumBps = p[16];
   const quorumVotes = forVotes + abstainVotes;
   const quorumNeeded = (p[6] * quorumBps) / 10000n;
   const quorumPct =

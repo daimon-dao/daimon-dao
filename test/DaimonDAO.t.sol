@@ -8,8 +8,8 @@ pragma solidity 0.8.26;
  *   forge test -vvv
  *
  * Covers the full stack: token parameters and supply floor, 1:1 migration,
- * vote-escrow staking, the complete governance cycle (propose → vote → queue
- * → execute), the burn floor, the guardian expiry, and the fixes from the
+ * vote-escrow staking, the complete governance cycle (propose â†’ vote â†’ queue
+ * â†’ execute), the burn floor, the guardian expiry, and the fixes from the
  * security review (snapshot voting power, timelock role hand-off, fee-swap
  * slippage protection, reward queueing, etc.).
  */
@@ -86,18 +86,20 @@ contract DaimonDAOTest is Test {
         // 2. Deploy staking (uses the deployer as temporary governance)
         staking = new DaimonStaking(address(token), deployer);
 
-        // 3. Deploy the timelock: proposer/executor/canceller are set after the
-        // governor exists (bootstrap); for now the deployer holds all admin roles
-        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer);
+        // 3. Deploy timelock: proposer/executor/canceller settati dopo aver
+        // il governor (bootstrap), per ora deployer ha tutti i ruoli admin
+        timelock = new DaimonTimelock(7 days, deployer, deployer, guardian, deployer, token.guardianExpiry());
 
-        // 4. Deploy the governor (quorum 10% = 1000 bps out of 10000)
-        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 * 1e18);
+        // 4. Deploy governor (quorum 10% = 1000 bps su 10000)
+        governor = new DaimonGovernor(address(staking), address(timelock), guardian, 1000, 1000 * 1e18, token.guardianExpiry());
 
-        // 5. Timelock role wiring: the Governor must be both PROPOSER (for
-        // queue) and EXECUTOR (the Governor's execute() calls timelock.execute()
-        // with msg.sender = governor).
+        // 5. Wiring dei ruoli del Timelock: il Governor deve essere sia
+        // PROPOSER (per queue) sia EXECUTOR (execute() del Governor chiama
+        // timelock.execute() con msg.sender = governor), oltre che CANCELLER
+        // per la cancellazione atomica (#26).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
 
         staking.setGovernance(address(timelock), true);
@@ -268,6 +270,7 @@ contract DaimonDAOTest is Test {
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
 
+        vm.roll(block.number + 1); // lo snapshot e' block - 1 (#12): lo stake deve stare in un blocco gia' sigillato
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Reduce fees");
 
@@ -316,6 +319,7 @@ contract DaimonDAOTest is Test {
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(0), uint256(0), uint256(0));
 
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Zero fees");
 
@@ -345,6 +349,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot quorum");
 
@@ -378,6 +383,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Skip the queue");
 
@@ -446,6 +452,39 @@ contract DaimonDAOTest is Test {
         }
     }
 
+    /// Finding #5: burnDeadBalanceToFloor() is permissionless and writes
+    /// _rTotal and _tTotal â€” the reflection accounting itself. While the
+    /// guardian holds the token paused, that accounting must stay frozen:
+    /// pausing to investigate a suspected problem in it, while leaving a
+    /// public function that mutates it open, would defeat the pause.
+    function test_BurnToFloorBlockedWhilePaused() public {
+        _deployFullStack();
+
+        // Give the dead address something to burn.
+        vm.prank(address(migration));
+        token.transfer(address(0xdEaD), 5_000_000 * 1e18);
+        uint256 supplyBefore = token.totalSupply();
+        uint256 deadBefore = token.balanceOf(token.deadAddress());
+        assertGt(deadBefore, 0, "nothing to burn");
+
+        vm.prank(guardian);
+        token.setPaused(true);
+
+        // Anyone can call it, but not while paused.
+        vm.expectRevert(DaimonV2.ContractIsPaused.selector);
+        token.burnDeadBalanceToFloor();
+
+        // The accounting is untouched by the rejected call.
+        assertEq(token.totalSupply(), supplyBefore, "supply moved while paused");
+        assertEq(token.balanceOf(token.deadAddress()), deadBefore, "dead balance moved while paused");
+
+        // After the resume it works again, permissionless as before.
+        vm.prank(guardian);
+        token.setPaused(false);
+        token.burnDeadBalanceToFloor();
+        assertLt(token.totalSupply(), supplyBefore, "burn did not resume after unpause");
+    }
+
     // ============================================================
     // Test 6: Guardian 36-month expiry
     // ============================================================
@@ -454,10 +493,15 @@ contract DaimonDAOTest is Test {
         vm.prank(guardian);
         token.setPaused(true);
         assertTrue(token.paused());
+        // #36: la pausa e' una FINESTRA di 14 giorni, non un latch.
+        assertTrue(token.isPaused());
+        assertEq(token.pauseUntil(), block.timestamp + token.MAX_PAUSE_DURATION());
 
         vm.prank(guardian);
         token.setPaused(false);
         assertFalse(token.paused());
+        assertFalse(token.isPaused());
+        assertEq(token.pauseUntil(), 0);
     }
 
     function test_GuardianCannotPauseAfter36Months() public {
@@ -501,6 +545,7 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.roll(block.number + 1); // snapshot a block - 1 (#12)
         vm.prank(alice);
         uint256 proposalId = governor.propose(address(token), 0, data, "Snapshot votes");
 
@@ -528,27 +573,30 @@ contract DaimonDAOTest is Test {
         _deployFullStack();
         _giveAliceSomeNewTokens(1000 * 1e18);
 
-        // Fixed (literal) timestamps: with via-ir the compiler treats
-        // block.timestamp as invariant within the transaction and may re-read
-        // it after a vm.warp instead of reusing the value saved earlier — so
-        // here we never derive timestamps from block.timestamp.
-        uint256 tStake = 1_000_000;
-        vm.warp(tStake);
+        // Fixed literal block numbers: with via-ir the compiler treats
+        // block.number as invariant within the transaction and may re-read
+        // it after a vm.roll instead of reusing the value saved earlier â€”
+        // so we never derive checkpoint keys from block.number here. (The
+        // checkpoints are keyed by BLOCK since the #12 fix; the lock expiry
+        // stays on wall-clock time, hence the warp before withdraw.)
+        uint256 bStake = 1_000;
+        vm.roll(bStake);
 
         vm.startPrank(alice);
         token.approve(address(staking), 1000 * 1e18);
         uint256 lockId = staking.stake(1000 * 1e18, 0); // 30d, 1x
         vm.stopPrank();
 
-        assertEq(staking.votingPowerAt(alice, tStake), 1000 * 1e18);
-        assertEq(staking.votingPowerAt(alice, tStake - 1), 0); // before the stake: zero
+        assertEq(staking.votingPowerAt(alice, bStake), 1000 * 1e18);
+        assertEq(staking.votingPowerAt(alice, bStake - 1), 0); // prima dello stake: zero
 
-        vm.warp(tStake + 31 days);
+        vm.roll(bStake + 100);
+        vm.warp(block.timestamp + 31 days);
         vm.prank(alice);
         staking.withdraw(lockId);
 
-        assertEq(staking.votingPowerAt(alice, tStake + 31 days), 0);          // now: zero
-        assertEq(staking.votingPowerAt(alice, tStake + 1 days), 1000 * 1e18); // history stays queryable
+        assertEq(staking.votingPowerAt(alice, bStake + 100), 0);          // oggi: zero
+        assertEq(staking.votingPowerAt(alice, bStake + 50), 1000 * 1e18); // lo storico resta interrogabile
     }
 
     // --- A2: no EOA holds the Timelock admin after wiring ---
@@ -598,8 +646,8 @@ contract DaimonDAOTest is Test {
         // marketing branch = 20/40 = 500 ether, of which 60% staking / 40% wallet
         assertEq(marketingWallet.balance - marketingBefore, 200 ether);
         assertEq(address(staking).balance, 300 ether);
-        assertEq(staking.undistributedRewards(), 300 ether); // no staker: queued (M1)
-        assertGt(token.balanceOf(dead), 0); // buyback executed despite minOut > 0
+        assertEq(staking.zeroStakerReserve(), 300 ether); // nobody staking: reserved, never merged (#35)
+        assertGt(token.balanceOf(dead), 0); // buyback eseguito nonostante minOut > 0
     }
 
     function test_MaxSwapSlippageGovernedAndBounded() public {
@@ -680,13 +728,16 @@ contract DaimonDAOTest is Test {
         assertEq(token.balanceOf(dead), deadBal);
     }
 
-    // --- M1 + M2: rewards queued with no staker and distributed at the first useful notify ---
-    function test_UndistributedRewardsFlowToFirstStaker() public {
+    // --- M1 + M2, semantics changed by the #35 fix: rewards received with no
+    // staker are RESERVED, never merged into later distributions. The old
+    // behaviour this test asserted (backlog flowing to the first staker) was
+    // exactly the finding: 1 wei staked at the right moment captured it all.
+    function test_ZeroStakerRewardsAreReservedNotMerged() public {
         _deployFullStack();
 
         vm.deal(address(this), 10 ether);
         staking.notifyRewardAmount{value: 4 ether}(4 ether);
-        assertEq(staking.undistributedRewards(), 4 ether);
+        assertEq(staking.zeroStakerReserve(), 4 ether);
         assertEq(staking.pendingReward(alice), 0);
 
         _giveAliceSomeNewTokens(1000 * 1e18);
@@ -696,27 +747,40 @@ contract DaimonDAOTest is Test {
         vm.stopPrank();
 
         staking.notifyRewardAmount{value: 2 ether}(2 ether);
-        assertEq(staking.undistributedRewards(), 0);
-        assertEq(staking.pendingReward(alice), 6 ether); // 4 queued + 2 new, exact at 1e27 scale
+        assertEq(staking.zeroStakerReserve(), 4 ether); // untouched by the distribution
+        assertEq(staking.pendingReward(alice), 2 ether); // only the new notify, exact at 1e27 scale
 
         uint256 balBefore = alice.balance;
         vm.prank(alice);
         staking.claimReward();
-        assertEq(alice.balance - balBefore, 6 ether);
+        assertEq(alice.balance - balBefore, 2 ether);
+        assertEq(staking.zeroStakerReserve(), 4 ether); // claims cannot reach the reserve
     }
 
-    // --- B7: after expiry the guardian can only unpause ---
+    // --- B7: dopo la scadenza il guardian puo' solo togliere la pausa ---
+    // #36: la pausa non puo' piu' SOPRAVVIVERE alla scadenza â€” la finestra
+    // lapsa da sola (qui gia' dopo 14 giorni, e comunque mai oltre
+    // guardianExpiry), senza bisogno di alcuna chiamata. Prima del fix
+    // questo test tollerava una pausa ancora effettiva dopo 36 mesi: era il
+    // comportamento difettoso del finding.
     function test_GuardianCanUnpauseAfterExpiry() public {
         _deployFullStack();
         vm.prank(guardian);
         token.setPaused(true);
+        assertTrue(token.isPaused());
 
         vm.warp(block.timestamp + 1096 days);
+
+        // Auto-risanamento: NESSUNA chiamata, eppure il token non e' piu'
+        // in pausa. Il flag grezzo resta armato ma senza effetto.
+        assertTrue(token.paused());
+        assertFalse(token.isPaused());
 
         vm.prank(guardian);
         vm.expectRevert(DaimonV2.GuardianExpired.selector);
         token.setPaused(true);
 
+        // L'unpause residuo pulisce il flag, sempre possibile.
         vm.prank(guardian);
         token.setPaused(false);
         assertFalse(token.paused());

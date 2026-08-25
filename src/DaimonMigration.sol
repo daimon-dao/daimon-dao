@@ -10,11 +10,18 @@ pragma solidity 0.8.26;
  *
  * Operational precondition (one-time action required from the owner of the
  * OLD Daimon contract, BEFORE opening the migration):
- *   oldDaimon.excludeFromFee(address(thisMigrationContract))
- * Without this step, the incoming transferFrom would incur the old
- * contract's tax fee and the net migrated amount would be lower than what
- * the user declared, causing a protective revert (see below) rather than a
- * silent loss of funds.
+ *   oldDaimon.excludeFromFee(treasury)
+ * The TREASURY, not this contract: the old-token transfer in claim() runs
+ * claimant -> treasury, with this contract acting only as the allowance
+ * spender, never as a transfer endpoint. The old Daimon disables its fee
+ * only when the sender or the recipient is exempt, so exempting the
+ * Migration contract itself would leave the fee active. The treasury is
+ * the one fixed recipient of every claim, which makes its exemption the
+ * scalable configuration (exempting every claimant, or zeroing the old
+ * contract's fees, would also work). Without this step, the incoming
+ * transferFrom would incur the old contract's tax fee and the net migrated
+ * amount would be lower than what the user declared, causing a protective
+ * revert (see below) rather than a silent loss of funds.
  *
  * Security:
  *  - Pull, not push: the user initiates their own claim, no "mass" action
@@ -40,6 +47,10 @@ interface IOldDaimon {
 interface INewDaimon {
     function transfer(address to, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+    // Total seconds of guardian pause window ever scheduled on the new token
+    // (#36). A pause blocks claim()'s outgoing transfer, so every second of
+    // it extends the effective migration deadline by the same amount.
+    function cumulativePauseSeconds() external view returns (uint256);
 }
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -49,6 +60,18 @@ contract DaimonMigration is ReentrancyGuard {
     INewDaimon public immutable newDaimon;
     address public immutable treasury;     // DAO treasury, destination of the old tokens
     address public immutable governance;   // Timelock, the only one allowed to sweep post-deadline
+
+    // Bounds on the migration window. The deadline is immutable AND it arms
+    // the sweep: whoever has not claimed by then loses the claim to the
+    // treasury. The minimum is therefore holder protection — below one month
+    // there is no credible public notice period for a distributed holder
+    // base. The maximum caps how long the old token stays a live parallel
+    // market and guarantees the sweep is reachable: being immutable, a typo
+    // like "3650 instead of 365" would otherwise freeze it for a decade with
+    // no remedy. 30 days is also the window already exercised end-to-end on
+    // the live testnet.
+    uint256 public constant MIN_MIGRATION_DURATION = 30 days;
+    uint256 public constant MAX_MIGRATION_DURATION = 365 days;
 
     uint256 public immutable migrationDeadline;
     uint256 public totalMigrated;
@@ -67,6 +90,7 @@ contract DaimonMigration is ReentrancyGuard {
     error MigrationStillOpen();
     error OnlyGovernance();
     error AlreadySwept();
+    error InvalidMigrationDuration();
 
     modifier onlyGovernance() {
         if (msg.sender != governance) revert OnlyGovernance();
@@ -79,6 +103,11 @@ contract DaimonMigration is ReentrancyGuard {
         if (_oldDaimon == address(0) || _newDaimon == address(0) || _treasury == address(0) || _governance == address(0)) {
             revert ZeroAddress();
         }
+        // The deadline is immutable: an out-of-range duration cannot be
+        // corrected after deploy, so it must never leave the constructor.
+        if (_migrationDurationSeconds < MIN_MIGRATION_DURATION || _migrationDurationSeconds > MAX_MIGRATION_DURATION) {
+            revert InvalidMigrationDuration();
+        }
         oldDaimon = IOldDaimon(_oldDaimon);
         newDaimon = INewDaimon(_newDaimon);
         treasury = _treasury;
@@ -86,10 +115,23 @@ contract DaimonMigration is ReentrancyGuard {
         migrationDeadline = block.timestamp + _migrationDurationSeconds;
     }
 
+    /// @notice The deadline actually enforced: the immutable base deadline
+    /// plus every second of pause window the guardian ever scheduled on the
+    /// new token (#36). A pause makes claim() revert (the outgoing DaimonV2
+    /// transfer is blocked), so holders get the blocked time back — the
+    /// migration window cannot be consumed by censorship against an
+    /// immutable deadline. The credit is monotone and survives early
+    /// unpauses (over-crediting is deliberately in the holders' favour),
+    /// and it is bounded: pauses only exist inside the 36-month guardian
+    /// mandate.
+    function effectiveMigrationDeadline() public view returns (uint256) {
+        return migrationDeadline + newDaimon.cumulativePauseSeconds();
+    }
+
     /// @param amount how many old Daimon you want to migrate. You must first
     /// call oldDaimon.approve(migrationContractAddress, amount).
     function claim(uint256 amount) external nonReentrant {
-        if (block.timestamp > migrationDeadline) revert MigrationEnded();
+        if (block.timestamp > effectiveMigrationDeadline()) revert MigrationEnded();
         if (amount == 0) revert ZeroAmount();
 
         uint256 treasuryBalanceBefore = oldDaimon.balanceOf(treasury);
@@ -128,14 +170,30 @@ contract DaimonMigration is ReentrancyGuard {
     /// decisions (e.g. a new migration round, a voted burn, etc). Executable
     /// only once.
     function sweepUnclaimed() external onlyGovernance nonReentrant {
-        if (block.timestamp <= migrationDeadline) revert MigrationStillOpen();
+        // Same effective deadline as claim(): the sweep must never fire
+        // while a pause credit is still keeping the claim window open.
+        if (block.timestamp <= effectiveMigrationDeadline()) revert MigrationStillOpen();
         if (sweepExecuted) revert AlreadySwept();
 
         sweepExecuted = true;
         uint256 remaining = newDaimon.balanceOf(address(this));
         if (remaining > 0) {
+            // Same balance-before/after check claim() already applies on both
+            // legs. Without it the sweep only read transfer()'s boolean: if
+            // this contract's fee exemption had been revoked, the transfer
+            // would have SUCCEEDED while the treasury received less than the
+            // full remainder — and sweepExecuted stays true, so the recovery
+            // could never be repeated after fixing the configuration. One
+            // silent shortfall would close the recovery path for good.
+            //
+            // Reverting instead rolls back sweepExecuted with the rest of the
+            // transaction, so the sweep stays available once the exemption is
+            // restored.
+            uint256 treasuryBefore = newDaimon.balanceOf(treasury);
             bool ok = newDaimon.transfer(treasury, remaining);
             require(ok, "DaimonMigration: sweep transfer failed");
+            uint256 received = newDaimon.balanceOf(treasury) - treasuryBefore;
+            if (received != remaining) revert AmountMismatch();
         }
 
         emit Swept(treasury, remaining);

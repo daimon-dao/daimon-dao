@@ -64,6 +64,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "function",
+    "name": "MAX_PAUSE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_SUPPLY",
     "inputs": [],
     "outputs": [
@@ -191,6 +204,19 @@ export const daimonV2Abi = [
   {
     "type": "function",
     "name": "buybackFee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cumulativePauseSeconds",
     "inputs": [],
     "outputs": [
       {
@@ -413,6 +439,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "function",
+    "name": "isPaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "liquidityFee",
     "inputs": [],
     "outputs": [
@@ -420,6 +459,25 @@ export const daimonV2Abi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mandatoryFeeExempt",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -478,6 +536,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "function",
+    "name": "migrationContract",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "minimumTokensBeforeSwap",
     "inputs": [],
     "outputs": [
@@ -498,6 +569,19 @@ export const daimonV2Abi = [
         "name": "",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseUntil",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -730,6 +814,19 @@ export const daimonV2Abi = [
         "name": "enabled",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "settleTerminalBuyback",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -1001,6 +1098,25 @@ export const daimonV2Abi = [
   },
   {
     "type": "event",
+    "name": "BuyBackSkipped",
+    "inputs": [
+      {
+        "name": "ethAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum DaimonV2.BuyBackSkipReason"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ExcludedFromFeeSet",
     "inputs": [
       {
@@ -1090,6 +1206,19 @@ export const daimonV2Abi = [
   },
   {
     "type": "event",
+    "name": "PauseScheduled",
+    "inputs": [
+      {
+        "name": "until",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PausedSet",
     "inputs": [
       {
@@ -1097,6 +1226,25 @@ export const daimonV2Abi = [
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReflectionFeeApplied",
+    "inputs": [
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1223,6 +1371,25 @@ export const daimonV2Abi = [
   },
   {
     "type": "event",
+    "name": "TerminalBuybackSettled",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Transfer",
     "inputs": [
       {
@@ -1329,6 +1496,11 @@ export const daimonV2Abi = [
   },
   {
     "type": "error",
+    "name": "FloorNotReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "GuardianExpired",
     "inputs": []
   },
@@ -1339,12 +1511,32 @@ export const daimonV2Abi = [
   },
   {
     "type": "error",
+    "name": "InvalidRecipient",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MandatoryFeeExemption",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotInitializing",
     "inputs": []
   },
   {
     "type": "error",
+    "name": "NothingToSettle",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SettlementTransferFailed",
     "inputs": []
   },
   {

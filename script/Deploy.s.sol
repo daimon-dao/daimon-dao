@@ -59,6 +59,22 @@ contract Deploy is Script {
         uint256 oldSupply = vm.envOr("OLD_SUPPLY", uint256(1_000_000_000 ether));
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
 
+        // The migration deadline is immutable and arms the sweep: print it and
+        // hard-stop on an out-of-range duration BEFORE anything reaches the
+        // chain (no tx has been broadcast yet at this point).
+        console2.log("Migration duration (days):", migrationDuration / 1 days);
+        console2.log("Migration deadline (unix):", block.timestamp + migrationDuration);
+        // Mirrors DaimonMigration.MIN/MAX_MIGRATION_DURATION. Solidity cannot
+        // read a contract-level public constant without an instance, and this
+        // check must run BEFORE the migration is deployed — so the bounds are
+        // repeated here. The constructor remains the authoritative enforcement;
+        // this only fails earlier, with a clearer message, and without having
+        // spent gas on the preceding deploys.
+        require(
+            migrationDuration >= 30 days && migrationDuration <= 365 days,
+            "Deploy: MIGRATION_DURATION out of range (30-365 days)"
+        );
+
         if (guardian == deployer) {
             console2.log("WARNING: GUARDIAN_ADDRESS = deployer. Acceptable on testnet ONLY.");
         }
@@ -105,12 +121,19 @@ contract Deploy is Script {
         // ---- 5. Staking (temporary governance: deployer) ----
         DaimonStaking staking = new DaimonStaking(address(token), deployer);
 
+        // ---- 5b. Scadenza unica del mandato guardian (#36) ----
+        // Un solo istante per tutte e tre le autorita' (pausa sul token,
+        // cancel nel Governor, cancel nel Timelock): letto dal token appena
+        // inizializzato e replicato come immutable negli altri due. Gli
+        // assert finali verificano l'uguaglianza.
+        uint256 guardianAuthorityExpiry = token.guardianExpiry();
+
         // ---- 6. Timelock: deployer as proposer/executor/admin for bootstrap ONLY ----
-        DaimonTimelock timelock = new DaimonTimelock(TIMELOCK_MIN_DELAY, deployer, deployer, guardian, deployer);
+        DaimonTimelock timelock = new DaimonTimelock(TIMELOCK_MIN_DELAY, deployer, deployer, guardian, deployer, guardianAuthorityExpiry);
 
         // ---- 7. Governor ----
         DaimonGovernor governor =
-            new DaimonGovernor(address(staking), address(timelock), guardian, QUORUM_BPS, PROPOSAL_THRESHOLD);
+            new DaimonGovernor(address(staking), address(timelock), guardian, QUORUM_BPS, PROPOSAL_THRESHOLD, guardianAuthorityExpiry);
 
         // ---- 8. Migration: MUST land on the precomputed address ----
         DaimonMigration migration =
@@ -122,6 +145,12 @@ contract Deploy is Script {
         // with msg.sender = governor).
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(governor));
+        // Canceller (#26): il Governor cancella atomicamente nel Timelock
+        // l'operazione di una proposta in coda che il guardian annulla. Il
+        // guardian CONSERVA il suo CANCELLER diretto (percorso d'emergenza
+        // se il Governor fosse compromesso), entrambi scadono con
+        // guardianAuthorityExpiry.
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.revokeRole(timelock.PROPOSER_ROLE(), deployer);
         timelock.revokeRole(timelock.EXECUTOR_ROLE(), deployer);
 
@@ -168,6 +197,15 @@ contract Deploy is Script {
         require(!timelock.hasRole(timelock.EXECUTOR_ROLE(), deployer), "assert: deployer is executor");
         require(timelock.hasRole(timelock.PROPOSER_ROLE(), address(governor)), "assert: governor is not proposer");
         require(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(governor)), "assert: governor is not executor");
+
+        // Cancellations (#26/#36): guardian and governor can cancel while
+        // the mandate lasts; the timelock can self-cancel via proposal even
+        // after it. The expiry is ONE, identical across the three contracts.
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), guardian), "assert: guardian is not canceller");
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), address(governor)), "assert: governor is not canceller");
+        require(timelock.hasRole(timelock.CANCELLER_ROLE(), address(timelock)), "assert: timelock lacks self-cancel");
+        require(timelock.guardianAuthorityExpiry() == token.guardianExpiry(), "assert: timelock expiry != token");
+        require(governor.guardianAuthorityExpiry() == token.guardianExpiry(), "assert: governor expiry != token");
 
         // Staking: governed only by the timelock.
         require(staking.isGovernance(address(timelock)), "assert: timelock does not govern staking");

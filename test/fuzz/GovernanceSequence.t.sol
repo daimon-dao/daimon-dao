@@ -25,6 +25,9 @@ contract GovernanceSequence is StackDeployer {
 
     function _propose() internal returns (uint256 id, bytes memory data) {
         data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        // The snapshot is block.number - 1 (#12): the setUp stake must sit
+        // in a sealed block before the proposal for the whale to vote.
+        vm.roll(block.number + 1);
         vm.prank(whale);
         id = governor.propose(address(token), 0, data, "Fee reduction");
     }
@@ -67,6 +70,30 @@ contract GovernanceSequence is StackDeployer {
         // Timelock delay not yet elapsed.
         vm.expectRevert();
         governor.execute(id);
+    }
+
+    /// Finding #7: queueing twice must be rejected by the Governor itself.
+    /// Before the fix the second call sailed past state() — which has no
+    /// Queued branch and still reports Succeeded — re-emitted ProposalQueued
+    /// and was only stopped inside the Timelock by OperationAlreadyScheduled:
+    /// the wrong error, from the wrong layer, and a dependency on someone
+    /// else's implementation detail.
+    function test_CannotQueueTwice() public {
+        (uint256 id,) = _propose();
+        vm.warp(block.timestamp + governor.VOTING_DELAY() + 1);
+        vm.prank(whale);
+        governor.castVote(id, 1);
+        vm.warp(block.timestamp + governor.VOTING_PERIOD() + 1);
+
+        governor.queue(id);
+
+        vm.expectRevert(DaimonGovernor.ProposalAlreadyQueued.selector);
+        governor.queue(id);
+
+        // The first queue still stands: the proposal remains executable.
+        vm.warp(block.timestamp + timelock.getMinDelay() + 1);
+        governor.execute(id);
+        assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Executed));
     }
 
     function test_DefeatedProposalCannotBeQueuedOrExecuted() public {

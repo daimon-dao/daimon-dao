@@ -24,7 +24,7 @@ security policy).
 | **External attacker** | hostile EOA/contract with no roles | interact like any user, attempt reentrancy/MEV | acquire roles, drain funds, mint, exceed the hardcoded limits |
 | **Whale** | holder with large capital | accumulate voting power (only by locking tokens over time), influence votes | vote with power acquired *after* the proposal; flash-loan governance |
 | **Governance (DAO via Timelock)** | Timelock driven by the Governor | change fees (≤10%), addresses, limits, **UUPS upgrade of the token** | mint, push the supply below the floor, zero out the Timelock delay, act without the public 7-day delay |
-| **Guardian** | emergency multisig | pause the token (≤36 months), cancel malicious proposals/operations | economic powers, execute proposals, pause after expiry (but can always *unpause*) |
+| **Guardian** | emergency multisig | pause the token in self-terminating 14-day windows (≤36 months), cancel malicious proposals/operations (≤36 months) | economic powers, execute proposals, any pause or cancel after `guardianAuthorityExpiry` — nothing it armed survives the mandate |
 | **Deployer** | whoever runs the deploy script | only the initial wiring | **nothing after deploy**: renounces every role (verified on-chain) |
 
 ---
@@ -59,12 +59,22 @@ security policy).
   minus a governed slippage tolerance (`maxSwapSlippageBps`, default 5%,
   bounded between 0.5% and 30%). The swaps run inside `try/catch`: if the
   price leaves the tolerance the swap is *skipped* (funds preserved), without
-  reverting the transfer of the user who triggered it (avoids a DoS vector on
-  sells).
-- **Accepted known limit:** the quote is read in the same block as the swap,
-  so the protection limits the damage **to the set tolerance**, it does not
-  eliminate it entirely. Eliminating it would require a TWAP oracle. It is an
-  explicit trade-off (see §3).
+  reverting the direct-to-pair transfer that triggered it (the poke, §8).
+  Since the #1 fix, ordinary sells cannot trigger these swaps at all —
+  router-initiated transfers skip the automation — so the old DoS surface
+  (push the price beyond tolerance and every sell that crossed the threshold
+  reverted) is gone **by construction**, not merely mitigated: the try/catch
+  now only shields whoever volunteers the poke.
+- **Accepted known limit — read this precisely.** `maxSwapSlippageBps` bounds
+  the deviation from the router's **contemporaneous quote**, and nothing more.
+  It does **not** bound the loss relative to a fair price: the quote is read in
+  the same block as the swap, from a pool an attacker may already have moved.
+  Someone who shifts the reserves first makes the quote itself unfavourable,
+  and the tolerance is then measured against that manipulated number — so the
+  real extractable value is not limited by this parameter.
+  The protocol reads **no external price feed and uses no oracle**, by design.
+  The residual MEV exposure is therefore an accepted risk that is explicitly
+  **not** bounded (see §3 and §7).
 - **Late voting.** Voting power is snapshotted at proposal creation
   (`votingPowerAt`): buying and staking after creation grants no power over
   that proposal.
@@ -129,13 +139,26 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
 
 - **Defensive powers only**: pausing the token and cancelling
   proposals/operations. No economic power, no execution.
-- **36-month expiry** (`guardianExpiry`): after it, `setPaused(true)` reverts
-  forever (definitive decentralization, verifiable on-chain). `setPaused(false)`
-  always stays possible → a contract paused at expiry does not stay frozen
-  forever.
+- **One mandate, three enforcement points (#36).** The token's
+  `guardianExpiry` (36 months) is replicated as an immutable
+  `guardianAuthorityExpiry` in the Governor and the Timelock, asserted equal
+  at deploy. After that single instant: `setPaused(true)` reverts, BOTH
+  cancellation paths (`Governor.cancel`, the Timelock's role-based `cancel`)
+  revert, and any armed pause has already lapsed — definitive
+  decentralization with no cooperation needed from the guardian.
+- **A pause is a window, not a latch (#36).** `setPaused(true)` arms
+  `pauseUntil = min(now + 14 days, guardianExpiry)` and the effective state is
+  `isPaused()`, which turns false on its own. Keeping the token paused
+  requires actively renewing the window — every renewal a visible
+  transaction. `setPaused(false)` always stays possible and clears the flag.
+  Every second of scheduled pause is credited to the migration deadline
+  (`effectiveMigrationDeadline`), so a pause cannot consume the immutable
+  claim window.
 - Assumption: the guardian is a **multisig** (in production). A compromised
-  guardian can pause (temporary DoS, not theft) and cancel legitimate
-  proposals (temporary censorship) until expiry.
+  guardian can pause (temporary DoS, not theft, in renewable 14-day windows)
+  and cancel legitimate proposals (temporary censorship) — both strictly
+  until the mandate's end, after which recovery proposals are uncancellable
+  by any single authority.
 
 ### 2.6 Migration
 
@@ -147,16 +170,21 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
   it at deploy (no supply creation). *Tested invariant:* old tokens in the
   treasury == `totalMigrated`, and the migration never distributes more DMN
   than owed.
-- **Sweep:** only after the deadline, only from the Timelock, only to the DAO
-  treasury, once.
+- **Sweep:** only after the **effective** deadline — the immutable base
+  deadline plus any guardian-pause credit (`effectiveMigrationDeadline`, #36)
+  — only from the Timelock, only to the DAO treasury, once. The sweep can
+  never fire while a pause credit is still keeping the claim window open.
 
 ---
 
 ## 3. Known and accepted limits
 
-1. **Residual MEV within slippage.** The swap protection limits the damage to
-   the governed tolerance (default 5%), it does not zero it out (no on-chain
-   TWAP).
+1. **Residual MEV, not bounded by the slippage setting.** The swap protection
+   bounds the deviation from the router's contemporaneous quote, not the loss
+   against a fair price: an attacker who moves the reserves first makes that
+   quote unfavourable, and the tolerance is measured against the manipulated
+   number. No oracle and no on-chain TWAP is used, by design. See §2.2 and §7
+   (#34) for the full statement.
 2. **Upgrade authorizable by the DAO.** The UUPS upgrade can in theory replace
    the monetary logic; mitigated only by the Timelock's public delay. Explicit
    trade-off between upgradability and absolute immutability.
@@ -244,3 +272,190 @@ and partly already addressed; none is blocking.
 Detail of the findings and proposed fixes: see the adversarial round in
 [TESTNET_RESULTS.md](TESTNET_RESULTS.md) (Test 10) and the hardening report
 attached to the review conversation.
+
+---
+
+## 7. Accepted limitations — Zenith audit 2026-08
+
+Findings from the Zenith engagement that were reviewed and **accepted rather
+than changed**, each with the reason. They are recorded here so a reader does
+not have to re-derive the analysis, and so the acceptance is on the record
+rather than implicit.
+
+### #24 — Approvals and queued operations do not expire
+
+A passed proposal stays queueable indefinitely, and a ready timelock operation
+stays executable until it is executed or cancelled.
+
+**Accepted.** This matches OpenZeppelin's `TimelockController`, which defines a
+minimum delay and no execution deadline. Adding a grace period would introduce
+a liveness risk in exchange: an expired operation forces the whole 13-day cycle
+(1 day voting delay + 5 days voting + 7 days timelock) to be repeated, and an
+operation that expires unnoticed is a governance failure with no alarm.
+
+**The defence against stale proposals changed with the #36 fix.** This
+acceptance originally leaned on the guardian's ability to cancel at any point
+before execution — a defence that now ends, by design, at
+`guardianAuthorityExpiry`. Within the mandate nothing changes: guardian
+cancel plus monitoring. After the mandate, the remedy for a
+queued-but-unwanted operation is a **governance-voted cancellation**: a
+proposal targeting the Timelock's own `cancel()` (a self-call, exempt from
+the expiry gate precisely for this reason and covered by
+`test_GovernanceSelfCancelSurvivesExpiry`). Slower — a full 13-day cycle —
+but majority-gated and censorship-free, which is what keeps this acceptance
+sound once no single authority can cancel any more. Monitoring remains the
+alarm in both eras.
+
+### #20 — Unswapped fee inventory is allocated at execution time
+
+The marketing and buyback fees accumulate in a single token balance. When the
+swap runs, the resulting BNB is split according to the split **in force at that
+moment**, not the one in force when each portion was collected.
+
+**Accepted — allocation happens at execution time.** This is the intended
+reading and is stated here so it is not mistaken for a bug. Each automated
+swap attempts to convert one threshold-sized tranche. Total unswapped
+inventory can exceed that threshold. Changes to the fee split apply to all
+inventory when it is eventually converted; such changes remain public through
+governance and the Timelock. Separating the balances would add storage and
+accounting to a contract that already carries findings on its automation.
+
+### #34 — `maxSwapSlippageBps` does not bound the real MEV loss
+
+**This corrects a claim previously made in this document.** Earlier wording
+said the swap protection limits the damage "to the set tolerance". That is not
+accurate.
+
+`maxSwapSlippageBps` bounds the deviation from the router's **contemporaneous
+quote**. It does **not** bound the total loss relative to a fair price: an
+attacker who moves the reserves before the swap makes the quote itself
+unfavourable, and the tolerance is then measured against that manipulated
+number. The protocol reads **no external price feed and uses no oracle**, by
+design. The residual MEV exposure is an accepted risk and is explicitly **not**
+bounded. §2.2 and §3 have been corrected accordingly.
+
+### #4 — Reentrancy on the timelock predecessor
+
+`execute()` sets `executed = true` before calling the target. A target holding
+`EXECUTOR_ROLE` could in principle re-enter with an operation whose predecessor
+is the first one, and see it already marked executed.
+
+**Accepted — not reachable.** The Governor is the only executor, and its path
+always passes a zero predecessor, so no predecessor relationship is ever
+established. Recorded explicitly: **predecessor-based ordering is not supported
+under the current execution model.** Anyone extending the executor set, or
+introducing predecessors, must revisit this first.
+
+### #6 — Legacy tokens are transferred to the treasury
+
+`claim()` sends the old tokens to the treasury rather than burning or locking
+them. If the treasury were to put them back into circulation during the
+migration window, they could be migrated again.
+
+**Accepted as a custody risk**, not a code property, and therefore recorded as
+a strict operational requirement: **the collected legacy tokens remain in
+non-circulating custody for the entire migration window.** Also listed in
+[CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md), which is the document consulted
+at deploy time.
+
+### #10 — Staking assumes exact receipt
+
+`stake()` records the requested amount without checking the balance actually
+received. This is correct **because** the staking contract is fee-exempt, but
+the assumption was not written down anywhere.
+
+**Documented as an accounting invariant**, now stated in the NatSpec of
+`stake()`: the staking contract's fee exemption is not a convenience, it is
+what makes the recorded amount equal the received amount. Any upgrade or
+configuration change must preserve it. The fix for #32 additionally enforces
+this on-chain — the exemption can no longer be revoked while
+`totalStakedAmount() > 0`.
+
+### #16 and #17 — Double fees on liquidity operations
+
+Removing liquidity pays the transfer fee twice (pair → router → user). Adding
+liquidity yields fewer LP tokens than the router's own quote suggests, because
+the router computes on the gross amount while the pair receives the net.
+
+**Accepted in the contracts, disclosed in the interface.** The requirement is
+recorded in [DAPP_SPEC.md](DAPP_SPEC.md): the interface must state how many
+fees are paid and what will actually be received, before the user signs.
+
+⚠️ **Do not "fix" this by exempting the pair or the router.** Doing so would
+disable fees on every buy and sell, and would open a fee-free transfer route:
+pre-deposit tokens, then call liquidity removal to move them out untaxed. The
+double fee is the lesser cost by a wide margin.
+
+---
+
+## 8. Fee-conversion triggering after the #1 fix — the poke model
+
+The fix for Zenith #1 skips the fee swap and the buyback whenever the
+configured router is the immediate caller of a transfer to the pair
+(`msg.sender == address(uniswapV2Router)`). Since the canonical periphery is
+also how every ordinary sell reaches the pair, **router-mediated sells no
+longer trigger the automation**. This section records what triggers it now,
+and why the sell exclusion is deliberate — so it is not "corrected" later as
+if it were an oversight.
+
+### The poke
+
+The automation's remaining trigger is a **direct transfer to the pair**: any
+amount, from any address — 1 wei suffices, and at 1 wei every fee rounds to
+zero. Whoever sends it pays the gas of the work it triggers (one fee-swap
+chunk and/or one buyback slice, both through the router). The trigger is
+**permissionless and budget-bounded**: the #28 per-block budgets cap the
+aggregate at one chunk and one slice per block, regardless of who pokes or
+how often.
+
+If nobody pokes, nothing breaks: fees keep accumulating in the contract as
+DMN, buyback BNB sits idle, and conversion resumes with the next poke — no
+deadline, no loss, no stuck state. What degrades is only the **cadence** of
+marketing/staking funding and of the buyback.
+
+This is **not a keeper role**: no registration, no privileged address, no
+compensation, no single point of failure. The project can run a poke bot for
+cadence (see [CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md)), but anyone can
+replace it at any moment with a plain transfer.
+
+### Why sells are excluded too — verified, not assumed
+
+Verified against the canonical PancakeSwap V2 periphery (`PancakeRouter.sol`
+and `PancakePair.sol`, `pancakeswap/pancake-smart-contracts`):
+
+- **Sells were never exposed to the #1 staleness.** In
+  `swapExactTokensForETHSupportingFeeOnTransferTokens` — the only variant a
+  taxed holder can use — the output is computed **after** the token transfer
+  (`getReserves` and `balanceOf(pair) − reserve` run post-callback), and
+  `amountOutMin` is enforced on the **actual** WETH received, at the very
+  end. A reserve shift during the transfer is ordinary intra-block ordering
+  risk, exactly the class `amountOutMin` exists to bound. Liquidity
+  additions are different in kind: their user minimums are consumed
+  **before** the token callback, against the pre-callback reserve snapshot,
+  and `mint()` enforces no minimum LP output — that asymmetry is the whole
+  finding.
+- **The callee cannot tell the two apart.** At the token-leg moment, a sell
+  and a liquidity addition are byte-identical to the token:
+  `transferFrom(holder → pair)` with `msg.sender == router`. The EVM gives a
+  callee no introspection into the caller's frame or calldata, so a
+  selective skip (liquidity legs only) cannot be built inside the token.
+- **The WBNB-surplus probe does not work.** In `addLiquidityETH` the token
+  leg lands **before** the WETH deposit and its transfer to the pair, so at
+  the moment the token could probe, the pair's WBNB surplus is still zero —
+  the heuristic misses precisely the finding's vector. In two-sided
+  `addLiquidity` it fires only for one caller-chosen argument order, and
+  WBNB dust donations to the pair can spoof it in either direction.
+- **On the sell side the skip is a benefit, not a cost.** Sellers no longer
+  pay the automation's gas inside their own transaction, and no longer have
+  their slippage budget systematically consumed by an automation swap that
+  was guaranteed to land immediately before theirs (which could push
+  tight-tolerance sells into `INSUFFICIENT_OUTPUT_AMOUNT` reverts).
+
+⚠️ **Do not reintroduce the sell trigger.** Re-enabling the automation on
+router-initiated transfers reopens #1 in full, because the token cannot
+exclude just the liquidity legs. If sell-triggered conversion is ever wanted
+again, it requires a periphery-level design (a liquidity integration that
+revalidates the reserve ratio and enforces a minimum LP output) and a new
+audit — not a one-line revert of the #1 fix.
+
+---

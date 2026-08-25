@@ -21,7 +21,7 @@ contract CoverageGaps is StackDeployer {
     }
 
     // ============================================================
-    // UUPS upgrade — the most sensitive path (upgradeability)
+    // UUPS upgrade â€” the most sensitive path (upgradeability)
     // ============================================================
     function test_UpgradeOnlyByGovernance() public {
         DaimonV2 newImpl = new DaimonV2();
@@ -149,20 +149,154 @@ contract CoverageGaps is StackDeployer {
         governor.cancel(id);
     }
 
-    // ============================================================
-    // Timelock: canceller (guardian) cancel
-    // ============================================================
-    function test_TimelockCancellerCanCancel() public {
-        // Schedule an operation via a fake proposer to test cancel.
-        // The PROPOSER is the governor; here we use a computed id and verify
-        // that only the CANCELLER (guardian) can cancel.
-        bytes32 fakeId = keccak256("op");
-        vm.prank(alice);
-        vm.expectRevert();
-        timelock.cancel(fakeId); // alice has no CANCELLER_ROLE
+    /// Finding #8: cancel() did not check that the proposal exists. The
+    /// guardian could cancel an id not yet allocated; propose() never resets
+    /// p.canceled, so that proposal would have been born already canceled â€”
+    /// and the flag outlives the guardian that set it, since nothing clears
+    /// it when the guardian is rotated or expires.
+    function test_GuardianCannotPreCancelFutureProposal() public {
+        uint256 futureId = governor.proposalCount(); // not allocated yet
 
         vm.prank(guardian);
-        timelock.cancel(fakeId); // guardian = canceller: does not revert
+        vm.expectRevert(DaimonGovernor.ProposalDoesNotExist.selector);
+        governor.cancel(futureId);
+
+        // That id can still be allocated normally, and is NOT born canceled.
+        fundWithDmn(alice, 3_000_000 ether);
+        vm.startPrank(alice);
+        token.approve(address(staking), 3_000_000 ether);
+        staking.stake(3_000_000 ether, 3);
+        vm.stopPrank();
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+        vm.prank(alice);
+        uint256 id = governor.propose(address(token), 0, data, "not pre-canceled");
+        assertEq(id, futureId, "unexpected proposal id");
+        assertEq(
+            uint8(governor.state(id)),
+            uint8(DaimonGovernor.ProposalState.Pending),
+            "proposal born canceled"
+        );
+
+        // A genuine cancel still works, and only once.
+        vm.prank(guardian);
+        governor.cancel(id);
+        assertEq(uint8(governor.state(id)), uint8(DaimonGovernor.ProposalState.Canceled));
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonGovernor.ProposalAlreadyCanceled.selector);
+        governor.cancel(id);
+    }
+
+    // ============================================================
+    // Timelock: cancel del canceller (guardian) â€” finding #2
+    // ============================================================
+
+    /// Legitimate path: an operation actually scheduled through governance can
+    /// be canceled by the CANCELLER, and only once.
+    function test_TimelockCancellerCanCancelScheduledOperation() public {
+        fundWithDmn(alice, 3_000_000 ether);
+        vm.startPrank(alice);
+        token.approve(address(staking), 3_000_000 ether);
+        staking.stake(3_000_000 ether, 3);
+        vm.stopPrank();
+        // #12 snapshots at block.number - 1: the stake must sit in a sealed
+        // block before the proposal (same adjustment as the rest of the
+        // governance suite).
+        vm.roll(block.number + 1);
+
+        bytes memory data = abi.encodeWithSelector(DaimonV2.setFees.selector, uint256(10), uint256(10), uint256(20));
+
+        // Literal timestamps: with via-ir, block.timestamp must not be
+        // re-read after a vm.warp (same caution as in DaimonDAO.t.sol).
+        uint256 tPropose = 1_000_000;
+        vm.warp(tPropose);
+        vm.prank(alice);
+        uint256 id = governor.propose(address(token), 0, data, "cancellable");
+
+        vm.warp(tPropose + governor.VOTING_DELAY() + 1);
+        vm.prank(alice);
+        governor.castVote(id, 1);
+
+        vm.warp(tPropose + governor.VOTING_DELAY() + governor.VOTING_PERIOD() + 2);
+        governor.queue(id);
+
+        // Same salt the Governor derives in propose().
+        bytes32 salt = keccak256(abi.encode(id, tPropose));
+        bytes32 opId = timelock.hashOperation(address(token), 0, data, bytes32(0), salt);
+
+        (uint256 readyBefore,,) = timelock.operations(opId);
+        assertGt(readyBefore, 0, "operation was not scheduled");
+
+        vm.prank(guardian);
+        timelock.cancel(opId);
+        (,, bool canceled) = timelock.operations(opId);
+        assertTrue(canceled, "scheduled operation not canceled");
+
+        // Canceling twice must revert: no duplicate Cancelled events.
+        vm.prank(guardian);
+        vm.expectRevert(DaimonTimelock.OperationAlreadyCanceled.selector);
+        timelock.cancel(opId);
+    }
+
+    /// Finding #2: an unknown id resolves to an empty Operation. Before the
+    /// fix it passed the executed check, was marked canceled and emitted
+    /// Cancelled(id) for something that was never scheduled â€” and the stale
+    /// canceled flag would have survived into a later schedule() of the same
+    /// id, which does not reset it. It must revert and write nothing.
+    function test_TimelockCancelRevertsOnUnknownId() public {
+        bytes32 unknownId = keccak256("never-scheduled");
+
+        // The role check still comes first.
+        vm.prank(alice);
+        vm.expectRevert();
+        timelock.cancel(unknownId);
+
+        vm.prank(guardian);
+        vm.expectRevert(DaimonTimelock.OperationNotScheduled.selector);
+        timelock.cancel(unknownId);
+
+        (uint256 ready, bool executed, bool canceled) = timelock.operations(unknownId);
+        assertEq(ready, 0, "phantom readyTimestamp");
+        assertFalse(executed, "phantom executed flag");
+        assertFalse(canceled, "phantom canceled flag");
+    }
+
+    /// Finding #18: governance privilege changes on the staking contract were
+    /// silent. The mapping is private and not enumerable, so without an event
+    /// a monitor can neither subscribe to changes nor reconstruct the current
+    /// set of holders.
+    function test_GovernanceChangesEmitEvent() public {
+        // Granting emits.
+        vm.expectEmit(true, false, false, true, address(staking));
+        emit DaimonStaking.GovernanceSet(bob, true);
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, true);
+        assertTrue(staking.isGovernance(bob));
+
+        // Revoking emits.
+        vm.expectEmit(true, false, false, true, address(staking));
+        emit DaimonStaking.GovernanceSet(bob, false);
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, false);
+        assertFalse(staking.isGovernance(bob));
+    }
+
+    /// A write that does not change the value must stay silent, so every
+    /// emitted event is a real transition.
+    function test_GovernanceNoOpEmitsNothing() public {
+        // bob is not governance: setting false again changes nothing.
+        vm.recordLogs();
+        vm.prank(address(timelock));
+        staking.setGovernance(bob, false);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op revoke emitted an event");
+
+        // timelock is already governance: setting true again changes nothing.
+        assertTrue(staking.isGovernance(address(timelock)));
+        vm.recordLogs();
+        vm.prank(address(timelock));
+        staking.setGovernance(address(timelock), true);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op grant emitted an event");
     }
 
     // ============================================================
@@ -216,7 +350,7 @@ contract CoverageGaps is StackDeployer {
     // Migration: post-deadline sweep to the treasury
     // ============================================================
     function test_SweepSendsRemainderToTreasury() public {
-        vm.warp(block.timestamp + 3651 days); // past the deadline (3650 days)
+        vm.warp(block.timestamp + 366 days); // oltre la deadline (365 giorni)
         uint256 remaining = token.balanceOf(address(migration));
         uint256 treasuryBefore = token.balanceOf(treasury);
 

@@ -63,13 +63,18 @@ only — on mainnet they must be distinct multisigs.
 
 ## Automatic checks
 
-- [ ] **`_assertDecentralized()` runs and passes on mainnet** (14 asserts in
+- [ ] **`_assertDecentralized()` runs and passes on mainnet** (20 asserts in
       the deploy script): the timelock governs the token/staking, the deployer
       has no roles, no `DEFAULT_ADMIN`, the entire supply in the migration,
-      etc.
+      the CANCELLER roles (guardian, governor, the timelock itself), the
+      guardian expiry identical across the three contracts (#36), and the
+      operational share at zero at launch (`stakingRewardShareBps == 1000`,
+      legal-compliance launch configuration).
 - [ ] Contracts **verified on BscScan** (source + constructors).
-- [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%
-      — confirmed on-chain post-deploy.
+- [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%;
+      `MAX_PAUSE_DURATION` = **14 days**; `guardianAuthorityExpiry` =
+      `token.guardianExpiry()` on Governor and Timelock (#36) — confirmed
+      on-chain post-deploy.
 
 ## Liquidity
 
@@ -149,6 +154,28 @@ input initializes the pool at the wrong price.
       read from `daimonV2.uniswapV2Pair()`).
 - [ ] Re-enable Deployment Protection if the URL must stay private on staging;
       for the public launch, official domain + WalletConnect allowlist.
+
+## Fee automation (post-fix Zenith #1)
+
+- [ ] **Monitor the token contract's DMN balance** after launch:
+      `balanceOf(DaimonV2)` is the fee inventory not yet converted.
+- [ ] Once it exceeds `minimumTokensBeforeSwap`, a **1-wei DMN transfer to
+      the pair**, from any address, triggers the conversion (at most one
+      fee-swap chunk and one buyback slice per block: #28 budgets). The
+      buyback BNB moves the same way — and only this way: sales through the
+      router no longer trigger anything.
+- [ ] **NOT a security requirement**: if the poke stops, fees simply
+      accumulate — no deadline, no loss; conversion resumes with the next
+      poke. Full model and rationale in THREAT_MODEL.md §8
+      (⚠️ do not "fix" this by reintroducing the sell trigger: it would
+      reopen finding #1).
+
+## Post-launch governance
+
+- [ ] `marketingWallet` and `stakingContract` stay modifiable **only** via
+      proposal → vote → queue → 7-day timelock → execute (no EOA path).
+- [ ] Guardian renewal/rotation before the 36-month expiry, if desired, via
+      governance.
 
 ## Domain and dApp distribution
 

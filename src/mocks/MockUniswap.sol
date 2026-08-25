@@ -26,6 +26,10 @@ contract MockUniswapV2Factory {
     mapping(address => mapping(address => address)) public getPair;
 
     function createPair(address tokenA, address tokenB) external returns (address pair) {
+        // The canonical factory reverts when the pair already exists. The
+        // mock must mirror that, or the pre-creation denial the fix for
+        // finding #25 removes could not be reproduced in tests.
+        require(getPair[tokenA][tokenB] == address(0), "Pancake: PAIR_EXISTS");
         pair = address(uint160(uint256(keccak256(abi.encodePacked(tokenA, tokenB, block.timestamp)))));
         getPair[tokenA][tokenB] = pair;
         getPair[tokenB][tokenA] = pair;

@@ -28,9 +28,27 @@ export const daimonGovernorAbi = [
         "name": "_proposalThreshold",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "_guardianAuthorityExpiry",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "MAX_PROPOSAL_THRESHOLD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -130,6 +148,19 @@ export const daimonGovernorAbi = [
   },
   {
     "type": "function",
+    "name": "guardianAuthorityExpiry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "hasVoted",
     "inputs": [
       {
@@ -215,7 +246,7 @@ export const daimonGovernorAbi = [
         "internalType": "string"
       },
       {
-        "name": "snapshotTimestamp",
+        "name": "snapshotBlock",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -268,6 +299,11 @@ export const daimonGovernorAbi = [
         "name": "timelockSalt",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "quorumBpsSnapshot",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -574,6 +610,11 @@ export const daimonGovernorAbi = [
   },
   {
     "type": "error",
+    "name": "GuardianAuthorityExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InsufficientVotingPower",
     "inputs": []
   },
@@ -585,6 +626,26 @@ export const daimonGovernorAbi = [
   {
     "type": "error",
     "name": "NotGuardian",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalAlreadyCanceled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalAlreadyQueued",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalDoesNotExist",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProposalIsCanceled",
     "inputs": []
   },
   {
