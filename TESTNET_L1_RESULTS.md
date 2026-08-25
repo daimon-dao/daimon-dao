@@ -273,3 +273,23 @@ deployed fresh per run - so the choice of recent block changes no result.
 
 Worth carrying into Level 2: any campaign pinned to a public-chain block has
 a shelf life measured in hours.
+
+### C1 -- Stake at 30 days and at 365 days: voting power per the multipliers
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| C1.1 | alice stakes her balance on the 30-day option | voting power = amount x 1.0 | staked 3.8003 B -> vp 3.8003 B, expected 3.8003 B | PASS |
+| C1.2 | bob stakes his balance on the 365-day option | voting power = amount x 4.0 | staked 3.8001 B -> vp 15.2006 B, expected 15.2006 B | PASS |
+| C1.3 | Weight per unit staked, normalized | 1000 (1.0x) for the 30-day lock, 4000 (4.0x) for the 365-day one | alice=1000, bob=4000; raw ratio bob/alice = 3.9998x on unequal principals | PASS |
+| C1.4 | Aggregates after both stakes | totals equal the sum of the parts | totalVotingPower=19.0009 B, totalStaked=7.6004 B | PASS |
+
+Worth recording because it caught out the first version of this very test: alice and bob were sent an identical 4.00 B each, yet ended up staking 3.8003 B and 3.8001 B. In a reflection token two nominally identical transfers do not produce identical balances - the second sender's own reflection share has already moved between them. Any test comparing two holders head to head has to normalize per unit staked; the multipliers themselves are exact.
+
+### C2 -- Withdraw before expiry: refused, and the position is untouched
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| C2.1 | alice tries to withdraw immediately after staking | refused: the lock has not expired | reverted with LockStillActive | PASS |
+| C2.2 | Her position after the refused withdrawal | untouched - voting power and stake intact | vp = 3.8001 B | PASS |
+| C2.3 | One day before expiry (29 of 30 days elapsed) | still refused - the boundary is respected to the second | reverted with LockStillActive | PASS |
+| C2.4 | Just past 30 days | the withdrawal goes through, voting power returns to zero, principal comes back | vp=0.0000 B, balance=3.8001 B | PASS |
