@@ -334,3 +334,31 @@ function Poke { param($who = "stranger")
   $st = S
   return (Send $who $st.token "transfer(address,uint256)" @($st.pair, "1"))
 }
+
+## Raw call: returns the first returned token as TEXT (bytes32, address, bool).
+function CQRaw { param($to, $sig, [string[]]$callArgs = @())
+  $r = cast call $to $sig @callArgs --rpc-url $script:RPC 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "cast call failed: $to $sig -> $r" }
+  return (("$r" -split "\s+")[0]).Trim()
+}
+
+## Send from a keyless address by impersonating it (Anvil). Used for the
+## modelled holders that exist only as constants - the campaign needs them
+## to act without ever handing them a key.
+function SendAs { param($from, $to, $sig, [string[]]$sendArgs = @(), [switch]$NoInvariant)
+  RpcCall "anvil_impersonateAccount" @($from) | Out-Null
+  RpcCall "anvil_setBalance" @($from, "0x56BC75E2D63100000") | Out-Null   # 100 ether of gas money
+  $r = cast send $to $sig @sendArgs --from $from --unlocked --rpc-url $script:RPC --json 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "SENDAS FAILED [$from -> $to $sig]: $r" }
+  $j = ($r | Out-String | ConvertFrom-Json)
+  if ($j.status -ne "0x1") { throw "TX REVERTED [$from -> $to $sig]: $($j.transactionHash)" }
+  RpcCall "anvil_stopImpersonatingAccount" @($from) | Out-Null
+  if (-not $NoInvariant) { Assert-Invariants "impersonated $from -> $sig" }
+  return $j.transactionHash
+}
+## Migrate everything a keyless modelled holder owns.
+function Claim-DmnAs { param($from, $amount)
+  $st = S
+  SendAs $from $st.old "approve(address,uint256)" @($st.migration, "$amount") -NoInvariant | Out-Null
+  return (SendAs $from $st.migration "claim(uint256)" @("$amount"))
+}

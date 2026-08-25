@@ -75,3 +75,70 @@ A single violation stops the campaign.
 | A0.6 | team1 claims under the WRONG configuration | the fee IS deducted, the claim fails visibly (AmountMismatch), nothing is credited | reverted with AmountMismatch; treasury delta = 0.0000 B | PASS |
 
 The counter-proof is the point: with the wrong exemption the predecessor deducts its 11% fee on the claimant->treasury leg (1.1000 B on a 10.0000 B claim), the treasury receives less than declared, and DaimonMigration's exact-delta check refuses to credit anything. The wrong configuration cannot pass silently - it stops the migration until it is fixed, which is why the checklist marks it BLOCKING.
+
+### A1 -- Full deploy through the real Deploy.s.sol (20 asserts, share at 1000, Migration funded)
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A1.1 | Broadcast script/Deploy.s.sol against the node | the script completes; _assertDecentralized() (20 asserts) passes, otherwise the deploy aborts | deployed: token=0x4cc96326eb2b9703c094cd8e78226881fc4ec8bc staking=0x20211cc856d7522412b8d39767bf7a3f6719e50a timelock=0xca901bb81b3467a1bf079003c9c5bd41a4041891 governor=0x52a097332b571ccf720fc02312cd4165e9bf87ba migration=0xf2958240f43a36dc8b43227836030108f427651d | PASS |
+| A1.2 | Compare the Migration address recorded in the token with the deployed one | identical: the CREATE-nonce precomputation held during a real broadcast | token.migrationContract=0xF2958240f43a36DC8b43227836030108f427651D vs deployed=0xf2958240f43a36dc8b43227836030108f427651d | PASS |
+| A1.3 | Read stakingRewardShareBps after deploy | 1000 - the whole marketing share to stakers, zero operational, from block one | 1000 | PASS |
+| A1.4 | Marketing wallet balances immediately after deploy | zero DMN, zero native - it has never been paid anything | DMN=0, native=0 | PASS |
+| A1.5 | Migration funding | the entire INITIAL_SUPPLY sits in Migration; no EOA ever held it | migration=1000.0000 B, totalSupply=1000.0000 B | PASS |
+| A1.6 | Token roles after the wiring | timelock governs, deployer holds nothing, guardian holds only the pause role | timelock.gov=true, deployer.gov=false, guardian.guard=true | PASS |
+| A1.7 | CANCELLER roles (#26/#36) | guardian, governor and the timelock itself all hold it | guardian=true, governor=true, timelock-self=true | PASS |
+| A1.8 | The single guardian expiry across the three contracts (#36) | one identical instant in token, timelock and governor | token=1882278209, timelock=1882278205, governor=1882278205 | DEVIATION |
+| A1.9 | The DMN/WBNB pair created through the real PancakeSwap factory | a real pair contract exists at the recorded address | pair=0xC0D31E75cdA90ae01592964c1A3bdb501b5DacD8, code length=17334 | PASS |
+
+The deploy under test is the production script, not the test fixture: had any of its twenty asserts failed, no deployment would exist to inspect. The CREATE-nonce precomputation - the part most likely to drift between simulation and broadcast - held.
+
+#### DEVIATION A1.8 - the "single guardian expiry" is not single on a real deploy
+
+**Observed.** After a real broadcast the three values disagree:
+`token.guardianExpiry() = 1882278209`, while
+`timelock.guardianAuthorityExpiry() = governor.guardianAuthorityExpiry() = 1882278205`.
+The token's expiry is **4 seconds later** (3 s on a second run - the size of the
+gap varies per run). `_assertDecentralized()` nevertheless passed: had it
+failed, no deployment would exist.
+
+**Why, proven rather than guessed** (`script/campaign/diag-expiry.ps1`):
+
+- the Timelock's constructor calldata recorded in the broadcast journal ends
+  with `0x7031493d` = `1882278205`. That number was fixed when `forge script`
+  **simulated** the run;
+- the token proxy was actually mined later, in block `127163920` at timestamp
+  `1787670209`, and `initialize()` computed `guardianExpiry = 1787670209 +
+  1095 days = 1882278209` from *that* block;
+- the deploy script reads `token.guardianExpiry()` at runtime and passes it to
+  the two constructors, so the two sides can only agree if the simulated
+  timestamp equals the timestamp of the block the proxy lands in. On a live
+  chain it never does.
+
+**Why the assert cannot catch it.** `forge script` executes the body once in
+simulation, collects the transactions, then broadcasts them. `_assertDecentralized()`
+is a view call evaluated in the **simulation** context, where the token's expiry
+and the constructor argument are the same number by construction. The assert is
+structurally incapable of observing the skew it is meant to guard: it is not a
+weak check, it is a check running against the wrong state.
+
+**Impact.** Direction: the token's pause authority expires *after* the two
+cancellation authorities, by the skew. Magnitude here: seconds out of 36 months;
+on a public chain it is however long passes between forge's simulation and the
+proxy's inclusion - seconds to minutes, still negligible in economic terms. What
+is not negligible is the second half: any deploy-time guarantee asserted this
+way - about a value derived at runtime from a contract deployed in the same
+script - is unverified on-chain while appearing verified. The same blind spot
+would cover a future assert of the same shape.
+
+**Documentation touched by this.** THREAT_MODEL par.2.5 and the whitepaper
+(par.5, par.8.6) state the expiry is "verified identical across the three at
+deployment". On a real deploy that sentence is false as written.
+
+**Which side is wrong.** Not the intent, and not the contracts: `src/` is
+correct and does exactly what it says. The wrong side is the **expectation that
+an in-script assert proves anything about post-broadcast chain state**, plus the
+mechanism it guards - reading a just-initialized value at runtime and feeding it
+to later constructors. A single explicit timestamp computed before any
+deployment and passed to all three, or a verification pass run against the live
+chain after the broadcast, would both close it. No fix attempted: the decision
+is human.
