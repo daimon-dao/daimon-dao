@@ -238,3 +238,12 @@ The harness now clears that code (`anvil_setCode(addr, "0x")`) and restores
 balances on the local fork at node start, so the roles behave as plain EOAs.
 Worth carrying into Level 2: on a real Chapel deployment these addresses must
 never be used for anything that receives BNB.
+
+### B4 -- Three pokes in the same block: the #28 per-block budget holds
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B4.1 | Inventory before, with several chunks available | well above one threshold, so a budget-free implementation could convert repeatedly | inventory=0.6000 B = 3 chunks | PASS |
+| B4.2 | Three pokes from THREE DIFFERENT accounts, mined in one block | all three land in the same block | first poke block=0x7945e19, third poke block=0x7945e19 | PASS |
+| B4.3 | How much was converted by three pokes in that block | ONE chunk, not three: the budget caps the aggregate per block, whoever calls | consumed = 0.2000 B, one chunk = 0.2000 B | PASS |
+| B4.4 | A poke in the NEXT block | the budget rolls: another chunk converts, so this is pacing and not prohibition | consumed now = 0.4000 B | PASS |
