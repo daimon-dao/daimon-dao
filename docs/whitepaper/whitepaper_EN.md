@@ -1272,7 +1272,7 @@ lapsed.
 
 **The deployer.** Can deploy the contracts and pay the gas. Holds no role
 afterwards: the deployment script renounces every temporary permission and
-then verifies, with nineteen assertions that abort deployment on failure,
+then verifies, with twenty assertions that abort deployment on failure,
 that no externally owned account retains authority anywhere in the system.
 
 The full threat model, including the reasoning behind each conclusion, is

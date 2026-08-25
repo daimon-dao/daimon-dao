@@ -1336,7 +1336,7 @@ quale qualsiasi pausa ancora armata è già decaduta.
 
 **Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas. Non
 detiene alcun ruolo in seguito: lo script di deploy rinuncia a ogni permesso
-temporaneo e poi verifica, con diciannove asserzioni che interrompono il deploy
+temporaneo e poi verifica, con venti asserzioni che interrompono il deploy
 in caso di fallimento, che nessun account esterno mantenga autorità in alcun
 punto del sistema.
 
