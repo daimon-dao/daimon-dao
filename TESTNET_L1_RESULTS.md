@@ -142,3 +142,31 @@ to later constructors. A single explicit timestamp computed before any
 deployment and passed to all three, or a verification pass run against the live
 chain after the broadcast, would both close it. No fix attempted: the decision
 is human.
+
+### A2 -- Partial migration: 1:1 credit, old tokens out of circulation
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A2.1 | tp1 (76.90 B of old) migrates 30.00 B | receives exactly 30.00 B DMN | 30.0000 B | PASS |
+| A2.2 | tp1 old-token balance after the partial claim | 76.90 - 30.00 = 46.90 B left | 46.9000 B (was 76.9000 B) | PASS |
+| A2.3 | Where the old tokens went | the treasury holds them: out of circulation, not burned | treasury +30.0000 B | PASS |
+| A2.4 | Migration DMN reserve | down by exactly what it credited | -30.0000 B | PASS |
+| A2.5 | Migration internal accounting | migratedAmount[tp1] = totalMigrated = 30.00 B | per-account=30.0000 B, total=30.0000 B | PASS |
+
+### A3 -- Second claim by the same holder: the remainder, with no double counting
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A3.1 | tp1 claims the remaining 46.90 B after the earlier 30.00 B | holds 76.90 B DMN in total, 1:1 across two claims | 76.9000 B | PASS |
+| A3.2 | tp1 old balance | zero: fully migrated | 0.0000 B | PASS |
+| A3.3 | Per-account accounting after two claims | migratedAmount[tp1] = 76.90 B, counted once, not twice | 76.9000 B | PASS |
+| A3.4 | Protocol-wide total | totalMigrated = 76.90 B, matching the treasury old-token holding | total=76.9000 B, treasury=76.9000 B | PASS |
+| A3.5 | tp1 tries a third claim with nothing left | fails: allowance and balance are both exhausted, nothing is credited twice | reverted | PASS |
+
+### A4 -- Full migration in one call: exact 1:1
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| A4.1 | tp2 migrates its entire holding in one transaction | DMN received equals the old balance exactly, to the wei | old was 75.4180 B, DMN now 75.4180 B | PASS |
+| A4.2 | tp2 old balance afterwards | zero | 0.0000 B | PASS |
+| A4.3 | Treasury custody | holds exactly the migrated amount | 75.4180 B | PASS |
