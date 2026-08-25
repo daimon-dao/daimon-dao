@@ -195,3 +195,12 @@ The funding question has a structural answer rather than an arithmetic one: the 
 Both halves land exactly where the checklist says they should. Pricing on the gross opens the pool 5.26% off - the mirror image of the 5% fee - and the error is silent: nothing reverts, the pool simply starts at a price nobody chose. Pricing on the net receipt lands on the intended ratio to the wei.
 
 Operational note surfaced by running it: maxTxAmount is 5.00 B at deploy (0.5% of supply), so a realistic initial-liquidity position cannot be added in one transaction by a non-exempt provider - it has to be split into chunks, each paying the 5% fee and each needing its BNB leg computed on that chunk's NET receipt. Exempting the provider from fees instead would remove both the fee and the maxTx limit, and with them the #17 problem - but that exemption is a governance action with its own consequences, not a launch shortcut.
+
+### B1 -- Ordinary wallet-to-wallet transfers: fee taken, passive holder grows by reflection
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B1.1 | alice transfers 1.00 B to bob | bob is credited the amount net of the 5% fee (1% reflection + 4% to the contract) | credited 950047503.5152 vs net 950000000.0000 (delta includes bob's own reflection share) | PASS |
+| B1.2 | A second transfer, bob back to alice | the contract's fee inventory grows by 4% of each transfer | inventory 480038402.5601 -> 560049203.4882 | PASS |
+| B1.3 | carol never sends or receives anything during the two transfers | her balance GROWS anyway: reflection accrues to passive holders | 3800152006.0802 -> 3800228010.2604 (+76004.1801) | PASS |
+| B1.4 | Total supply across the reflection | unchanged: reflection redistributes, it does not mint or burn | 1000.0000 B | PASS |

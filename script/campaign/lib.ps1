@@ -61,6 +61,9 @@ function BW([string]$billions) {  # "213.56" billions -> wei BigInteger
 # -- Anvil lifecycle ------------------------------------------------------
 function Stop-Anvil {
   Get-Process anvil -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  # A forge script left hanging from an earlier run keeps a stale nonce view
+  # and blocks the next broadcast: clear it with the node.
+  Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Milliseconds 800
 }
 function Start-CampaignNode {
@@ -371,3 +374,38 @@ function Claim-DmnAs { param($from, $amount)
   SendAs $from $st.old "approve(address,uint256)" @($st.migration, "$amount") -NoInvariant | Out-Null
   return (SendAs $from $st.migration "claim(uint256)" @("$amount"))
 }
+
+## Opens the DMN/WBNB pool at 1 BNB = 1e9 DMN, pricing the BNB leg on what
+## the pair ACTUALLY receives (the correct way, proved in B0). Returns the
+## gross DMN sent.
+function Setup-Pool { param($who = "team1", $grossBillions = "4.00")
+  $st = S
+  $gross = BW $grossBillions
+  $tax = CQ $st.token "taxFee()(uint256)"; $liq = CQ $st.token "liquidityFee()(uint256)"
+  $net = ($gross * (1000 - $tax - $liq)) / 1000
+  $bnb = $net / [System.Numerics.BigInteger]::Parse("1000000000")
+  Send $who $st.token "approve(address,uint256)" @($script:ROUTER, "$gross") | Out-Null
+  Send $who $script:ROUTER "addLiquidityETH(address,uint256,uint256,uint256,address,uint256)" @(
+    $st.token, "$gross", "0", "0", $script:Addr[$who], "99999999999") -value "$bnb" | Out-Null
+  return $gross
+}
+
+## Sell DMN into the pool through the real router (fee-supporting variant).
+function Sell-Dmn { param($who, $amount)
+  $st = S
+  Send $who $st.token "approve(address,uint256)" @($script:ROUTER, "$amount") | Out-Null
+  $path = "[$($st.token),$(CQRaw $script:ROUTER 'WETH()(address)')]"
+  return (Send $who $script:ROUTER "swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)" @(
+    "$amount", "0", $path, $script:Addr[$who], "99999999999"))
+}
+
+## Fire a transaction without waiting for its receipt - needed to put
+## several transactions into ONE block (automine off).
+function SendAsync { param($who, $to, $sig, [string[]]$sendArgs = @())
+  $r = cast send $to $sig @sendArgs --private-key $script:Key[$who] --rpc-url $script:RPC --async 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "ASYNC SEND FAILED [$who -> $to $sig]: $r" }
+  return ("$r" -split "\s+")[0]
+}
+function Automine { param([bool]$on) RpcCall "evm_setAutomine" @("$($on.ToString().ToLower())") | Out-Null }
+## The DMN fee inventory sitting in the token contract, not yet converted.
+function Fee-Inventory { $st = S; return (CQ $st.token "balanceOf(address)(uint256)" @($st.token)) }
