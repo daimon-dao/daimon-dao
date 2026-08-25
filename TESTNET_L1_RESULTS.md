@@ -293,3 +293,14 @@ Worth recording because it caught out the first version of this very test: alice
 | C2.2 | Her position after the refused withdrawal | untouched - voting power and stake intact | vp = 3.8001 B | PASS |
 | C2.3 | One day before expiry (29 of 30 days elapsed) | still refused - the boundary is respected to the second | reverted with LockStillActive | PASS |
 | C2.4 | Just past 30 days | the withdrawal goes through, voting power returns to zero, principal comes back | vp=0.0000 B, balance=3.8001 B | PASS |
+
+### C5 -- notifyRewardAmount with an awkward amount: strict pro-rata, no dust leaks
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| C5.1 | Weights before the distribution | bob carries 4x alice's weight for the same principal | alice vp=2.0000 B, bob vp=8.0000 B, total=10.0000 B | PASS |
+| C5.2 | 3.141592653589793238 BNB notified | alice gets one fifth of it | alice 0.6283 vs ideal 0.6283, difference 1 wei | PASS |
+| C5.3 | bob share of the same notification | four fifths, i.e. four times alice | bob 2.5132 vs ideal 2.5132, difference 6 wei; bob/alice = 4x | PASS |
+| C5.4 | Everything accounted for | the shares sum to the notification bar a few wei of integer-division dust, which stays in the contract - never leaks out | sum=3141592653589793230 wei vs notified=3141592653589793238 wei, dust retained = 8 wei | PASS |
+| C5.5 | alice claims | she receives what was pending, minus her own gas | pending was 0.6283, balance moved 0.6283 | PASS |
+| C5.6 | The zero-staker reserve during a normal distribution | stays at zero: this path never touches it | 0.0000 BNB | PASS |
