@@ -1,4 +1,7 @@
 [profile.default]
+# The two-phase deploy persists its state file here (DeployPhase1 writes,
+# DeployPhase2 reads and completes it).
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
 src = "src"
 out = "out"
 libs = ["lib"]

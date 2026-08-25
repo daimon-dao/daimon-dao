@@ -5,3 +5,8 @@ broadcast/
 .claude/settings.local.json
 .password
 .testwallets/
+
+# Level-1 campaign: ephemeral per-run state
+script/campaign/state-*.json
+script/campaign/anvil.log
+script/campaign/forkpin.txt
