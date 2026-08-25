@@ -247,3 +247,29 @@ never be used for anything that receives BNB.
 | B4.2 | Three pokes from THREE DIFFERENT accounts, mined in one block | all three land in the same block | first poke block=0x7945e19, third poke block=0x7945e19 | PASS |
 | B4.3 | How much was converted by three pokes in that block | ONE chunk, not three: the budget caps the aggregate per block, whoever calls | consumed = 0.2000 B, one chunk = 0.2000 B | PASS |
 | B4.4 | A poke in the NEXT block | the budget rolls: another chunk converts, so this is pacing and not prohibition | consumed now = 0.4000 B | PASS |
+
+### B5 -- Nobody ever pokes: fees accumulate, nothing is lost, only cadence degrades
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| B5.1 | Four rounds of transfers and router sells across 60 days, never a poke | the fee inventory only grows - nothing converts on its own | 0.5600 B -> 0.8000 B, i.e. 4 chunks waiting | PASS |
+| B5.2 | Buyback BNB during those 60 days | none accrues, because nothing was ever converted | contract BNB 0.0000 -> 0.0000 | PASS |
+| B5.3 | Does anything break? | no: transfers and sells keep working throughout, supply intact | totalSupply=1000.0000 B, every transfer and sell in the loop succeeded | PASS |
+| B5.4 | The first poke after 60 days of silence | the accumulated inventory is intact and converts one chunk at a time | consumed 0.2000 B, still waiting 0.6401 B | PASS |
+| B5.5 | Marketing wallet across the whole idle period | zero, as everywhere else | DMN=0 | PASS |
+
+Nothing is lost by not poking: the fees sit in the contract as DMN and convert whenever somebody eventually sends a wei to the pair. What degrades is only the cadence of staking rewards and buyback pressure - the liveness dependency THREAT_MODEL par.8 describes, and it is a dependency on ANY address in the world bothering, not on a keeper.
+
+#### Harness note: a pinned fork block does not stay available
+
+Half-way through family B the runs began stalling. The cause was not the
+protocol and not the machine: `state at block #127163903 is pruned` - the
+public endpoint had dropped the state of the block pinned that morning, so
+every fresh node died at genesis while partially-cached runs crawled. The
+harness now resolves the pin at run time, caches it for the sitting and
+re-resolves automatically when the endpoint stops serving it. Only the
+PancakeSwap periphery is inherited from the fork - every Daimon contract is
+deployed fresh per run - so the choice of recent block changes no result.
+
+Worth carrying into Level 2: any campaign pinned to a public-chain block has
+a shelf life measured in hours.

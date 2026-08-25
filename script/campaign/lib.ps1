@@ -6,7 +6,8 @@
 $ErrorActionPreference = "Stop"
 $script:RPC  = "http://127.0.0.1:8545"
 $script:FORK = "https://bsc-testnet.publicnode.com"
-$script:PIN  = 127163903   # pinned fork block: deterministic state, cached RPC
+$script:ROUTER_ADDR = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"   # PancakeSwap V2, BSC testnet
+$script:PIN  = 0            # resolved at runtime by Resolve-ForkBlock
 $script:ROOT = (git rev-parse --show-toplevel)
 $script:STATE = Join-Path $ROOT "script\campaign\state.json"
 $script:LOG   = Join-Path $ROOT "TESTNET_L1_RESULTS.md"
@@ -66,16 +67,47 @@ function Stop-Anvil {
   Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Milliseconds 800
 }
+## Public endpoints prune state: a block that forks cleanly in the morning
+## returns "state at block #N is pruned" a few hours later. The pin is
+## therefore resolved once per sitting, cached in forkpin.txt, and refreshed
+## automatically when the endpoint no longer serves it. Only the PancakeSwap
+## periphery is inherited from the fork - every Daimon contract is deployed
+## fresh in each run - so which recent block we pin to does not affect any
+## result.
+function Resolve-ForkBlock { param([switch]$Force)
+  $pinFile = Join-Path $script:ROOT "script\campaign\forkpin.txt"
+  if (-not $Force -and (Test-Path $pinFile)) {
+    $cached = (Get-Content $pinFile -Raw).Trim()
+    if ($cached -match "^\d+$") {
+      $probe = cast code $script:ROUTER_ADDR --block $cached --rpc-url $script:FORK 2>&1
+      if ($LASTEXITCODE -eq 0 -and "$probe".Length -gt 10) { $script:PIN = [int]$cached; return $script:PIN }
+    }
+  }
+  $latest = (cast block-number --rpc-url $script:FORK 2>&1)
+  if ($LASTEXITCODE -ne 0) { throw "cannot reach the fork endpoint: $latest" }
+  $pin = [int]$latest - 20
+  Set-Content -Path $pinFile -Value "$pin" -Encoding ascii
+  $script:PIN = $pin
+  return $pin
+}
+
 function Start-CampaignNode {
   Stop-Anvil
-  Start-Process anvil -ArgumentList "--fork-url",$script:FORK,"--fork-block-number",$script:PIN,"--port","8545","--silent" -WindowStyle Hidden
-  $ok = $false
-  foreach ($i in 1..40) {
-    Start-Sleep -Seconds 1
-    try { $cid = cast chain-id --rpc-url $script:RPC 2>$null; if ($cid -eq "97") { $ok = $true; break } } catch {}
+  $nodeLog = Join-Path $script:ROOT "script\campaign\anvil.log"
+  foreach ($attempt in 1..3) {
+    $pin = Resolve-ForkBlock -Force:([bool]($attempt -gt 1))
+    if (Test-Path $nodeLog) { Remove-Item $nodeLog -Force -ErrorAction SilentlyContinue }
+    Start-Process anvil -ArgumentList "--fork-url",$script:FORK,"--fork-block-number","$pin","--port","8545","--silent" -WindowStyle Hidden -RedirectStandardError $nodeLog
+    foreach ($i in 1..60) {
+      Start-Sleep -Seconds 1
+      try { $cid = cast chain-id --rpc-url $script:RPC 2>$null; if ($cid -eq "97") { Sanitize-Accounts; return } } catch {}
+      if ((Test-Path $nodeLog) -and ((Get-Content $nodeLog -Raw) -match "pruned|error")) { break }
+    }
+    Write-Output "  .. anvil attempt $attempt failed (pin $pin), re-resolving"
+    Stop-Anvil
   }
-  if (-not $ok) { throw "anvil did not come up" }
-  Sanitize-Accounts
+  $err = if (Test-Path $nodeLog) { (Get-Content $nodeLog -Raw) } else { "(no stderr captured)" }
+  throw "anvil did not come up after 3 attempts. stderr: $err"
 }
 
 # -- cast wrappers --------------------------------------------------------
