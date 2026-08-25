@@ -562,7 +562,7 @@ GOVERNANCE_ROLE  →  held by DaimonTimelock, and nothing else
 
 The deployer holds no role. This is not a matter of intention: the deployment
 script renounces every role it temporarily holds during setup, and then
-asserts — with fourteen separate checks that abort the deployment if any of
+asserts — with twenty separate checks that abort the deployment if any of
 them fails — that no externally owned account retains authority over any
 contract. If a single check fails, no deployment occurs.
 

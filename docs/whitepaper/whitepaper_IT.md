@@ -587,7 +587,7 @@ GOVERNANCE_ROLE  →  detenuto da DaimonTimelock, e da nient'altro
 
 Chi ha fatto il deploy non detiene alcun ruolo. Non è una questione di
 intenzioni: lo script di deploy rinuncia a ogni ruolo che detiene
-temporaneamente durante la configurazione, e poi verifica — con quattordici
+temporaneamente durante la configurazione, e poi verifica — con venti
 controlli separati che interrompono il deploy se anche uno solo fallisce — che
 nessun account esterno mantenga autorità su alcun contratto. Se un solo
 controllo fallisce, il deploy non avviene.
