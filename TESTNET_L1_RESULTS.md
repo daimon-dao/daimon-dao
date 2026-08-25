@@ -322,3 +322,34 @@ not fee-exempt. A holder wanting to lock more than 5.00 B has to split it
 across several transactions - each paying the transfer fee. The first version
 of this scenario tried to stake 10.00 B in one call and the transaction never
 came back; worth knowing before a whale tries it on mainnet.
+
+### D4 -- queue, the 7-day timelock, execute - and what happens out of order
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+
+### D3 -- Vote and quorum: the bar is the snapshot, and later staking cannot move it
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| D3.1 | The bar this proposal must clear | 10% of the voting power that existed at the snapshot | quorum needed = 1.9000 B of 19.0000 B | PASS |
+| D3.2 | Proposal state once the voting delay elapses | Active | Active | PASS |
+| D3.3 | team1 votes in favour with its snapshot weight | its 16 B of weight is recorded, clearing the bar on its own | forVotes = 16.0000 B, needed = 1.9000 B | PASS |
+| D3.4 | A whale stakes 16 B of fresh weight mid-vote | the live total jumps, this proposal's denominator does not | live 35.0000 B vs proposal denominator 19.0000 B | PASS |
+| D3.5 | State at the end of the voting period | Succeeded: quorum met on the snapshot, for-votes ahead | Succeeded | PASS |
+
+The whale that appeared mid-vote is exactly the actor the snapshot exists to neutralize: 16 B of new weight, arriving after the question was asked, changed neither the bar nor the tally.
+
+### D4 -- queue, the 7-day timelock, execute - and what happens out of order
+
+| step | action | expected | observed | verdict |
+|---|---|---|---|---|
+| D4.1 | Proposal approved and out of voting | Succeeded, not yet queued | Succeeded | PASS |
+| D4.2 | execute() without queue() | refused with its own precise error: the timelock is not optional | reverted with ProposalNotQueued | PASS |
+| D4.3 | queue() by an address with no role at all | anyone may queue an approved proposal; state becomes Queued | Queued | PASS |
+| D4.4 | execute() during the timelock delay | refused: the public reaction window is enforced by the Timelock itself | reverted | PASS |
+| D4.5 | execute() after the seven days | the parameter actually changes on the token | taxFee 10 -> 10, buyback 10, marketing 20, liquidityFee 40 -> 30 (total 4%) | PASS |
+| D4.6 | Proposal state afterwards | Executed | Executed | PASS |
+| D4.7 | A second execute() of the same proposal | refused: no replay | reverted with AlreadyExecuted | PASS |
+
+This is the historical proposal #0 replayed end to end - fees from 5% to 4% - through the real script's deployment: thirteen days of process compressed into warps, with every ordering guard refusing on its own terms.

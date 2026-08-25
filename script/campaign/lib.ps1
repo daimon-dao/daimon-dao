@@ -253,6 +253,11 @@ function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight)
     deployOutTail = (($out -split "`r?`n" | Select-Object -Last 6) -join " | ")
   }
   Save-State $st
+  # forge script can outlive its own broadcast; while it lingers it keeps a
+  # nonce view of the deployer, and the cast sends that follow then open a
+  # nonce gap which leaves every later transaction queued forever. Clear it.
+  Get-Process forge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 400
   Assert-Invariants "post-deploy"
   return (Load-State)
 }
