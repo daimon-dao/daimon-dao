@@ -57,3 +57,26 @@ Every transaction is signed through `cast send --account <keystore-name>
 and no path appears in the repository or in this log.
 
 ---
+## Part 3 scope note and static event check
+
+The monitor spec now lives at `docs/SPEC_MONITOR.md` (added on operator
+instruction; the bot itself is a SEPARATE project, read-only, no private
+keys, built outside this repository). For this campaign, Part 3 is limited
+to two things: verifying that the events the monitor will observe are
+actually emitted and readable on the Chapel contracts, and recording the
+deployed addresses the bot will be pointed at.
+
+Static cross-check of the spec's "urgent" event names against the source,
+done before deploy (all seven resolve):
+
+| event | defined in |
+|---|---|
+| PausedSet(bool) | src/DaimonV2.sol:273 |
+| PauseScheduled(uint256) | src/DaimonV2.sol:276 |
+| FeesUpdated(uint256,uint256,uint256) | src/DaimonV2.sol:271 |
+| ExcludedFromFeeSet(address,bool) | src/DaimonV2.sol:279 |
+| MarketingWalletSet(address) | src/DaimonV2.sol:278 |
+| ParamsUpdated(string,uint256) | src/DaimonV2.sol:272 |
+| Upgraded(address) | ERC-1967 standard, emitted by the proxy (OZ IERC1967) |
+
+---
