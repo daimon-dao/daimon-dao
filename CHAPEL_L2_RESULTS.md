@@ -169,3 +169,121 @@ fee, never on the gross sent (#17, proven in B0).
 | P1.1b.10 | Distribute 15.00B to mock-contract | exact credit: 15000000000000000000000000000 wei | balance=15.0000 B (15000000000000000000000000000 wei) (2026-08-28 00:06 UTC) | 0x226d7504fddf820a4629f8f918307b78ac9cb57972a39d7d51c02244ba81238c | PASS |
 | P1.1b.11 | Deployer residual: team 427B + non-migrating world 223B | 650000000000000000000000000000 wei kept | balance=650.0000 B (650000000000000000000000000000 wei) (2026-08-28 00:06 UTC) | - | PASS |
 | P1.1b.12 | Treasury fee exemption on the mock | NOT set (launch order: AFTER the post-broadcast verification) | deferred by design (2026-08-28 00:06 UTC) | - | PASS |
+
+### P1.2 -- Phase 1: Migration + token (predicted Timelock recorded; treasury derived)
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.2.1 | #25 preflight: pair for the PREDICTED proxy on the factory | zero address - nobody pre-created it | predictedProxy=0x37eEb553de4F6865efC5d8240CFA3B4a465a046f (nonce 21), getPair=0x0000000000000000000000000000000000000000 (2026-08-28 00:07 UTC) | - | PASS |
+| P1.2.2 | Phase 1 broadcast: impl + proxy + migration | code at both addresses, proxy at the predicted address | token=0x37eEb553de4F6865efC5d8240CFA3B4a465a046f (code 262 ch), migration=0xBB5A86ad9f337927c271c7698dE8E07dEaF84d42 (code 6122 ch), proxy-as-predicted=True (2026-08-28 00:08 UTC) | journal broadcast/DeployPhase1.s.sol/97 | PASS |
+| P1.2.3 | Supply placement | the full 1e30 in the Migration, never through an EOA | 1000.0000 B (1000000000000000000000000000000 wei) (2026-08-28 00:08 UTC) | - | PASS |
+| P1.2.4 | The two predictions, from live chain state | governance AND treasury both = the predicted timelock (derived, never typed) | predictedTimelock=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932, migration.governance=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932, migration.treasury=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932, overridden=False (2026-08-28 00:08 UTC) | - | PASS |
+
+State file after phase 1, verbatim:
+
+```json
+{
+  "chainId": 97,
+  "deployer": "0x052bB2834d292d078cf686F5f4BB2bb55E424943",
+  "expectedPhase2Nonce": 23,
+  "guardian": "0x74D6140C874E0C9142b8312eDA8175B3c447a0F2",
+  "marketingWallet": "0x000000000000000000000000000000000000a001",
+  "migration": "0xBB5A86ad9f337927c271c7698dE8E07dEaF84d42",
+  "oldDaimon": "0xa0de1CB265757Cf8C07b4eDCa4454E95bce33c4F",
+  "predictedTimelock": "0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932",
+  "router": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+  "token": "0x37eEb553de4F6865efC5d8240CFA3B4a465a046f",
+  "tokenImplementation": "0x3092A5Fa4136251FBF1dC0469aF27e6c5A65B666",
+  "treasury": "0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932",
+  "treasuryOverridden": false
+}
+```
+
+### P1.3 -- Phase 2: Timelock + Staking + Governor -- expiry read from the live chain
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.3.1 | Phase 2 broadcast: timelock + staking + governor + wiring + renounce | timelock lands EXACTLY on the phase-1 prediction | timelock=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932, predicted=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932, match=True (2026-08-28 00:10 UTC) | journal broadcast/DeployPhase2.s.sol/97 | PASS |
+| P1.3.2 | Guardian expiry from the three live contracts on a PUBLIC chain | EXACT equality - the A1.8 skew is what this deploy design removed | token=1882483692, timelock=1882483692, governor=1882483692 (2026-08-28 00:10 UTC) | - | PASS |
+| P1.3.3 | The expiry embedded in the phase-2 constructor calldata | equals the live token value (where A1.8 found the 4-second skew) | calldata=1882483692, live=1882483692 (2026-08-28 00:10 UTC) | 0xfe70b471d21e6912d116e39c7c8792e7c274e1e58aef086111b865736c616574 | PASS |
+| P1.3.4 | Both phase-1 predictions fulfilled on live state | migration.governance == migration.treasury == the deployed timelock | treasury=0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 (2026-08-28 00:10 UTC) | - | PASS |
+| P1.3.5 | Launch compliance configuration | stakingRewardShareBps == 1000, set and asserted in phase 2 | 1000 (2026-08-28 00:10 UTC) | - | PASS |
+
+State file after phase 2 (the complete deployment record), verbatim:
+
+```json
+{
+  "chainId": 97,
+  "deployer": "0x052bB2834d292d078cf686F5f4BB2bb55E424943",
+  "governor": "0xB1eA20ef50546a7206E48F160A0fe54833c20eE0",
+  "guardian": "0x74D6140C874E0C9142b8312eDA8175B3c447a0F2",
+  "guardianAuthorityExpiry": 1882483692,
+  "marketingWallet": "0x000000000000000000000000000000000000a001",
+  "migration": "0xBB5A86ad9f337927c271c7698dE8E07dEaF84d42",
+  "oldDaimon": "0xa0de1CB265757Cf8C07b4eDCa4454E95bce33c4F",
+  "router": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+  "staking": "0x2871977e1978f6DAbE66C617d0627B0eFD54FbA4",
+  "timelock": "0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932",
+  "token": "0x37eEb553de4F6865efC5d8240CFA3B4a465a046f",
+  "tokenImplementation": "0x3092A5Fa4136251FBF1dC0469aF27e6c5A65B666",
+  "treasury": "0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932",
+  "treasuryOverridden": false
+}
+```
+
+### P1.4 -- Post-broadcast verification: 34 checks from mined state (any failure stops the campaign)
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.4.1 | script/verify-deploy.ps1 -Rpc <chapel> | every check green, exit 0 | exit=0; Post-broadcast verification -- chain 97 VERIFICATION PASSED: 34/34 checks green against live chain state. (2026-08-28 00:11 UTC) | - | PASS |
+
+Full output, verbatim:
+
+```
+Post-broadcast verification -- chain 97
+State file: C:\Users\Utente\Desktop\Daimon dao\deployments\two-phase-97.json
+
+
+check                                  expected                                   observed                                   verdict
+-----                                  --------                                   --------                                   -------
+code at token                          present                                    present                                    PASS
+code at timelock                       present                                    present                                    PASS
+code at governor                       present                                    present                                    PASS
+code at staking                        present                                    present                                    PASS
+code at migration                      present                                    present                                    PASS
+token: timelock holds GOVERNANCE_ROLE  true                                       true                                       PASS
+token: deployer lacks GOVERNANCE_ROLE  false                                      false                                      PASS
+token: deployer lacks DEFAULT_ADMIN    false                                      false                                      PASS
+token: guardian holds GUARDIAN_ROLE    true                                       true                                       PASS
+token: stakingRewardShareBps == 1000   1000                                       1000                                       PASS
+token: stakingContract is the staking  0x2871977e1978f6DAbE66C617d0627B0eFD54FbA4 0x2871977e1978f6DAbE66C617d0627B0eFD54FbA4 PASS
+token: marketingWallet as configured   0x000000000000000000000000000000000000a001 0x000000000000000000000000000000000000a001 PASS
+token: migration is fee-exempt         true                                       true                                       PASS
+timelock: self-administers             true                                       true                                       PASS
+timelock: deployer lacks ADMIN_ROLE    false                                      false                                      PASS
+timelock: deployer lacks PROPOSER_ROLE false                                      false                                      PASS
+timelock: deployer lacks EXECUTOR_ROLE false                                      false                                      PASS
+timelock: governor is proposer         true                                       true                                       PASS
+timelock: governor is executor         true                                       true                                       PASS
+timelock: guardian is canceller        true                                       true                                       PASS
+timelock: governor is canceller        true                                       true                                       PASS
+timelock: self-cancel role present     true                                       true                                       PASS
+expiry: timelock == token (exact)      1882483692                                 1882483692                                 PASS
+expiry: governor == token (exact)      1882483692                                 1882483692                                 PASS
+staking: timelock is governance        true                                       true                                       PASS
+staking: deployer is not governance    false                                      false                                      PASS
+supply: totalSupply == INITIAL_SUPPLY  1000000000000000000000000000000            1000000000000000000000000000000            PASS
+supply: all of it in the migration     1000000000000000000000000000000            1000000000000000000000000000000            PASS
+migration: governance is the timelock  0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 PASS
+migration: newDaimon is the token      0x37eEb553de4F6865efC5d8240CFA3B4a465a046f 0x37eEb553de4F6865efC5d8240CFA3B4a465a046f PASS
+migration: oldDaimon as configured     0xa0de1CB265757Cf8C07b4eDCa4454E95bce33c4F 0xa0de1CB265757Cf8C07b4eDCa4454E95bce33c4F PASS
+migration: treasury as configured      0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 PASS
+migration: treasury is the timelock    0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932 PASS
+token: pancake pair created            present                                    present                                    PASS
+
+
+
+Guardian expiry raw values: token=1882483692 timelock=1882483692 governor=1882483692
+VERIFICATION PASSED: 34/34 checks green against live chain state.
+
+```
