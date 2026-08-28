@@ -455,3 +455,13 @@ dwarfs the chunk size; recorded as an operational note, not a defect),
 the closing gates (forge clean && forge test, src/ diff vs audit-final),
 and the operator reminder to delete the shared password file when the
 campaign closes.
+
+## Decision recorded (operator, 2026-08-28): the 14-day real-clock pause tail is NOT run
+
+The open question from P2.6 is settled: the campaign will NOT hold the
+token frozen for 14 real days to watch the pause lapse on its own. The
+mechanism is arithmetic on block.timestamp, proven at Level 1 (E2) with
+the warped clock; Chapel verified the armed window exact to the second
+and the migration credit exact to the second (P2.6.1/P2.6.2). Waiting two
+frozen weeks would only prove that the chain's clock advances, while
+blocking every other test. Decision: human, recorded here.

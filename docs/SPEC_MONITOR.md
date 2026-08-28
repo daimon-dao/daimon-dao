@@ -54,13 +54,38 @@ confrontare con la lettura precedente. -20% in un blocco → urgente;
 -30% cumulativo in un'ora → urgente (copre il drenaggio graduale);
 -10% in un blocco → notifica.
 
-FUNZIONI SENSIBILI (nomi verificati sul sorgente): PausedSet /
-PauseScheduled, FeesUpdated, ExcludedFromFeeSet, MarketingWalletSet,
-Upgraded. E ParamsUpdated con param == "stakingRewardShareBps" →
-urgente: il ripristino della quota al marketing wallet è un atto
-legittimo previsto (governance + timelock), ma va visto quando viene
-PROPOSTO, non quando viene eseguito. ParamsUpdated su maxTxAmount o
-minimumTokensBeforeSwap → notifica, non urgente.
+**Chiamate a funzioni sensibili**
+
+⚠️ Due lezioni dalla campagna Chapel, verificate sui contratti veri:
+
+1. Le esenzioni fee impostate in initialize() sono SILENZIOSE — non
+   emettono ExcludedFromFeeSet. Un monitor che si basa solo sugli
+   eventi non saprà mai chi è esente al lancio. Quindi: all'avvio il
+   bot legge lo STATO (chi è esente adesso) e usa l'evento solo per
+   rilevare i cambi successivi. Vale come principio generale: per ogni
+   cosa che conta, stato all'avvio + eventi per le variazioni.
+2. Le firme degli eventi vanno prese dall'ABI compilato, mai assunte.
+   ProposalCreated qui è la firma compatta a 4 campi, non quella
+   standard di OpenZeppelin: un filtro costruito sulla firma sbagliata
+   non produce errori, produce silenzio — che è il modo peggiore in
+   cui un monitor può fallire.
+
+Osservare gli eventi emessi dal token (nomi verificati sul sorgente e
+riletti da Chapel; le firme esatte dall'ABI):
+   PausedSet / PauseScheduled  → pausa messa o programmata
+   FeesUpdated                 → cambio delle commissioni
+   ExcludedFromFeeSet          → cambio delle esenzioni (solo i CAMBI:
+                                 lo stato iniziale si legge, vedi sopra)
+   MarketingWalletSet          → cambio del destinatario operativo
+   Upgraded                    → il proxy è stato aggiornato (ERC-1967)
+
+   ParamsUpdated con param == "stakingRewardShareBps"
+   → il ripristino della quota al marketing wallet è un atto legittimo
+     previsto (governance + timelock), ma il team deve vederlo quando
+     viene PROPOSTO, non quando viene eseguito. Qualsiasi variazione
+     di questo parametro: URGENTE.
+   (ParamsUpdated copre anche maxTxAmount e minimumTokensBeforeSwap:
+    variazioni di questi → notifica, non urgente.)
 
 MOVIMENTI DALLA TREASURY: qualsiasi uscita di BNB o token dal Timelock.
 
