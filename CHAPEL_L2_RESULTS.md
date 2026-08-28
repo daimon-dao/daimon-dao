@@ -287,3 +287,41 @@ Guardian expiry raw values: token=1882483692 timelock=1882483692 governor=188248
 VERIFICATION PASSED: 34/34 checks green against live chain state.
 
 ```
+
+### P1.5 -- The exemption goes last: claims impossible during the window, then opened
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.5.1 | holder1 attempts a 10B claim BEFORE the exemption exists | REVERTS with AmountMismatch (#29): the treasury is not fee-exempt on the predecessor, so no claim was possible at any point between the phases | approved (as expected - approvals are not gated); claim: reverted with AmountMismatch (2026-08-28 00:13 UTC) | - | PASS |
+| P1.5.2 | excludeFromFee(TIMELOCK) on the mock predecessor - launch order step 4 | exemption active: the migration window effectively OPENS here | excludedFromFee(timelock)=true (2026-08-28 00:13 UTC) | 0x55c311a9376a1cbd8da6201c441eee5e07fe53fc2d83801c0afd6e572eaf8aa1 | PASS |
+| P1.5.3 | The same holder claims 1B immediately after | exact 1:1 receipt - the window is open and clean | DMN=1.0000 B (1000000000000000000000000000 wei), gas=225720 (2026-08-28 00:13 UTC) | 0xcf404bcf8be9ae88c9cee2b8cf284fd876c197d61a1ded5527e9d9a086dbaf27 | PASS |
+
+### P1.8 -- One pool only: stored pair == factory pair
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.8.1 | The pair the contracts store vs the pair the factory created | identical - a wrong address breaks fee-swap and buyback silently | token.uniswapV2Pair=0x94bBA28e7E80Fdc6a530bA765Ec966E0dD1CB23C, factory.getPair=0x94bBA28e7E80Fdc6a530bA765Ec966E0dD1CB23C (2026-08-28 00:13 UTC) | - | PASS |
+
+
+### P1.7 -- Initial liquidity: BNB leg on the NET, opening price verified
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.7.1 | Automation state before liquidity (#27) | armed by initialize, and inert by construction: no inventory exists, pokes are the only trigger (#1), and the fail-open fix is in the audited bytecode (BuyBackSkipped paths) | swapAndLiquifyEnabled=true, fee inventory=0.0000 B (2026-08-28 00:15 UTC) | - | PASS |
+| P1.7.2 | Deployer migrates 4.5B for the pool and later steps | exact 1:1 (both legs fee-exempt for this path) | DMN=4.5000 B, gas=186720 (2026-08-28 00:15 UTC) | 0xf669d7dac53f7a42f4f2e355111ec2866cf6b94d4f157971f6fcf1ebd58d6b96 | PASS |
+| P1.7.3 | addLiquidityETH: gross 105263157894736842105263157 wei DMN + 0.1 tBNB | the pair holds ~1e26 DMN NET (gross minus the 5% fee) and 1e17 BNB | reserves DMN=100000000000000000000000000 (delta from target: 0 wei), BNB=100000000000000000; gas=382188 (2026-08-28 00:15 UTC) | 0x6a1a1b25082d573b5ba219fdda4462ef728d345f46bef5b531cf2f32e9aee65e | PASS |
+| P1.7.4 | Opening price from ACTUAL reserves | 1e9 DMN per BNB - the intended price, computed on the net (#17) | ratio=1000000000 DMN/BNB (2026-08-28 00:15 UTC) | - | PASS |
+
+### P1.9 -- Reserves non-zero, automation armed: a small test swap pays the fee
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P1.9.1 | holder1 sells 0.05B through the real router | the 5% fee lands in the token contract as inventory; the seller receives BNB | fee inventory +0.0020 B (expected ~0.0025 B), holder1 BNB +0.0321 (net of est. gas); gas=226811 (2026-08-28 00:15 UTC) | 0x19ac44c05c56b18066d267d724663fa4cc4acc88d7d574784d4f44b3f4d1f773 | PASS |
+| P1.9.2 | Did the sell trigger any conversion? (#1) | no: router-initiated transfers skip the automation - inventory only grew | inventory 0.0042 B -> 0.0062 B (2026-08-28 00:15 UTC) | - | PASS |
+
+> Precision note on P1.9.1: the inventory grew by exactly 4% of the sell
+> (0.002B), not 5% -- the 5% total splits into 1% taxFee (reflected to
+> holders, never inventoried) and 4% liquidityFee (the convertible
+> inventory). The "expected ~0.0025B" in the row overstated the inventory
+> share; the observed value is the correct one. Expectation-side
+> imprecision, recorded not hidden.
