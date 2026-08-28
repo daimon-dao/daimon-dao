@@ -91,7 +91,7 @@ function Send { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$value
   $j = $r | ConvertFrom-Json
   if ($j.status -ne "0x1") { throw "TX REVERTED [$who -> $to $sig]: $($j.transactionHash)" }
   if (-not $NoInvariant) { Assert-Invariants "$who -> $sig" }
-  return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse($j.gasUsed.Substring(2), 'AllowHexSpecifier') }
+  return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse("0" + $j.gasUsed.Substring(2), "AllowHexSpecifier") }
 }
 function SendValue { param($who, $to, [string]$value)
   if ($null -eq $script:KsMap) { Load-Keystores }
@@ -104,7 +104,7 @@ function SendValue { param($who, $to, [string]$value)
   $j = $r | ConvertFrom-Json
   if ($j.status -ne "0x1") { throw "TX REVERTED [$who value]: $($j.transactionHash)" }
   Assert-Invariants "$who -> value"
-  return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse($j.gasUsed.Substring(2), 'AllowHexSpecifier') }
+  return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse("0" + $j.gasUsed.Substring(2), "AllowHexSpecifier") }
 }
 function Expect-Revert { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$errSig = "")
   if ($null -eq $script:KsMap) { Load-Keystores }
@@ -165,3 +165,16 @@ function Log-Step { param($id, $action, $expected, $observed, $tx, $verdict)
   if ($verdict -eq "DEVIATION") { Write-Output "!! DEVIATION at $id" }
 }
 function Log-Note { param($text) Log-Line ""; Log-Line "> $text" }
+
+## Fire-and-forget send (returns the tx hash immediately, no receipt wait):
+## needed to aim two pokes at the same real block.
+function SendAsync { param($who, $to, $sig, [string[]]$sendArgs = @())
+  if ($null -eq $script:KsMap) { Load-Keystores }
+  $ks = $script:KsMap.accounts.$who
+  $pf = $script:KsMap.passwordFile
+  $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $r = (cast send $to $sig @sendArgs --account $ks --password-file $pf --rpc-url $script:RPC --async 2>&1 | Out-String)
+  $c = $LASTEXITCODE; $ErrorActionPreference = $prev
+  if ($c -ne 0) { throw "ASYNC SEND FAILED [$who]: $(($r -replace '\s+',' ').Trim())" }
+  return ($r.Trim() -split "\s+")[0]
+}
