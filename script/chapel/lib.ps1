@@ -15,9 +15,12 @@ $script:ROOT = (git rev-parse --show-toplevel)
 $script:LOG  = Join-Path $ROOT "CHAPEL_L2_RESULTS.md"
 $script:STATE = Join-Path $ROOT (Join-Path "script" (Join-Path "chapel" "state.json"))
 
-# Role -> address (generated fresh by the operator, code==0x verified and
+# Role -> address (script:AddrBook: the name is deliberately unusual --
+# PowerShell variable names are CASE-INSENSITIVE, so a top-level scenario
+# assigning $addr or $ks would OVERWRITE a global named Addr or KS. That
+# exact collision cost an hour of forensics on day 1.) (generated fresh by the operator, code==0x verified and
 # recorded in the log before any funding was used).
-$script:Addr = @{
+$script:AddrBook = @{
   deployer = "0x052bB2834d292d078cf686F5f4BB2bb55E424943"
   guardian = "0x74D6140C874E0C9142b8312eDA8175B3c447a0F2"
   staker1  = "0xfbcE9e13C309549c82B0775C8587E3470f2837b0"
@@ -35,16 +38,16 @@ $script:DEAD = "0x000000000000000000000000000000000000dEaD"
 # script/chapel/keystore-map.json format:
 #   { "passwordFile": "C:\\...\\pf.txt",
 #     "accounts": { "deployer": "chapel-deployer", ... } }
-$script:KS = $null
+$script:KsMap = $null
 function Load-Keystores {
   $p = Join-Path $script:ROOT (Join-Path "script" (Join-Path "chapel" "keystore-map.json"))
   if (-not (Test-Path $p)) { throw "keystore-map.json missing: ask the operator for keystore names (never for keys)" }
-  $script:KS = Get-Content $p -Raw | ConvertFrom-Json
-  if (-not (Test-Path $script:KS.passwordFile)) { throw "password file not found at the configured path" }
+  $script:KsMap = Get-Content $p -Raw | ConvertFrom-Json
+  if (-not (Test-Path $script:KsMap.passwordFile)) { throw "password file not found at the configured path" }
 }
 
 $script:E18 = [System.Numerics.BigInteger]::Pow(10, 18)
-function BW { param([string]$b) return ([System.Numerics.BigInteger]([decimal]$b * 10000) * ($script:E18 / 10000)) }
+function BW { param([string]$b) return ([System.Numerics.BigInteger]([decimal]$b * 10000) * ($script:E18 / 10000) * 1000000000) }  # BILLIONS -> wei (the missing x1e9 cost a redeploy on day 1)
 function FmtB { param($wei)
   $b = [System.Numerics.BigInteger]$wei
   $bn = $script:E18 * 1000000000
@@ -76,12 +79,13 @@ function Bal { param($addr) return [System.Numerics.BigInteger]::Parse((cast bal
 ## Signed send from a role. Returns @{ hash; gasUsed }. A transport failure
 ## throws; an on-chain revert throws; nothing is ever retried silently.
 function Send { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$value = "0", [switch]$NoInvariant)
-  if ($null -eq $script:KS) { Load-Keystores }
-  $ks = $script:KS.accounts.$who
+  if ($null -eq $script:KsMap) { Load-Keystores }
+  $ks = $script:KsMap.accounts.$who
+  $pf = $script:KsMap.passwordFile
   if (-not $ks) { throw "no keystore mapped for role '$who'" }
   $extra = @(); if ($value -ne "0") { $extra += @("--value", $value) }
   $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  $r = (cast send $to $sig @sendArgs --account $ks --password-file $script:KS.passwordFile --rpc-url $script:RPC --json @extra 2>&1 | Out-String)
+  $r = (cast send $to $sig @sendArgs --account $ks --password-file $pf --rpc-url $script:RPC --json @extra 2>&1 | Out-String)
   $c = $LASTEXITCODE; $ErrorActionPreference = $prev
   if ($c -ne 0) { throw "SEND FAILED [$who -> $to $sig]: $(($r -replace '\s+',' ').Trim())" }
   $j = $r | ConvertFrom-Json
@@ -90,10 +94,11 @@ function Send { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$value
   return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse($j.gasUsed.Substring(2), 'AllowHexSpecifier') }
 }
 function SendValue { param($who, $to, [string]$value)
-  if ($null -eq $script:KS) { Load-Keystores }
-  $ks = $script:KS.accounts.$who
+  if ($null -eq $script:KsMap) { Load-Keystores }
+  $ks = $script:KsMap.accounts.$who
+  $pf = $script:KsMap.passwordFile
   $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  $r = (cast send $to --value $value --account $ks --password-file $script:KS.passwordFile --rpc-url $script:RPC --json 2>&1 | Out-String)
+  $r = (cast send $to --value $value --account $ks --password-file $pf --rpc-url $script:RPC --json 2>&1 | Out-String)
   $c = $LASTEXITCODE; $ErrorActionPreference = $prev
   if ($c -ne 0) { throw "SENDVALUE FAILED [$who -> $to]: $(($r -replace '\s+',' ').Trim())" }
   $j = $r | ConvertFrom-Json
@@ -102,10 +107,11 @@ function SendValue { param($who, $to, [string]$value)
   return @{ hash = $j.transactionHash; gasUsed = [System.Numerics.BigInteger]::Parse($j.gasUsed.Substring(2), 'AllowHexSpecifier') }
 }
 function Expect-Revert { param($who, $to, $sig, [string[]]$sendArgs = @(), [string]$errSig = "")
-  if ($null -eq $script:KS) { Load-Keystores }
-  $ks = $script:KS.accounts.$who
+  if ($null -eq $script:KsMap) { Load-Keystores }
+  $ks = $script:KsMap.accounts.$who
+  $pf = $script:KsMap.passwordFile
   $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  $r = (cast send $to $sig @sendArgs --account $ks --password-file $script:KS.passwordFile --rpc-url $script:RPC --json 2>&1 | Out-String)
+  $r = (cast send $to $sig @sendArgs --account $ks --password-file $pf --rpc-url $script:RPC --json 2>&1 | Out-String)
   $c = $LASTEXITCODE; $ErrorActionPreference = $prev
   if ($c -eq 0) {
     $j = $r | ConvertFrom-Json
