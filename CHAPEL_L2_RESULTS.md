@@ -465,3 +465,64 @@ the warped clock; Chapel verified the armed window exact to the second
 and the migration credit exact to the second (P2.6.1/P2.6.2). Waiting two
 frozen weeks would only prove that the chain's clock advances, while
 blocking every other test. Decision: human, recorded here.
+
+### P2.1b -- Governance cycle, day 2: the vote -- three ballots, one per support value
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P2.1b.1 | Preflight from live state: chain, proposal 0, window, calldata, virgin tally | chain 97; state Active; now inside [voteStart,voteEnd]; data == setFees(10,10,20); tallies 0/0/0; target == token | chain=97, state=1 (1=Active), window 2026-08-29 00:17:59 -> 2026-09-03 00:17:59 UTC (now 2026-08-29 16:05:42), calldataMatch=True, for/against/abstain=0/0/0, target=0x37eEb553de4F6865efC5d8240CFA3B4a465a046f (2026-08-29 16:05 UTC) | - | PASS |
+| P2.1b.2 | staker1 casts FOR (support=1) with its snapshot weight | weight = 20000000000000000000000000000 wei lands in the for tally; hasVoted=true | vpAtSnapshot=20.0000 B, tally after=20.0000 B (20000000000000000000000000000 wei), hasVoted=true; gas=87520 (2026-08-29 16:05 UTC) | 0xeb475f6d8444e8b93d360c4bec368a152d99e7fcd49929c36befe6fc6550c59e | PASS |
+| P2.1b.3 | staker2 casts AGAINST (support=0) with its snapshot weight | weight = 7500000000000000000000000000 wei lands in the against tally; hasVoted=true | vpAtSnapshot=7.5000 B, tally after=7.5000 B (7500000000000000000000000000 wei), hasVoted=true; gas=87536 (2026-08-29 16:05 UTC) | 0x6c06fe9d51de7edc8daa159e431be09f3f7290efc89db87fcae0ba2069241e5f | PASS |
+| P2.1b.4 | staker3 casts ABSTAIN (support=2) with its snapshot weight | weight = 5000000000000000000000000000 wei lands in the abstain tally; hasVoted=true | vpAtSnapshot=5.0000 B, tally after=5.0000 B (5000000000000000000000000000 wei), hasVoted=true; gas=87549 (2026-08-29 16:05 UTC) | 0xcc78b09c0a0ffdeee7c90a034e59b7ec587b299327cab85138814983f06a54f3 | PASS |
+| P2.1b.5 | Tally read back from proposals(0) | for=20000000000000000000000000000, against=7500000000000000000000000000, abstain=5000000000000000000000000000 wei -- exact | for=20.0000 B (20000000000000000000000000000 wei), against=7.5000 B (7500000000000000000000000000 wei), abstain=5.0000 B (5000000000000000000000000000 wei) (2026-08-29 16:05 UTC) | - | PASS |
+| P2.1b.6 | Quorum on for+abstain (against excluded by design, #A3); outcome sealed only at voteEnd | quorumVotes 25B >= needed 3.25B (10% of snapshot 32.5B); for > against; state still Active | quorumVotes=25.0000 B, needed=3.2500 B, for>against=True, state=1 (1=Active until 2026-09-03 00:17:59 UTC) (2026-08-29 16:06 UTC) | - | PASS |
+| P2.1b.7 | staker1 tries to vote a second time | refused: AlreadyVoted -- no ballot can be counted twice | reverted with AlreadyVoted (2026-08-29 16:06 UTC) | - | PASS |
+
+> The plan for today named the three voters (staker1/2/3) but not their directions. The choice above -- one ballot per support value, mirroring day 1's three-stakers-three-tiers pattern -- exercises all three castVote branches and the quorum-excludes-against rule on a public chain, with weights distinct enough that the tally alone attributes every ballot. The outcome is unchanged: forVotes 20B > againstVotes 7.5B, quorum 25B >= 3.25B, so the proposal heads for Succeeded at voteEnd and the execute-~day-13 calendar stands. Recorded as a choice the plan left open, not a deviation from anything it specified.
+| P3.14 | Read back: VoteCast(uint256,address,uint8,uint256) on governor | exactly 3 -- one per ballot, supports 1/0/2 with the snapshot weights | found=3; support=1 weight=20.0000 B voter=0xfbce9e13c309549c82b0775c8587e3470f2837b0; support=0 weight=7.5000 B voter=0x36e3a9f60ad6e89835ee0f3a4b8bc9283cfa83d1; support=2 weight=5.0000 B voter=0xbb843dfe3dec6d7dfc4ef194a1a9bdc7a07eac84 (2026-08-29 16:06 UTC) | - | PASS |
+
+---
+
+## Day 2 status (2026-08-29)
+
+Voting day. The plan called for the three ballots today and the chain
+agreed with the plan everywhere it was checked first: exactly one
+proposal exists (#0, the day-1 setFees(10,10,20) on the token), state
+Active, window 2026-08-29 00:17:59 -> 2026-09-03 00:17:59 UTC, tally
+virgin, calldata byte-identical to `cast calldata "setFees(uint256,
+uint256,uint256)" 10 10 20`. No proposal was created today: one
+proposal with three ballots IS the plan (the "three proposals" of the
+July campaign belong to July; Level 2 replays proposal 0 alone).
+
+The three ballots, one per support value, weights read back exact to
+the wei from the proposal struct AND from the VoteCast events:
+
+| voter | support | weight (wei) | tx |
+|---|---|---|---|
+| staker1 | 1 (for) | 20000000000000000000000000000 | 0xeb475f6d8444e8b93d360c4bec368a152d99e7fcd49929c36befe6fc6550c59e |
+| staker2 | 0 (against) | 7500000000000000000000000000 | 0x6c06fe9d51de7edc8daa159e431be09f3f7290efc89db87fcae0ba2069241e5f |
+| staker3 | 2 (abstain) | 5000000000000000000000000000 | 0xcc78b09c0a0ffdeee7c90a034e59b7ec587b299327cab85138814983f06a54f3 |
+
+Quorum already cleared mid-flight (for+abstain 25B >= 3.25B needed, the
+against 7.5B excluded by design and unable to help), for > against, and
+the state stays Active until voteEnd -- the outcome is sealed by the
+clock, not by the tally reaching a threshold. A second ballot from
+staker1 was refused with AlreadyVoted. The global invariant count is
+**46** (three signed sends today, each followed by the marketing-wallet
+zero check).
+
+Bookkeeping: state.json had lost the `proposalId` key somewhere after
+invariant check 24 (a stray file named `0`, an accidental redirect
+snapshot committed on day 1, preserved the evidence); the key is
+restored from the chain (proposalCount==1) and the stray file removed.
+
+Real-time calendar after today (proposal 0):
+
+| stage | due | status |
+|---|---|---|
+| voting opens (1-day delay) | 2026-08-29 00:17:59 UTC | DONE (window verified on-chain) |
+| vote (staker1 for, staker2 against, staker3 abstain) | day 2 | DONE 2026-08-29 ~16:05 UTC, tally 20 / 7.5 / 5 B |
+| voting closes (5-day period) | 2026-09-03 00:17:59 UTC | waiting (state flips Active -> Succeeded by clock) |
+| queue -> 7-day timelock starts | day 7 (~2026-09-03/04) | waiting |
+| execute setFees(10,10,20) | ~day 13-14 (~2026-09-10) | waiting |
+| FeesUpdated event check (P3 follow-up) | at execute | waiting |
