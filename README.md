@@ -47,9 +47,10 @@ forever at tag `audit-final`.
 ## Status
 
 Contracts deployed and verified on **BSC testnet**; test suite (unit + fuzz +
-invariant + adversarial, **74 tests green**) and Slither static analysis
-performed. **Not yet subjected to an external professional audit** — the
-mainnet deploy will happen only after the audit.
+invariant + adversarial, **180 tests green**) and Slither static analysis
+performed. **External audit by Zenith complete** — the [full report](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
+is published and the audited code range is frozen at tag
+[`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
 
 ## Documentation
 
