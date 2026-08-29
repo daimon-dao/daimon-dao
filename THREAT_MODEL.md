@@ -5,8 +5,9 @@ what each actor can and cannot do, the defenses in place, the known and
 accepted limits, and the trust assumptions the system rests on.
 
 Status: contracts deployed and verified on BSC testnet; test suite (unit +
-fuzz + invariant + adversarial) green; Slither static analysis performed.
-**Not yet subjected to an external professional audit.**
+fuzz + invariant + adversarial, 180 tests) green; Slither static analysis
+performed. **External audit by Zenith complete** — full report published,
+audited code range frozen at tag `audit-final`.
 
 Contracts in scope: `DaimonV2` (token), `DaimonStaking`, `DaimonGovernor`,
 `DaimonTimelock`, `DaimonMigration`.
@@ -272,7 +273,7 @@ and partly already addressed; none is blocking.
 
 ## 6. Test coverage (summary)
 
-- 74 tests: unit, governance sequences, fuzz (512 runs each), handler-based
+- 180 tests: unit, governance sequences, fuzz (512 runs each), handler-based
   invariants (256 runs × 64 depth), UUPS-upgrade coverage paths, and the
   targeted adversarial suite (snapshot/whale, boundary values, perverse
   incentives, reflection edge — 14 tests).
