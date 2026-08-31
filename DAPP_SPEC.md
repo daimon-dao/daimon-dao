@@ -204,6 +204,13 @@ Executed/Defeated/Canceled → status badge
      proposal descriptions (content written by the proposers).
    - Number formatting UNCHANGED between languages (floor-truncation
      included); dates and countdowns localized (it-IT ↔ en-US, "3g" ↔ "3d").
+9. First-visit acknowledgment: the dApp must show the full legal terms on
+   first interaction and require explicit acceptance before enabling any
+   contract interaction.
+10. Jurisdiction restriction: the dApp frontend must restrict access from
+    comprehensively sanctioned jurisdictions (UN/EU/OFAC/UK lists). The
+    smart contracts remain permissionless; the restriction applies to the
+    interface only.
 
 ### 8.x Liquidity operations: disclose the real cost (Zenith #16, #17)
 

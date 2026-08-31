@@ -99,3 +99,15 @@ forge test
 
 The project requires `via_ir = true` (the reflection math hits "stack too
 deep" without it) and EVM `shanghai` for BSC. See `foundry.toml`.
+
+## Disclaimer
+
+> Daimon is experimental open-source software provided "as is", without
+> warranties. Nothing here is an offer, solicitation, or financial advice;
+> statements about future development are intent, not promises. No entity
+> operates the protocol and no one is obliged to maintain it; you interact
+> directly with immutable smart contracts on a public blockchain, at your
+> own risk. Digital assets can lose all value. Use of the software may be
+> restricted in your jurisdiction — you are solely responsible for
+> compliance with your local laws. Where this text and the deployed code
+> disagree, the code is the only authority.
