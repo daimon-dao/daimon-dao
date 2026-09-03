@@ -526,3 +526,85 @@ Real-time calendar after today (proposal 0):
 | queue -> 7-day timelock starts | day 7 (~2026-09-03/04) | waiting |
 | execute setFees(10,10,20) | ~day 13-14 (~2026-09-10) | waiting |
 | FeesUpdated event check (P3 follow-up) | at execute | waiting |
+
+### P2.1c -- Governance cycle, day 4: queue -- the 7-day timelock starts its real clock
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P2.1c.1 | Preflight from live state: chain, proposal 0, outcome, flags, calldata | chain 97; state Succeeded (3); now > voteEnd; tally 20B/7.5B/5B exact; queued=executed=canceled=false; data == setFees(10,10,20); target == token; value 0 | chain=97, state=3 (3=Succeeded), voteEnd=2026-09-03 00:17:59 UTC (now 2026-09-03 23:21:49), for/against/abstain=20000000000000000000000000000/7500000000000000000000000000/5000000000000000000000000000, queued=false executed=false canceled=false, calldataMatch=True, target=0x37eEb553de4F6865efC5d8240CFA3B4a465a046f, value=0, salt=0x47fa5f7e5e07dd33efe499b6a33603deb40129f29f6574d335983a21be09683a (2026-09-03 23:21 UTC) | - | PASS |
+| P2.1c.2 | Preflight from live state: the Timelock before queue (pending operations: 0, proven from storage) | getMinDelay == MIN_DELAY == 604800; governor holds PROPOSER_ROLE (the only scheduling path, and it schedules only from queue: one proposal, queued=false); operation id (target, 0, data, predecessor 0x0, salt) computed on-chain == local keccak; its slot empty (readyTimestamp 0); CallScheduled events over the RPC's readable range: 0 | getMinDelay=604800, MIN_DELAY=604800, governorIsProposer=true, opId=0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2, localMatch=True, slot readyTimestamp=0 executed=false canceled=false, CallScheduled count=0 (readable from block 128913000 to 128958235; 26 pruned chunks below it) (2026-09-03 23:22 UTC) | - | PASS |
+| P2.1c.3 | staker1 (the proposer) calls queue(0) | receipt status 1; proposal queued flag true; state Queued (4); executed/canceled untouched | status=0x1, from=0xfbce9e13c309549c82b0775c8587e3470f2837b0, block=128958255 (ts=1788477722 = 2026-09-03 23:22:02 UTC), queued=true executed=false canceled=false, state=4 (4=Queued); gas=119530 (2026-09-03 23:22 UTC) | 0xc3a50344ded7dd9f51e5d0c46017069243e9709e6c70a593f161142fb540f7a6 | PASS |
+| P2.1c.4 | operations(opId) read back from the Timelock | readyTimestamp == scheduling-block timestamp + 604800 EXACTLY (7 real days); executed=false; canceled=false | readyTimestamp=1789082522 (2026-09-10 23:22:02 UTC), block ts=1788477722, delta=604800 s, executed=false, canceled=false (2026-09-03 23:22 UTC) | - | PASS |
+| P2.1c.5 | The two events decoded from the receipt | exactly 2 logs: ProposalQueued(id=0, eta == readyTimestamp) from the governor; CallScheduled(id == opId, target == token, value 0, data == setFees(10,10,20), delay 604800) from the timelock | logs=2; ProposalQueued id=0 eta=1789082522 (2026-09-10 23:22:02 UTC); CallScheduled id=0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2 target=0x37eeb553de4f6865efc5d8240cfa3b4a465a046f value=0 delay=604800 dataMatch=True (2026-09-03 23:22 UTC) | 0xc3a50344ded7dd9f51e5d0c46017069243e9709e6c70a593f161142fb540f7a6 | PASS |
+| P2.1c.6 | The stranger tries queue(0) again | refused: ProposalAlreadyQueued -- the Governor rejects it itself, before the Timelock's OperationAlreadyScheduled | reverted with ProposalAlreadyQueued (2026-09-03 23:22 UTC) | - | PASS |
+| P2.1c.7 | staker1 tries execute(0) inside the delay | refused: TooEarly from the Timelock (state is Queued, so the Governor lets the call reach the Timelock, which holds the clock) | reverted with TooEarly (2026-09-03 23:22 UTC) | - | PASS |
+
+> Wallet choice, recorded as an assumption: the plan says queue(0) comes from 'the designated wallet' without naming it in any repository artefact. The July campaign, which this level replays (proposal 0 on a real clock), queued from the proposer; queue() is permissionless (Level 1 D4.3, July proposal 2), and the operation id, readyTimestamp and both events are sender-independent, so the caller cannot change any on-chain value verified above. staker1, the proposer, signed. If the plan names another wallet, the deviation is the signer of one transaction and nothing else.
+| P3.15 | Read back: ProposalQueued(uint256,uint256) on governor | exactly 1 -- today's queue | found=1 (blocks 128958235-128958266, unreadable chunks=0) (2026-09-03 23:22 UTC) | - | PASS |
+| P3.16 | Read back: CallScheduled(bytes32,address,uint256,bytes,uint256) on timelock | exactly 1 -- the first operation the Timelock has ever scheduled | found=1 (blocks 128958235-128958266, unreadable chunks=0) (2026-09-03 23:22 UTC) | - | PASS |
+
+---
+
+## Day 4 status (2026-09-03, 23:22 UTC)
+
+Queue day. voteEnd passed at 2026-09-03 00:17:59 UTC and the clock alone
+moved proposal 0 from Active to Succeeded: state 3 was read from the
+Governor before anything was signed, with the tally still exact to the
+wei (for 20B, against 7.5B, abstain 5B) and all three flags false. The
+Timelock had nothing pending, proven from storage rather than from logs
+(see the RPC note below): the expected operation slot was empty, the only
+proposal carried queued=false, and PROPOSER_ROLE -- the sole scheduling
+path -- is held by the Governor, which schedules only from queue().
+
+One signed send today, queue(0) from staker1, then every value read back
+from chain state and from the receipt independently:
+
+| item | value |
+|---|---|
+| queue tx | 0xc3a50344ded7dd9f51e5d0c46017069243e9709e6c70a593f161142fb540f7a6 |
+| scheduling block / timestamp | 128958255 / 1788477722 (2026-09-03 23:22:02 UTC) |
+| operation id (hashOperation: token, 0, setFees(10,10,20), predecessor 0x0, timelockSalt) | 0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2 |
+| timelockSalt | 0x47fa5f7e5e07dd33efe499b6a33603deb40129f29f6574d335983a21be09683a |
+| readyTimestamp (earliest execute) | 1789082522 = 2026-09-10 23:22:02 UTC |
+| readyTimestamp - scheduling block timestamp | 604800 s, exactly 7 days |
+| ProposalQueued (governor) | id=0, eta=1789082522 == readyTimestamp |
+| CallScheduled (timelock) | id == operation id, target == token, value 0, data == setFees(10,10,20), delay 604800 |
+| gas | 119530 |
+
+The operation id was computed twice -- by the Timelock's own
+hashOperation over the proposal's stored fields, and locally as
+keccak256(abi.encode(...)) -- and both equal the id the CallScheduled
+event carries. The Governor now reports state 4 (Queued); a second
+queue(0) from the stranger was refused with ProposalAlreadyQueued at the
+Governor's own level, and execute(0) inside the delay was refused with
+TooEarly by the Timelock. Deviations from expected values: none. The
+global invariant count is **47** (one signed send today, followed by the
+marketing-wallet zero check).
+
+Wallet assumption, restated: the plan names "the designated wallet" for
+queue without identifying it in any artefact of this repository. staker1,
+the proposer, signed -- the July precedent for the very proposal this
+level replays -- and, queue() being permissionless with sender-independent
+effects, every on-chain value above is the same whichever account signed.
+
+RPC note, recorded for the monitor (Part 3 follow-up): the public Chapel
+RPC now answers eth_getLogs only for its most recent ~45000 blocks and
+returns "History has been pruned" below that (26 of 27 campaign-range
+chunks today; the same scan from block 127613000 succeeded on day 1, so
+the pruning window is rolling). Two consequences: historical event
+reconstruction from a public RPC is not admissible evidence -- storage
+reads are -- and the monitor must follow events live (or from an archive
+node), never by rescanning history at startup, which is what the day-1
+finding on deploy-time exemptions already required.
+
+Real-time calendar after today (proposal 0):
+
+| stage | due | status |
+|---|---|---|
+| voting opens (1-day delay) | 2026-08-29 00:17:59 UTC | DONE |
+| vote (staker1 for, staker2 against, staker3 abstain) | day 2 | DONE 2026-08-29 ~16:05 UTC, tally 20 / 7.5 / 5 B |
+| voting closes (5-day period) | 2026-09-03 00:17:59 UTC | DONE (state flipped Active -> Succeeded by clock, read 23:21 UTC) |
+| queue -> 7-day timelock starts | day 7 | DONE 2026-09-03 23:22:02 UTC, tx 0xc3a5...f7a6 |
+| timelock ready (earliest execute) | 2026-09-10 23:22:02 UTC (1789082522) | waiting -- contract-gated, not schedule-gated |
+| execute setFees(10,10,20) | ~2026-09-11 | waiting |
+| FeesUpdated event check (P3 follow-up) | at execute | waiting |
