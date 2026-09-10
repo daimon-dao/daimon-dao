@@ -608,3 +608,196 @@ Real-time calendar after today (proposal 0):
 | timelock ready (earliest execute) | 2026-09-10 23:22:02 UTC (1789082522) | waiting -- contract-gated, not schedule-gated |
 | execute setFees(10,10,20) | ~2026-09-11 | waiting |
 | FeesUpdated event check (P3 follow-up) | at execute | waiting |
+
+### P2.1d -- Governance cycle, day 5: execute -- the 7-day timelock has elapsed on a real clock
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| P2.1d.1 | Preflight from live state: chain, proposal 0, flags, calldata | chain 97; state Queued (4); tally 20B/7.5B/5B exact; queued=true executed=false canceled=false; data == setFees(10,10,20); target == token; value 0; salt == day-4 timelockSalt | chain=97, state=4 (4=Queued), for/against/abstain=20000000000000000000000000000/7500000000000000000000000000/5000000000000000000000000000, queued=true executed=false canceled=false, calldataMatch=True, target=0x37eEb553de4F6865efC5d8240CFA3B4a465a046f, value=0, salt=0x47fa5f7e5e07dd33efe499b6a33603deb40129f29f6574d335983a21be09683a (2026-09-10 23:35 UTC) | - | PASS |
+| P2.1d.2 | Preflight from live state: the Timelock operation and the chain's own clock | opId == 0x0ff0...c6a2 (day 4); readyTimestamp == 1789082522 (2026-09-10 23:22:02 UTC); executed=false; canceled=false; governor holds EXECUTOR_ROLE; latest block.timestamp >= readyTimestamp | opId=0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2, readyTimestamp=1789082522 (2026-09-10 23:22:02 UTC), executed=false, canceled=false, governorIsExecutor=true, latest block 130304033 ts=1789083342 (2026-09-10 23:35:42 UTC), ready=True, readyTimestamp-now=-820 s (2026-09-10 23:35 UTC) | - | PASS |
+| P2.1d.3 | Fees read from the token BEFORE execute | taxFee 10, buybackFee 20, marketingFee 20 (per mille) -- the 5% model; liquidityFee == buybackFee + marketingFee == 40 | taxFee=10 buybackFee=20 marketingFee=20 liquidityFee=40 (2026-09-10 23:35 UTC) | - | PASS |
+| P2.1d.4 | staker1 (the day-4 wallet) calls execute(0) | receipt status 1; from storage: proposal executed=true (queued stays true, canceled false); Governor.state == Executed (5); operations(opId).executed == true, canceled false, readyTimestamp unchanged | status=0x1, from=0xfbce9e13c309549c82b0775c8587e3470f2837b0, block=130304056 (ts=1789083352 = 2026-09-10 23:35:52 UTC), proposal executed=true queued=true canceled=false, state=5 (5=Executed), operation executed=true canceled=false readyTimestamp=1789082522; gas=129382 (2026-09-10 23:35 UTC) | 0x730c868ccd381c9e00f11e2d7668bc9c239e75f16e3c7c2b75b8ddcda5031a23 | PASS |
+| P2.1d.5 | Fees read from the token AFTER execute | taxFee 10, buybackFee 10, marketingFee 20 -- the 4% model; liquidityFee recomputed to 30 | taxFee=10 buybackFee=10 marketingFee=20 liquidityFee=30 (2026-09-10 23:36 UTC) | - | PASS |
+| P2.1d.6 | The delay actually elapsed on the chain's clock | execution ts - scheduling ts (1788477722) >= 604800 s; execution ts >= readyTimestamp (1789082522) | execution ts=1789083352, scheduling ts=1788477722, elapsed=605630 s (= 604800 + 830); execution ts - readyTimestamp=830 s (2026-09-10 23:36 UTC) | - | PASS |
+| P2.1d.7 | The three events decoded from the receipt | exactly 3 logs, innermost first: FeesUpdated(10,10,20) from the token; CallExecuted(id == opId, target == token, value 0, data == setFees(10,10,20)) from the timelock; ProposalExecuted(id=0) from the governor | logs=3, order: FeesUpdated > CallExecuted > ProposalExecuted; FeesUpdated taxFee=10 buybackFee=10 marketingFee=20; CallExecuted id=0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2 target=0x37eeb553de4f6865efc5d8240cfa3b4a465a046f value=0 dataMatch=True; ProposalExecuted id=0 (2026-09-10 23:36 UTC) | 0x730c868ccd381c9e00f11e2d7668bc9c239e75f16e3c7c2b75b8ddcda5031a23 | PASS |
+| P2.1d.8 | Marketing wallet after the fee change: balances and inbound Transfer events | DMN 0, native 0; zero Transfer events into the wallet over the RPC's readable range (the alert that must never fire) | DMN=0, native=0; token Transfers scanned=0 (readable from block 130263000 to 130304078; 53 pruned chunks below it), transfers to marketing=0; programmatic invariant checks so far=48 (2026-09-10 23:36 UTC) | - | PASS |
+| P2.1d.9 | staker1 tries execute(0) a second time | refused: AlreadyExecuted (selector 0x0dc10197) -- p.executed is the first check in Governor.execute, before state() and before the Timelock's OperationAlreadyExecuted | reverted=True; raw: cast : Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted, data: "0x0dc10197": AlreadyExecuted (2026-09-10 23:36 UTC) | - | PASS |
+| P3.17 | Read back: FeesUpdated(uint256,uint256,uint256) on token (the P3.6 follow-up) | exactly 1 -- today's execute; P3.6 expected 0 on day 1 for exactly this reason | found=1 (blocks 130304033-130304134, unreadable chunks=0) (2026-09-10 23:36 UTC) | - | PASS |
+| P3.18 | Read back: CallExecuted(bytes32,address,uint256,bytes) on timelock | exactly 1 -- the first operation the Timelock has ever executed | found=1 (blocks 130304033-130304134, unreadable chunks=0) (2026-09-10 23:36 UTC) | - | PASS |
+| P3.19 | Read back: ProposalExecuted(uint256) on governor | exactly 1 -- proposal 0 | found=1 (blocks 130304033-130304134, unreadable chunks=0) (2026-09-10 23:36 UTC) | - | PASS |
+
+> Harness note on P2.1d.9: the row keeps the cast error verbatim (revert data `0x0dc10197`, which cast resolved to `AlreadyExecuted`, matching `cast sig "AlreadyExecuted()"`). PowerShell's NativeCommandError wrapper -- the harness's own line reference and category text, appended after the cast message -- was stripped from the row after the run; it carried no chain data. Nothing else in this table was edited.
+
+---
+
+## Day 5 status (2026-09-10, 23:35 UTC)
+
+Execution day. The Timelock's clock, not a transaction, made the
+operation executable: readyTimestamp 1789082522 (2026-09-10 23:22:02 UTC)
+was read from storage on day 4, and today the latest block carried
+timestamp 1789083342 -- 820 s past it -- before anything was signed. The
+proposal was still Queued (state 4) with the tally exact to the wei and
+the flags queued=true, executed=false, canceled=false; the operation slot
+still held the day-4 readyTimestamp with executed=false; the token still
+carried the 5% model (taxFee 10, buybackFee 20, marketingFee 20,
+liquidityFee 40).
+
+One signed send today, execute(0) from staker1 (the day-4 wallet), then
+every value read back from storage and from the receipt independently:
+
+| item | value |
+|---|---|
+| execute tx | 0x730c868ccd381c9e00f11e2d7668bc9c239e75f16e3c7c2b75b8ddcda5031a23 |
+| execution block / timestamp | 130304056 / 1789083352 (2026-09-10 23:35:52 UTC) |
+| scheduling timestamp (day 4) | 1788477722 (2026-09-03 23:22:02 UTC) |
+| delay actually elapsed | 605630 s = 604800 s (the 7-day floor) + 830 s of slack after readyTimestamp |
+| proposal (storage) | executed=true, queued=true, canceled=false; Governor.state(0) = 5 (Executed) |
+| operation (storage) | operations(0x0ff0...c6a2): executed=true, canceled=false, readyTimestamp unchanged |
+| fees before -> after | (10, 20, 20) -> (10, 10, 20) per mille; liquidityFee 40 -> 30 |
+| FeesUpdated (token) | (10, 10, 20) |
+| CallExecuted (timelock) | id == operation id, target == token, value 0, data == setFees(10,10,20) |
+| ProposalExecuted (governor) | id = 0 |
+| log order in the receipt | FeesUpdated > CallExecuted > ProposalExecuted (innermost call first) |
+| second execute(0) | reverted, data 0x0dc10197 = AlreadyExecuted (Governor level, before the Timelock) |
+| gas | 129382 |
+
+The 4% model is live on Chapel: 1% reflection, 1% buyback, 2% marketing +
+staking. The three events fired once each and were read back the way the
+monitor will read them (P3.17-P3.19, one event per signature over the
+execution range); P3.6 on day 1 had expected zero FeesUpdated "until
+execute", and that is exactly when the first one appeared. Deviations
+from expected values: none. The global invariant count is **48** (one
+signed send today, followed by the marketing-wallet zero check), and the
+event-level sweep found zero Transfer events into the marketing wallet
+over the RPC's readable range (blocks 130263000-130304078; the 53 chunks
+below it are pruned, see the day-4 RPC note -- the balances, read from
+state, are the admissible evidence and are zero).
+
+Real-time calendar, closed (proposal 0):
+
+| stage | due | status |
+|---|---|---|
+| voting opens (1-day delay) | 2026-08-29 00:17:59 UTC | DONE |
+| vote (staker1 for, staker2 against, staker3 abstain) | day 2 | DONE 2026-08-29 ~16:05 UTC, tally 20 / 7.5 / 5 B |
+| voting closes (5-day period) | 2026-09-03 00:17:59 UTC | DONE (state flipped Active -> Succeeded by clock) |
+| queue -> 7-day timelock starts | day 7 | DONE 2026-09-03 23:22:02 UTC, tx 0xc3a5...f7a6 |
+| timelock ready (earliest execute) | 2026-09-10 23:22:02 UTC (1789082522) | DONE (contract-gated: reached by the chain's clock) |
+| execute setFees(10,10,20) | ~2026-09-11 | DONE 2026-09-10 23:35:52 UTC, tx 0x730c...1a23 |
+| FeesUpdated event check (P3 follow-up) | at execute | DONE (P3.17: found 1) |
+
+State file after day 5, verbatim:
+
+```json
+{
+  "old": "0xa0de1CB265757Cf8C07b4eDCa4454E95bce33c4F",
+  "token": "0x37eEb553de4F6865efC5d8240CFA3B4a465a046f",
+  "impl": "0x3092A5Fa4136251FBF1dC0469aF27e6c5A65B666",
+  "migration": "0xBB5A86ad9f337927c271c7698dE8E07dEaF84d42",
+  "timelock": "0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932",
+  "governor": "0xB1eA20ef50546a7206E48F160A0fe54833c20eE0",
+  "staking": "0x2871977e1978f6DAbE66C617d0627B0eFD54FbA4",
+  "pair": "0x94bBA28e7E80Fdc6a530bA765Ec966E0dD1CB23C",
+  "guardianExpiry": "1882483692",
+  "invariantChecks": 48,
+  "proposalId": "0",
+  "queueTx": "0xc3a50344ded7dd9f51e5d0c46017069243e9709e6c70a593f161142fb540f7a6",
+  "queueBlock": "128958255",
+  "queueTimestamp": "1788477722",
+  "operationId": "0x0ff0f7d28022bd2a5baa7bfa9be60d682d044b945b50aca7a2b2ff9b1e77c6a2",
+  "timelockSalt": "0x47fa5f7e5e07dd33efe499b6a33603deb40129f29f6574d335983a21be09683a",
+  "readyTimestamp": "1789082522",
+  "executeTx": "0x730c868ccd381c9e00f11e2d7668bc9c239e75f16e3c7c2b75b8ddcda5031a23",
+  "executeBlock": "130304056",
+  "executeTimestamp": "1789083352",
+  "executeDelaySeconds": "605630",
+  "feesAfter": "10/10/20"
+}
+```
+
+---
+
+## Campaign closed (2026-09-10, 23:36 UTC chain time; 2026-09-11 operator time)
+
+Five working days on a public chain, from 2026-08-28 to 2026-09-10,
+14 real days end to end, every state change a signed transaction from an
+encrypted keystore, every hash in this log. Level 1 proved the logic on a
+warped clock; this level proved the same protocol under the conditions a
+local node cannot produce.
+
+### What was proven, days 1-5
+
+| day | date (UTC) | proven on Chapel |
+|---|---|---|
+| 1 | 2026-08-28 | The launch order end to end with the mainnet scripts: two-phase deploy with the Timelock address predicted in phase 1 and landed exactly in phase 2; the guardian expiry identical across the three contracts (the A1.8 skew gone); 34/34 post-broadcast checks from mined state; the migration window closed until the treasury exemption and open immediately after; one pool, BNB leg on the net; automation fee-swap on a real router with the poke model and the per-block budget measured on real gas; stakers on three tiers with checkpointed voting power; rewards from real conversions claimed; guardian pause armed, refused, cleared, with the migration credit exact; every monitor event class emitted and read back; proposal 0 created. |
+| 2 | 2026-08-29 | The vote after a real 1-day delay: three ballots, one per support value, weights exact to the wei in storage and in VoteCast; quorum on for+abstain; a second ballot refused (AlreadyVoted). |
+| (3) | 2026-09-03 | No transaction: voteEnd passed and the clock alone moved the proposal to Succeeded, read as state 3 before day 4 signed anything. |
+| 4 | 2026-09-03 | queue(0): the Timelock's 7-day delay armed on a real clock, readyTimestamp = scheduling timestamp + 604800 exactly, operation id computed on-chain and locally, both events decoded; a second queue refused (ProposalAlreadyQueued); execute inside the delay refused (TooEarly). |
+| 5 | 2026-09-10 | execute(0) after 605630 real seconds: proposal Executed, operation executed, fees (10,20,20) -> (10,10,20) read from storage, the three events decoded from the receipt and read back from logs; a second execute refused (AlreadyExecuted). |
+
+Across all five days the global invariant -- the marketing wallet has
+received nothing, ever -- was asserted programmatically **48 times**, once
+after every signed harness transaction, plus the event-level sweeps on
+day 1 (whole campaign range, then readable) and day 5 (readable range).
+The wallet holds 0 DMN and 0 native at close; it started keyless and
+code-free and never moved.
+
+Closing gates, from this working tree at the commit that closes the
+campaign:
+
+| gate | result |
+|---|---|
+| src/ vs tag `audit-final` (1ebd33c) | `git diff audit-final --stat -- src/` is empty: the bytecode deployed and exercised here is the audited source, untouched through the campaign |
+| forge clean && forge test | exit 0: 25 suites, 180 tests passed, 0 failed, 0 skipped (run from a clean build at campaign close) |
+
+### Recorded honestly: the two things this level did not do as first written
+
+- **P1.1 (day 1) was invalidated and redone** as P1.1-bis: a unit bug in
+  the harness helper distributed 1e9 times too little to the first mock
+  predecessor, which was abandoned. No protocol contract existed yet.
+- **P3.2 (day 1) is a DEVIATION row whose expectation was wrong**:
+  deploy-time fee exemptions are written silently and emit no
+  ExcludedFromFeeSet; the monitor reads the mapping at startup and watches
+  the event for changes. Recorded as tuning data for Part 3, not as a
+  contract defect.
+
+### What was not tested, and why
+
+- **The 14-day real-clock pause lapse.** Deliberately excluded by an
+  operator decision recorded on day 1: setPaused(true) always arms
+  min(now + 14 days, guardianExpiry) and the contract offers no shorter
+  window, so observing the lapse-with-no-transaction on a real clock would
+  have kept the token frozen for two weeks and blocked days 2-5. The
+  mechanism is timestamp arithmetic, proven at Level 1 (E2) on the warped
+  clock; Chapel verified the armed window and the migration credit exact
+  to the second (P2.6.1, P2.6.2), the refusal while paused, and the manual
+  clear.
+- **Cancellation paths on the real clock** (guardian cancel on the
+  Governor, CANCELLER on the Timelock): one proposal was run and it was
+  meant to execute; cancel was proven at Level 1 and the roles were
+  verified live (P1.4, 34/34).
+- **Historical event reconstruction from the public RPC**: not evidence
+  here by construction -- the RPC prunes eth_getLogs beyond ~45000 blocks
+  (day-4 note). Every claim that mattered was read from storage; log
+  scans were run and reported with their readable range.
+- **Mainnet-sized pool behaviour**: the day-1 conversions moved a
+  testnet-sized pool heavily; on mainnet the pool dwarfs the chunk size.
+  Operational note carried forward, not a defect.
+
+### Addresses at close (Chapel, chain 97), for the monitor
+
+```
+DaimonV2 (token/proxy):  0x37eEb553de4F6865efC5d8240CFA3B4a465a046f   fees now 10/10/20
+DaimonStaking:           0x2871977e1978f6DAbE66C617d0627B0eFD54FbA4
+DaimonGovernor:          0xB1eA20ef50546a7206E48F160A0fe54833c20eE0   proposal 0: Executed
+DaimonTimelock/treasury: 0xb5084C65e1ceb2a4DEcb0f391872805110Bd4932   operation 0x0ff0...c6a2: executed
+DaimonMigration:         0xBB5A86ad9f337927c271c7698dE8E07dEaF84d42
+Pair DMN/WBNB:           0x94bBA28e7E80Fdc6a530bA765Ec966E0dD1CB23C
+marketingWallet:         0x000000000000000000000000000000000000A001   0 DMN, 0 native, 0 movements ever
+```
+
+Keystores: the campaign wallets stay encrypted on the operator's machine;
+the shared password file is deleted as the last step of this session,
+after this journal is committed and pushed. No key, password or password
+path ever entered the repository.
+
+**The Level 2 campaign is closed.**
