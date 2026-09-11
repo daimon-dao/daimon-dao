@@ -37,32 +37,37 @@ cambiano solo RPC e indirizzi.
 
 Indirizzi da osservare: DaimonV2 (token), DaimonStaking,
 DaimonGovernor, DaimonTimelock (è anche la treasury),
-DaimonMigration, pair DMN/WBNB, e il marketingWallet — che si osserva
-proprio perché non deve ricevere mai nulla.
+DaimonMigration, pair DMN/WBNB. Il marketingWallet È il Timelock dal
+deploy (impostato in fase 1 all'indirizzo predetto del Timelock): non
+è un indirizzo in più da osservare, è un ramo in più da osservare sul
+Timelock.
 
 ### Alert urgenti
 
-L'INVARIANTE: qualsiasi movimento IN ENTRATA verso il marketingWallet,
-di qualsiasi importo, da qualsiasi origine. Questo alert non deve
-suonare mai: se suona, la configurazione del deploy è sbagliata
-(stakingRewardShareBps != 1000) o sta accadendo qualcosa di non
-previsto. L'heartbeat riporta lo stato a ogni battito: "marketing
-wallet: 0 movimenti da sempre".
+L'INVARIANTE DI LANCIO: finché `stakingRewardShareBps == 1000`,
+nessun BNB deve arrivare al Timelock DAL CONTRATTO TOKEN -- il ramo
+marketing non deve eseguire. Il Timelock riceve legittimamente altro
+(DMX in custodia dalla migrazione, LP token al lancio, DMN dallo
+sweep): quelle entrate non c'entrano. L'entrata che non deve esistere
+è una sola: BNB con `from == DaimonV2`. Se compare, la configurazione
+del deploy è sbagliata (stakingRewardShareBps != 1000) o sta
+accadendo qualcosa di non previsto: URGENT. L'heartbeat riporta lo
+stato a ogni battito: "ramo marketing: 0 esecuzioni da sempre".
 
 L'INVARIANTE SI INVERTE dopo la proposta 60/40 (G1 del
-CALENDARIO_GOVERNANCE_Q1: `setMarketingWallet(TIMELOCK)` poi
-`setStakingRewardShareBps(600)`). Da quel momento il marketingWallet È
-il Timelock e le sue entrate sono ATTESE (il 40% della quota marketing
-a ogni poke): un alert URGENT su ogni entrata suonerebbe di continuo
-e ucciderebbe l'attenzione. Dopo G1 la regola diventa: entrate sul
-Timelock = notifica (o silenzio); resta URGENT qualsiasi USCITA dal
-Timelock non abbinata a un'operazione eseguita (`CallExecuted` con lo
-stesso id nello stesso ciclo). L'invariante deve quindi essere
-CONFIGURABILE (indirizzo osservato + verso: "mai in entrata" prima di
-G1, "mai in uscita senza proposta" dopo), e il cambio di configurazione
-va fatto il giorno stesso dell'esecuzione di G1 -- il bot vede
-`MarketingWalletSet(TIMELOCK)` e può proporlo, ma non deve
-auto-riconfigurarsi.
+CALENDARIO_GOVERNANCE_Q1: UNA proposta, `setStakingRewardShareBps(600)`;
+nessun `MarketingWalletSet` viene emesso, la destinazione è il
+Timelock da sempre). Da quel momento i BNB dal token al Timelock sono
+ATTESI (il 40% della quota marketing a ogni poke): un alert URGENT su
+ogni entrata suonerebbe di continuo e ucciderebbe l'attenzione. Dopo
+G1 la regola diventa: BNB dal token al Timelock = NOTIFICATION con
+l'importo; resta URGENT qualsiasi USCITA dal Timelock non abbinata a
+un'operazione eseguita (`CallExecuted` con lo stesso id nello stesso
+ciclo). L'invariante deve quindi essere CONFIGURABILE (verso: "mai
+BNB dal token" prima di G1, "mai in uscita senza proposta" dopo), e
+il cambio di configurazione va fatto il giorno stesso dell'esecuzione
+di G1 -- il bot vede `ParamsUpdated("stakingRewardShareBps", 600)` e
+può proporlo, ma non deve auto-riconfigurarsi.
 
 DRENAGGIO DELLA POOL: leggere getReserves() della pair a ogni ciclo e
 confrontare con la lettura precedente. -20% in un blocco → urgente;
@@ -209,7 +214,7 @@ SOLO agli alert (se ci si chiacchiera dentro, gli alert si perdono).
 Il token del bot in variabile d'ambiente, mai nel codice.
 
 Heartbeat ogni 6 ore: "Monitor attivo. Ultimo controllo: [ora]. Pool:
-[riserve]. Marketing wallet: 0 movimenti da sempre. Nessuna anomalia."
+[riserve]. Ramo marketing: 0 esecuzioni da sempre. Nessuna anomalia."
 Se smette di arrivare, il bot è caduto.
 
 ## NOTE PER CHI IMPLEMENTA
