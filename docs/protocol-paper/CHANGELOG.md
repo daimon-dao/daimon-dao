@@ -148,9 +148,11 @@ realign at this version: the v0.2 PDFs are rebuilt from the `.md` sources by
   paragraph on the two post-audit rehearsals, with links to
   `TESTNET_L1_RESULTS.md`, `TWO_PHASE_RESULTS.md` and `CHAPEL_L2_RESULTS.md`.
 - **§10.7 — audit complete.** Zenith, 37 findings (1 critical, 1 high, 7
-  medium, 12 low, 16 informational), 29 fixed in code, 8 accepted with
-  written reasoning, report public and linked, audited range frozen at
-  `audit-final`; the three pre-audit commitments restated with their status.
+  medium, 12 low, 16 informational — the breakdown as in Zenith's published
+  report and in their public post of 2026-08-24), 29 fixed in code, 8
+  accepted with written reasoning, report public and linked, audited range
+  frozen at `audit-final`; the three pre-audit commitments restated with
+  their status.
 - **§11 — replaced.** The two-wallet model gives way to the single treasury
   of `docs/TREASURY_POLICY_v1.0.md`: the timelock is the only treasury;
   `marketingWallet` is the timelock at deploy with the staker share at 1000
