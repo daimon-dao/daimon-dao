@@ -61,14 +61,16 @@ occurred -- the cost is gas only.
 **Post-broadcast verification — [script/verify-deploy.ps1](script/verify-deploy.ps1):**
 the mandatory final gate. The in-script asserts run in the simulation
 context; this runner re-reads 34 invariants from MINED state through plain
-`eth_call`, including the guardian expiry EXACTLY equal across the three
-contracts and the migration treasury being the Timelock, and exits non-zero
-on any failure.
+`eth_call` (34 today, 36 once the two planned checks land: fees ==
+(10,10,20) and marketingWallet == the deployed Timelock), including the
+guardian expiry EXACTLY equal across the three contracts and the migration
+treasury being the Timelock, and exits non-zero on any failure.
 
 > The guardian keeps only pause (token) and cancel (timelock/governor), by
-> design. On testnet it can be the deployer; **in production it must be a
-> multisig**, with a dedicated marketing wallet. The migration treasury is
-> derived -- it IS the Timelock -- and is not an address you choose.
+> design. On testnet it can be the deployer; **in production it is the
+> 2-of-3 Safe**. The marketing wallet is the Timelock itself, set at deploy
+> to its predicted address. The migration treasury is derived -- it IS the
+> Timelock -- and is not an address you choose.
 
 ## 1. Prerequisites
 
