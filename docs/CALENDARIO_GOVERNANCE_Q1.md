@@ -1,5 +1,5 @@
 # CALENDARIO DI GOVERNANCE — primo trimestre di mainnet
-*Bozza del 8 settembre 2026. Ogni proposta è scritta come SCENARIO
+*Bozza dell'11 settembre 2026. Ogni proposta è scritta come SCENARIO
 prima di esistere: target, calldata, esito atteso, cosa vede la
 sentinella, cosa succede se. Nessuna proposta parte prima che quella
 che la abilita sia eseguita. Ciclo per proposta: 5 giorni di voto +
@@ -17,41 +17,37 @@ DEAD      0x000000000000000000000000000000000000dEaD
 
 ---
 
-## G1 — Destinazione e quota (DUE proposte in parallelo)
+## G1 — La quota (UNA proposta)
 
 **Perché**: da questo momento il 40% della quota marketing delle fee
 si accumula nel Timelock. Prima nulla entra nella treasury dalle fee.
+La destinazione non si vota: `marketingWallet` è il Timelock dal
+deploy (impostato in fase 1 all'indirizzo predetto del Timelock, la
+stessa predizione della treasury della Migration; fase 2 e verifica
+post-broadcast lo confermano). Resta da votare solo la quota.
 
 ```
-G1a  target TOKEN   setMarketingWallet(TIMELOCK)
-G1b  target TOKEN   setStakingRewardShareBps(600)
+G1   target TOKEN   setStakingRewardShareBps(600)
 ```
 
-**Ordine di esecuzione — VINCOLANTE**: G1a PRIMA di G1b. Se G1b fosse
-eseguita per prima, il 40% partirebbe verso il marketing wallet
-attuale (segnaposto del deploy), non verso la treasury. Si votano in
-parallelo, si mettono in coda insieme, si eseguono nello stesso
-giorno in quest'ordine, con verifica di `marketingWallet()` ==
-TIMELOCK tra le due.
+**Esito atteso**: `stakingRewardShareBps() == 600`;
+`marketingWallet() == TIMELOCK` (invariato dal deploy); un poke dopo
+l'esecuzione mostra BNB che entrano nel Timelock: il ramo marketing
+versa 60% allo staking e 40% al Timelock (evento Transfer BNB interno
+/ saldo del Timelock che sale). È la prima esecuzione reale del ramo
+marketing verso il Timelock — da provare su Chapel prima.
 
-**Esito atteso**: `marketingWallet() == TIMELOCK`;
-`stakingRewardShareBps() == 600`; al primo poke successivo, il ramo
-marketing versa 60% allo staking e 40% al Timelock (evento Transfer
-BNB interno / saldo del Timelock che sale).
-
-**Sentinella**: due `ProposalCreated` (NOTIFICATION, calldata
-decodificata); G1b è URGENT alla creazione per costruzione (tocca
+**Sentinella**: un `ProposalCreated` (NOTIFICATION, calldata
+decodificata); G1 è URGENT alla creazione per costruzione (tocca
 `stakingRewardShareBps`) — atteso, si conferma a mano;
-`MarketingWalletSet(TIMELOCK)` e `ParamsUpdated("stakingRewardShareBps",
-600)` all'esecuzione. DOPO G1: l'invariante "marketing wallet inbound
-= URGENT" si INVERTE (entrate attese sul Timelock); resta URGENT
-qualsiasi uscita dal Timelock non abbinata a proposta eseguita.
+`ParamsUpdated("stakingRewardShareBps", 600)` all'esecuzione. DOPO G1:
+l'invariante "marketing wallet inbound = URGENT" si INVERTE (entrate
+attese sul Timelock); resta URGENT qualsiasi uscita dal Timelock non
+abbinata a proposta eseguita.
 → aggiornare config del bot lo stesso giorno.
 
-**Cosa succede se**: G1b eseguita prima di G1a → fee verso il
-segnaposto: la procedura lo impedisce, e il bot lo segnalerebbe come
-entrata sul marketing wallet. Guardian può cancellare entrambe entro
-i 7 giorni se il pubblico solleva un'obiezione fondata.
+**Cosa succede se**: Guardian può cancellare entro i 7 giorni se il
+pubblico solleva un'obiezione fondata.
 
 ---
 
@@ -195,7 +191,7 @@ passa perché nessuno vota → guardian cancella in coda.
   esito atteso, rischi. Mai una calldata che nessuno ha letto.
 - Deadline e minimi dentro le calldata scritti per sopravvivere
   ai 13 giorni di attesa.
-- Una proposta per ciclo salvo coppie inscindibili (G1, G4).
+- Una proposta per ciclo salvo coppie inscindibili (G4).
 - La sentinella conferma ogni esito; il journal registra ogni
   proposta come la campagna Chapel.
 - La politica della treasury va pubblicata PRIMA di G1.
