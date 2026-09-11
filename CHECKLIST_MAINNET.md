@@ -1,8 +1,9 @@
 # Mainnet deploy checklist â€” Daimon DAO
 
-To be executed **only after** the professional audit, on the scope frozen at
-tag [`audit-scope-v2`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-scope-v2)
-(English-commented contracts in `src/`, bytecode identical to `audit-scope-v1`).
+To be executed **only after** the professional audit, on the range frozen at
+tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final)
+(the audited code: the scope submitted at `audit-scope-v2` plus the 29 fixes;
+`git diff audit-final -- src/` must be empty).
 Every line is blocking.
 
 ## Predecessor token configuration (Zenith #29) -- and WHEN it happens
@@ -70,7 +71,8 @@ step added):
 ```
  1  pair DMN/WBNB does NOT already exist on the factory (#25)
  2  phase 1 + phase 2 deploy, stakingRewardShareBps = 1000
- 3  post-broadcast verification, 34/34 (MANDATORY GATE)
+ 3  post-broadcast verification, 34/34 today, 36/36 once the two
+    planned checks land (MANDATORY GATE)
  4  automation inert until the pair has reserves (#27, fail-open fix)
  5  initial liquidity, BNB leg on the NET amount (#17), price verified
  6  LP tokens: deployer -> Timelock, published tx; assert deployer LP == 0
@@ -98,9 +100,13 @@ it becomes an operational requirement:
 
 ## Addresses (careful: some are IMMUTABLE)
 
-- [ ] **`marketingWallet` â†’ MULTISIG.** Never an EOA. Receives the marketing
-      share of the fees. Modifiable only via governance/timelock, but it must
-      be set correctly already at deploy (`initialize`).
+- [ ] **`marketingWallet` -> the predicted Timelock address** (the same
+      prediction as the Migration `treasury`), share 1000 at launch; NOT a
+      multisig, NOT an EOA. Receives the marketing share of the fees --
+      nothing, while `stakingRewardShareBps == 1000`. Set at deploy
+      (`initialize`, phase 1) before the Timelock exists: phase 2 must land
+      the Timelock on that address. Modifiable afterwards only via
+      governance/timelock.
 - [ ] **Migration `treasury` = the Timelock, DERIVED -- there is nothing to
       set.** It is **`immutable`** (fixed in the `DaimonMigration`
       constructor, unchangeable even by governance) and receives the old
@@ -110,17 +116,18 @@ it becomes an operational requirement:
       true, and the post-broadcast verification re-checks it from live
       state. `TREASURY_ADDRESS` no longer exists; rehearsals may use
       `TESTNET_TREASURY_OVERRIDE` (loudly logged, refused on chain 56).
-- [ ] **`guardian` â†’ dedicated Ledger or multisig.** Defensive powers only
-      (pause â‰¤36 months, cancel proposals). Must not coincide with the
-      deployer.
+- [ ] **`guardian` -> the 2-of-3 Safe
+      `0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8`**, held by three
+      different people (hardware wallets). Defensive powers only (pause and
+      cancel, for a 36-month mandate). Must not coincide with the deployer.
 - [ ] **`deployer` â†’ dedicated Ledger.** Renounces all roles at the end of the
       script; use a hardware signer anyway, not a hot wallet.
 - [ ] **`_governance` (Timelock) = the only GOVERNANCE_ROLE.** The deployer
       must end up with no roles after the wiring.
 
-Note: on testnet the marketing wallet may coincide with the deployer for
-testing only -- on mainnet it must be a distinct multisig. The treasury is
-derived on every chain.
+Note: the testnet rehearsals used a sentinel marketing wallet (`0x...A001`,
+watched because it must receive nothing) -- on mainnet it is the predicted
+Timelock, exactly like the treasury. The treasury is derived on every chain.
 
 ## Automatic checks -- two-phase deploy + post-broadcast verification
 
@@ -164,6 +171,11 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       across the three contracts -- no tolerance window, since the
       two-phase design removes the reason for one. Paste its full output
       into the launch record.
+      **PLANNED, not yet in the script** (to be implemented with the script
+      changes, together with the phase-2 `setFees` call): two further checks
+      re-read from mined state, `fees == (10, 10, 20)` and `marketingWallet
+      == the deployed Timelock`, taking the count from 34 to 36. Until they
+      land, the gate is 34/34 and both facts are checked by hand.
 - [ ] **ONLY THEN, launch order step 11: DMX `setMaxTxAmount` raised (11a),
       then the predecessor fee exemption (11b)** -- see the #29 section
       above. The migration window opens at 11b, against a deployment that
@@ -355,9 +367,9 @@ role on-chain.
 
 ---
 
-**Freeze:** the contracts in `src/` are frozen at tag `audit-scope-v2`. Any
-change to the contracts before mainnet requires a new tag (`audit-scope-v3`,
-â€¦) and re-running the checks.
+**Freeze:** the contracts in `src/` are frozen at tag `audit-final`. Any
+change to the contracts before mainnet requires a new tag and re-running the
+checks.
 
 ## Contract upgradeability â€” read before planning any fix
 
