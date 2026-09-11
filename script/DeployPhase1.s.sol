@@ -36,12 +36,15 @@ import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
  * nothing public has happened yet, the only cost is gas.
  *
  * Environment variables: as the single-phase script (see DEPLOY.md), with
- * two deliberate exceptions. TREASURY_ADDRESS no longer exists: the
+ * three deliberate exceptions. TREASURY_ADDRESS no longer exists: the
  * migration's immutable treasury IS the Timelock, derived from the same
  * predicted address its governance is bound to (a hand-typed treasury is a
  * launch-day input nobody should be able to get wrong). Local/testnet
  * rehearsals may set TESTNET_TREASURY_OVERRIDE instead -- loudly logged,
- * refused on BSC mainnet. And the predecessor fee exemption is NOT
+ * refused on BSC mainnet. MARKETING_WALLET is no longer required either:
+ * by default the marketing wallet is the SAME predicted Timelock (it is
+ * governance-rotatable, so an explicit MARKETING_WALLET override is still
+ * honoured, loudly logged). And the predecessor fee exemption is NOT
  * performed here any more: it is the act that opens the migration window,
  * so it belongs AFTER the post-broadcast verification (see the launch
  * order in CHECKLIST_MAINNET.md).
@@ -56,7 +59,16 @@ contract DeployPhase1 is Script {
 
         address router = vm.envOr("ROUTER", PANCAKE_V2_ROUTER_TESTNET);
         address guardian = vm.envOr("GUARDIAN_ADDRESS", deployer);
-        address marketingWallet = vm.envOr("MARKETING_WALLET", deployer);
+        // The marketing wallet is NOT an input any more either: by default it
+        // is the predicted Timelock (derived below, same prediction as the
+        // migration treasury -- CHECKLIST_MAINNET.md "Addresses"). It receives
+        // the marketing share of the fees, which is nothing while
+        // stakingRewardShareBps == 1000, and it stays modifiable by governance
+        // (setMarketingWallet). MARKETING_WALLET survives as an EXPLICIT
+        // override, loudly logged; the campaign harness uses it to point the
+        // wallet at a keyless sentinel that must receive nothing.
+        address marketingOverride = vm.envOr("MARKETING_WALLET", address(0));
+        bool marketingOverridden = marketingOverride != address(0);
         address oldDaimonAddr = vm.envOr("OLD_DAIMON", address(0));
         uint256 oldSupply = vm.envOr("OLD_SUPPLY", uint256(1_000_000_000 ether));
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
@@ -91,8 +103,12 @@ contract DeployPhase1 is Script {
         if (guardian == deployer) {
             console2.log("WARNING: GUARDIAN_ADDRESS = deployer. Acceptable on testnet ONLY.");
         }
-        if (marketingWallet == deployer) {
-            console2.log("WARNING: marketing = deployer. Acceptable on testnet ONLY.");
+        if (marketingOverridden) {
+            console2.log("!!! MARKETING_WALLET override active - the marketing wallet is NOT the Timelock:");
+            console2.log("    marketingWallet =", marketingOverride);
+            if (marketingOverride == deployer) {
+                console2.log("WARNING: marketing = deployer. Acceptable on testnet ONLY.");
+            }
         }
 
         // ---- 1. Old Daimon: mock on testnet if not provided ----
@@ -127,6 +143,14 @@ contract DeployPhase1 is Script {
         // prediction came true for both fields.
         address treasury = treasuryOverridden ? treasuryOverride : predictedTimelock;
 
+        // ---- 3c. The marketing wallet IS the Timelock too, by default ----
+        // Same prediction, same reasoning: initialize() needs the address
+        // before the Timelock exists, and phase 2 must land the Timelock
+        // there or refuse. Unlike the treasury this one is NOT immutable
+        // (governance can rotate it later), which is why an explicit
+        // override is tolerated instead of refused on mainnet.
+        address marketingWallet = marketingOverridden ? marketingOverride : predictedTimelock;
+
         // ---- 4. UUPS proxy with atomic initialize ----
         // The REAL migration is the _migrationContract: it receives the
         // entire INITIAL_SUPPLY and is fee-exempt already in initialize().
@@ -153,7 +177,16 @@ contract DeployPhase1 is Script {
         vm.stopBroadcast();
 
         _assertPhase1(
-            token, migration, deployer, guardian, marketingWallet, treasury, oldDaimonAddr, predictedTimelock, treasuryOverridden
+            token,
+            migration,
+            deployer,
+            guardian,
+            marketingWallet,
+            treasury,
+            oldDaimonAddr,
+            predictedTimelock,
+            treasuryOverridden,
+            marketingOverridden
         );
 
         // ---- 6. Persist what phase 2 needs ----
@@ -174,6 +207,7 @@ contract DeployPhase1 is Script {
         vm.serializeAddress(json, "migration", address(migration));
         vm.serializeAddress(json, "predictedTimelock", predictedTimelock);
         vm.serializeBool(json, "treasuryOverridden", treasuryOverridden);
+        vm.serializeBool(json, "marketingWalletOverridden", marketingOverridden);
         string memory out = vm.serializeUint(json, "expectedPhase2Nonce", nonce + 2);
         string memory path = string.concat("deployments/two-phase-", vm.toString(block.chainid), ".json");
         vm.writeJson(out, path);
@@ -183,6 +217,7 @@ contract DeployPhase1 is Script {
         console2.log("DaimonMigration:      ", address(migration));
         console2.log("Timelock (predicted): ", predictedTimelock);
         console2.log("Migration treasury:   ", treasury, treasuryOverridden ? "(TESTNET OVERRIDE)" : "(= predicted timelock)");
+        console2.log("Marketing wallet:     ", marketingWallet, marketingOverridden ? "(MARKETING_WALLET OVERRIDE)" : "(= predicted timelock)");
         console2.log("State file:           ", path);
         console2.log("");
         console2.log("NEXT: wait for mining, then run DeployPhase2 IMMEDIATELY.");
@@ -203,7 +238,8 @@ contract DeployPhase1 is Script {
         address treasury,
         address oldDaimonAddr,
         address predictedTimelock,
-        bool treasuryOverridden
+        bool treasuryOverridden,
+        bool marketingOverridden
     ) internal view {
         // Supply: entirely in the migration, never through an EOA.
         require(token.totalSupply() == token.INITIAL_SUPPLY(), "assert-p1: unexpected total supply");
@@ -212,7 +248,14 @@ contract DeployPhase1 is Script {
         // Roles as phase 2 expects to find them.
         require(token.hasRole(token.GUARDIAN_ROLE(), guardian), "assert-p1: guardian has no pause role");
         require(token.hasRole(token.GOVERNANCE_ROLE(), deployer), "assert-p1: deployer lost temporary governance");
-        require(token.marketingWallet() == marketingWallet, "assert-p1: wrong marketing wallet");
+        // The marketing wallet, like the treasury below: on the default path
+        // it must be the predicted timelock, not an echo of an input; only
+        // the loud override compares against a supplied value.
+        if (marketingOverridden) {
+            require(token.marketingWallet() == marketingWallet, "assert-p1: marketingWallet != MARKETING_WALLET override");
+        } else {
+            require(token.marketingWallet() == predictedTimelock, "assert-p1: marketingWallet != predicted timelock");
+        }
         // Migration wiring (all immutable -- wrong here is wrong forever).
         require(address(migration.newDaimon()) == address(token), "assert-p1: migration.newDaimon mismatch");
         require(address(migration.oldDaimon()) == oldDaimonAddr, "assert-p1: migration.oldDaimon mismatch");

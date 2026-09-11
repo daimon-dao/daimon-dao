@@ -73,6 +73,7 @@ $staking   = $st.staking;   $migration = $st.migration
 $deployer  = $st.deployer;  $guardian = $st.guardian
 $treasury  = $st.treasury;  $marketingWallet = $st.marketingWallet
 $treasuryOverridden = [bool]$st.treasuryOverridden
+$marketingOverridden = [bool]$st.marketingWalletOverridden
 $oldDaimon = $st.oldDaimon
 
 Write-Output "Post-broadcast verification -- chain $chainId"
@@ -105,6 +106,11 @@ Check "token: stakingRewardShareBps == 1000"    (CastCall $token "stakingRewardS
 Check "token: stakingContract is the staking"   (CastCall $token "stakingContract()(address)") $staking
 Check "token: marketingWallet as configured"    (CastCall $token "marketingWallet()(address)") $marketingWallet
 Check "token: migration is fee-exempt"          (CastCall $token "isExcludedFromFee(address)(bool)" @($migration)) "true"
+# ---- Launch fee model: 4% total, set by phase 2 through the temporary role ----
+# One row for the triple: the three values are one decision (setFees is one
+# call) and a partial match is as wrong as a full mismatch.
+$feeTax = CastCall $token "taxFee()(uint256)"; $feeBuy = CastCall $token "buybackFee()(uint256)"; $feeMkt = CastCall $token "marketingFee()(uint256)"
+Check "token: fees == (10,10,20)"               "$feeTax,$feeBuy,$feeMkt" "10,10,20"
 
 # ---- Timelock: self-administers, deployer has nothing ----
 Check "timelock: self-administers"              (CastCall $timelock "hasRole(bytes32,address)(bool)" @($adminRole, $timelock)) "true"
@@ -151,6 +157,20 @@ if ($treasuryOverridden) {
   Check "migration: treasury override (TESTNET ONLY)" (CastCall $migration "treasury()(address)") $treasury
 } else {
   Check "migration: treasury is the timelock"  (CastCall $migration "treasury()(address)") $timelock
+}
+
+# ---- Marketing wallet IS the Timelock ----
+# The comparison target is NOT the state file's echo of the phase-1 input
+# (the "as configured" row above already covers that): it is the timelock
+# address the chain itself carries -- the migration's immutable governance,
+# proven two rows up to be the deployed timelock -- so a wrong prediction
+# recorded consistently in the file cannot pass here.
+$timelockLive = CastCall $migration "governance()(address)"
+if ($marketingOverridden) {
+  Write-Output "!!! MARKETING_WALLET override was active on this deploy - the marketing wallet is NOT the Timelock."
+  Check "token: marketing override (NOT the timelock)" (CastCall $token "marketingWallet()(address)") $marketingWallet
+} else {
+  Check "token: marketingWallet is the deployed timelock (live)" (CastCall $token "marketingWallet()(address)") $timelockLive
 }
 
 # ---- Pair exists ----

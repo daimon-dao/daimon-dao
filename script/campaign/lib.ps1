@@ -256,10 +256,17 @@ function Deploy-OldToken {
 ## comes last, once the deployment stands. -SkipTreasuryPreflight keeps its
 ## historical name and meaning: no exemption at all (A0 uses it to show the
 ## #29 AmountMismatch refusal).
-function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight, [switch]$DerivedTreasury)
+## -DerivedMarketing (Level 2b) drops the MARKETING_WALLET override too, so
+## the marketing wallet is the Timelock as on mainnet; the Level-1 scenarios
+## keep the keyless sentinel their global invariant watches.
+function Run-MainDeploy { param($oldToken, [switch]$SkipTreasuryPreflight, [switch]$DerivedTreasury, [switch]$DerivedMarketing)
   $env:OLD_DAIMON = $oldToken
   $env:GUARDIAN_ADDRESS = $script:Addr.guardian
-  $env:MARKETING_WALLET = $script:MARKETING
+  if ($DerivedMarketing) {
+    Remove-Item env:MARKETING_WALLET -ErrorAction SilentlyContinue
+  } else {
+    $env:MARKETING_WALLET = $script:MARKETING
+  }
   if ($DerivedTreasury) {
     Remove-Item env:TESTNET_TREASURY_OVERRIDE -ErrorAction SilentlyContinue
   } else {
@@ -487,6 +494,38 @@ function Setup-Pool { param($who = "team1", $grossBillions = "4.00")
   Send $who $script:ROUTER "addLiquidityETH(address,uint256,uint256,uint256,address,uint256)" @(
     $st.token, "$gross", "0", "0", $script:Addr[$who], "99999999999") -value "$bnb" | Out-Null
   return $gross
+}
+
+## Launch order step 6 (Level 2b, H0.4): ALL the LP tokens of the DMN/WBNB
+## pair go from the provider to the Timelock, and the assert is read from
+## mined state: provider LP == 0 and Timelock LP == totalSupply minus the
+## MINIMUM_LIQUIDITY (1000 wei) the pair locks at creation. Returns the
+## three values for the results log; the caller judges the verdict.
+function Move-LpToTimelock { param($who = "deployer")
+  $st = S
+  $lp = CQ $st.pair "balanceOf(address)(uint256)" @($script:Addr[$who])
+  $tx = Send $who $st.pair "transfer(address,uint256)" @($st.timelock, "$lp")
+  $providerAfter = CQ $st.pair "balanceOf(address)(uint256)" @($script:Addr[$who])
+  $timelockAfter = CQ $st.pair "balanceOf(address)(uint256)" @($st.timelock)
+  $lpSupply = CQ $st.pair "totalSupply()(uint256)"
+  $minLiq = CQ $st.pair "MINIMUM_LIQUIDITY()(uint256)"
+  return @{ moved = $lp; provider = $providerAfter; timelock = $timelockAfter; supply = $lpSupply; minLiq = $minLiq; tx = $tx
+            ok = ($providerAfter -eq 0 -and $timelockAfter -eq ($lpSupply - $minLiq) -and $minLiq -eq 1000) }
+}
+
+## The post-broadcast verification, run as the operator runs it (a nested
+## powershell: piping the child's stderr through Out-String can deadlock
+## PS 5.1 when the child throws). Returns @(exitCode, fullOutput).
+function Run-Verify { param([string[]]$extra = @())
+  $so = Join-Path $env:TEMP "verify-out-$PID.txt"
+  $vf = '"' + (Join-Path $script:ROOT "script\verify-deploy.ps1") + '"'
+  $ex = @()
+  foreach ($e in $extra) { if ($e -match "\s") { $ex += ('"' + $e + '"') } else { $ex += $e } }
+  $verifyArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $vf, "-Rpc", $script:RPC) + $ex
+  $p = Start-Process powershell -ArgumentList $verifyArgs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $so
+  $text = if (Test-Path $so) { Get-Content $so -Raw } else { "" }
+  Remove-Item $so -Force -ErrorAction SilentlyContinue
+  return @($p.ExitCode, $text)
 }
 
 ## Sell DMN into the pool through the real router (fee-supporting variant).

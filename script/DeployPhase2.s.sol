@@ -50,6 +50,8 @@ contract DeployPhase2 is Script {
         uint256 expectedNonce = vm.parseJsonUint(json, ".expectedPhase2Nonce");
         address fileTreasury = vm.parseJsonAddress(json, ".treasury");
         bool treasuryOverridden = vm.parseJsonBool(json, ".treasuryOverridden");
+        address fileMarketing = vm.parseJsonAddress(json, ".marketingWallet");
+        bool marketingOverridden = vm.parseJsonBool(json, ".marketingWalletOverridden");
 
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
@@ -81,6 +83,15 @@ contract DeployPhase2 is Script {
             require(fileTreasury == predictedTimelock, "Phase2: state file treasury is not the predicted timelock");
         }
         require(address(migration.newDaimon()) == address(token), "Phase2: migration is not bound to this token");
+        // The marketing wallet phase 1 wrote into the token, cross-checked
+        // live: by default it is the predicted timelock this phase must
+        // fulfil; an override is honoured only if the state file says so.
+        require(token.marketingWallet() == fileMarketing, "Phase2: token.marketingWallet does not match the state file");
+        if (marketingOverridden) {
+            console2.log("!!! MARKETING_WALLET override active on this deploy:", fileMarketing);
+        } else {
+            require(fileMarketing == predictedTimelock, "Phase2: state file marketing wallet is not the predicted timelock");
+        }
         require(
             token.balanceOf(address(migration)) == token.INITIAL_SUPPLY(),
             "Phase2: supply is not sitting in the migration"
@@ -142,6 +153,19 @@ contract DeployPhase2 is Script {
         // passa da una proposta di governance (setStakingRewardShareBps).
         token.setStakingRewardShareBps(1000);
 
+        // The launch fee model: 4% total (1% reflection, 1% buyback, 2%
+        // marketing/staking), the figure the protocol paper and the
+        // checklist state for launch. initialize() hardcodes the historical
+        // 5% (10/20/20), and on the July testnet and on Chapel the 4% was
+        // reached only by executing proposal #0 (setFees 10,10,20) at least
+        // 13 days after the deploy. Setting it here, through the same
+        // temporary GOVERNANCE_ROLE the share above uses, means the first
+        // block of trading already runs the intended model -- with no window
+        // during which a 5% fee is live and no governance cycle needed to
+        // fix it. Asserted below and re-read from mined state by
+        // script/verify-deploy.ps1.
+        token.setFees(10, 10, 20);
+
         token.grantRole(token.GOVERNANCE_ROLE(), address(timelock));
         token.revokeRole(token.GOVERNANCE_ROLE(), deployer);
 
@@ -150,7 +174,19 @@ contract DeployPhase2 is Script {
 
         vm.stopBroadcast();
 
-        _assertPhase2(token, staking, timelock, governor, migration, deployer, guardian, fileTreasury, treasuryOverridden);
+        _assertPhase2(
+            token,
+            staking,
+            timelock,
+            governor,
+            migration,
+            deployer,
+            guardian,
+            fileTreasury,
+            treasuryOverridden,
+            fileMarketing,
+            marketingOverridden
+        );
 
         // ---- 7. Rewrite the state file, complete: phase 1 + phase 2 ----
         // (three-arg writeJson replaces a key, it does not merge objects;
@@ -170,13 +206,15 @@ contract DeployPhase2 is Script {
         vm.serializeAddress(j2, "staking", address(staking));
         vm.serializeAddress(j2, "governor", address(governor));
         vm.serializeBool(j2, "treasuryOverridden", treasuryOverridden);
+        vm.serializeBool(j2, "marketingWalletOverridden", marketingOverridden);
         string memory out = vm.serializeUint(j2, "guardianAuthorityExpiry", token.guardianExpiry());
         vm.writeJson(out, path);
         _logDeployment(token, staking, timelock, governor, migration);
     }
 
     /// Phase-2 asserts: the 17 original decentralization asserts that need
-    /// the governance contracts, plus 3 linkage asserts (20 total). Note the
+    /// the governance contracts, plus 3 linkage asserts, plus the launch fee
+    /// model (4) and the marketing-wallet linkage (1): 25 total. Note the
     /// expiry-parity ones are now meaningful even here: all three values are
     /// either live chain state or a constructor argument copied verbatim.
     /// The authoritative gate remains script/verify-deploy.ps1.
@@ -189,7 +227,9 @@ contract DeployPhase2 is Script {
         address deployer,
         address guardian,
         address expectedTreasury,
-        bool treasuryOverridden
+        bool treasuryOverridden,
+        address expectedMarketing,
+        bool marketingOverridden
     ) internal view {
         // Token: governed only by the timelock, no DEFAULT_ADMIN assigned.
         require(token.hasRole(token.GOVERNANCE_ROLE(), address(timelock)), "assert: timelock does not govern the token");
@@ -198,6 +238,12 @@ contract DeployPhase2 is Script {
         // Launch compliance: operational share at zero; the deploy fails if
         // the configuration line is ever dropped.
         require(token.stakingRewardShareBps() == 1000, "assert: operational share not zero (stakingRewardShareBps != 1000)");
+        // Launch fee model: 4% total, set this phase. liquidityFee is
+        // recomputed by setFees, so it is asserted too (30 = 10 + 20).
+        require(token.taxFee() == 10, "assert: taxFee != 10");
+        require(token.buybackFee() == 10, "assert: buybackFee != 10");
+        require(token.marketingFee() == 20, "assert: marketingFee != 20");
+        require(token.liquidityFee() == 30, "assert: liquidityFee != 30");
 
         // Timelock: self-administers, the deployer has no role.
         require(timelock.hasRole(timelock.ADMIN_ROLE(), address(timelock)), "assert: timelock does not self-administer");
@@ -230,6 +276,13 @@ contract DeployPhase2 is Script {
             require(migration.treasury() == address(timelock), "assert: migration treasury is not the timelock");
         }
         require(token.stakingContract() == address(staking), "assert: token staking contract mismatch");
+        // The third prediction: the marketing wallet phase 1 wrote into the
+        // token IS the timelock deployed this phase (unless overridden).
+        if (marketingOverridden) {
+            require(token.marketingWallet() == expectedMarketing, "assert: marketingWallet != MARKETING_WALLET override");
+        } else {
+            require(token.marketingWallet() == address(timelock), "assert: marketingWallet is not the timelock");
+        }
     }
 
     function _logDeployment(
@@ -247,6 +300,8 @@ contract DeployPhase2 is Script {
         console2.log("DaimonGovernor:          ", address(governor));
         console2.log("DaimonMigration:         ", address(migration));
         console2.log("Guardian expiry (all 3): ", token.guardianExpiry());
+        console2.log("Marketing wallet:        ", token.marketingWallet());
+        console2.log("Fees (tax/buyback/mkt):  ", token.taxFee(), token.buybackFee(), token.marketingFee());
         console2.log("All decentralization asserts passed.");
         console2.log("");
         console2.log("NEXT (mandatory launch gate): script/verify-deploy.ps1");
