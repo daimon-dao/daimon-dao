@@ -10,3 +10,5 @@ broadcast/
 script/campaign/state-*.json
 script/campaign/anvil.log
 script/campaign/forkpin.txt
+script/chapel/keystore-map.json
+script/chapel/state.json
