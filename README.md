@@ -51,6 +51,33 @@ invariant + adversarial, **180 tests green**) and Slither static analysis
 performed. **External audit by Zenith complete** — the [full report](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
 is published and the audited code range is frozen at tag
 [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
+**Level-2 rehearsal completed on a public chain** (BSC testnet, 2026-08-28 to
+2026-09-10): the audited code deployed with the mainnet scripts and a full
+governance cycle run in real time — propose, vote, queue, seven real days
+of timelock, execute — every transaction recorded and monitored, see
+[CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md).
+
+## Status of decisions
+
+The whitepaper is **v0.1**, a pre-audit draft; v0.2 is in progress.
+Decisions taken after it are recorded in these documents, which take
+precedence over the whitepaper where they differ (and the deployed code
+takes precedence over all of them):
+
+- [docs/TREASURY_POLICY_v1.0.md](docs/TREASURY_POLICY_v1.0.md) — the
+  treasury: one governed contract, no operational wallet, what it holds
+  and what it will never do
+- [docs/DISCLAIMER_TERMS_v0.2_EN.md](docs/DISCLAIMER_TERMS_v0.2_EN.md) —
+  legal disclaimer and terms of use (authoritative English text; an
+  [Italian courtesy translation](docs/DISCLAIMER_TERMS_v0.2_IT.md) sits
+  alongside)
+- [docs/CALENDARIO_GOVERNANCE_Q1.md](docs/CALENDARIO_GOVERNANCE_Q1.md) —
+  the first quarter of mainnet governance, proposal by proposal, each
+  written as a scenario before it exists
+- [docs/SCENARI_TESTNET.md](docs/SCENARI_TESTNET.md) — the test plan the
+  two testnet campaigns executed (kept as the original plan)
+- [CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md) — the level-2 campaign
+  journal: every step, every hash, the campaign closure
 
 ## Documentation
 
