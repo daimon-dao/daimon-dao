@@ -12,6 +12,23 @@ transfer is claimant -> treasury. DMX disables fees only when `from` or `to`
 is exempt, so exempting Migration has no effect: the exemption target is the
 TREASURY -- which, since the two-phase deploy, IS the Timelock.
 
+**The predecessor, recorded here explicitly** (until now it appeared only in
+the whitepaper, section 4.1):
+
+- DMX token: `0x36EbA94407B53c631eE822C219e94580fadd67c7` (BSC mainnet,
+  chain 56).
+- DMX owner: `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae` -- an EOA,
+  ownership never renounced. Verified 2026-09-10 at block 121108614;
+  re-read on 2026-09-11 at block 121166526 (`owner()` returns that address,
+  which holds no code).
+- DMX `_maxTxAmount` = 1.5B (1500000000 * 1e18, read 2026-09-11). It applies
+  to `claim()` too -- see launch order step 11a below.
+- The two DMX marketing wallets: `marketingAddress1` = the owner above,
+  `marketingAddress2` = `0x41B533AF0Db427dc97988B47f86383f42372f395`.
+  Decision: NEITHER will claim. The DMN corresponding to their DMX stay in
+  the Migration contract and reach the treasury through `sweepUnclaimed()`
+  after the deadline (docs/TREASURY_POLICY_v1.0.md, section 2).
+
 The exemption is what makes claims possible: without it, `claim()` reverts
 with `AmountMismatch` (#29 -- by design, and proven on-chain by campaign
 scenario A0). So it is performed LAST, after both deploy phases AND the
@@ -27,15 +44,43 @@ BEFORE phase 1 (de-risking the immutable deadline, which starts at phase 1):
 - [ ] Rehearse on a fork: exempt a test recipient, simulate a transfer from
       a non-exempt holder to it, confirm exact receipt with no fee deducted.
 
-AFTER the post-broadcast verification -- launch order step 4:
+AFTER the post-broadcast verification -- launch order step 11, the LAST
+step, split in TWO owner calls on the predecessor, in ONE session, in this
+order:
 
-- [ ] Call `oldDaimon.excludeFromFee(<TIMELOCK>)` -- the treasury (= the
-      Timelock deployed in phase 2), NOT the Migration contract
+- [ ] **11a -- `setMaxTxAmount` raised on DMX.** DMX's 1.5B `_maxTxAmount`
+      applies to `claim()` too: the claim is a DMX transfer claimant ->
+      treasury, and the fee exemption does NOT lift the transfer cap. Large
+      claims (the 76.9B top holder, any holder above 1.5B) would revert.
+      Raise it FIRST, verify the new value on-chain.
+- [ ] **11b -- `oldDaimon.excludeFromFee(<TIMELOCK>)`** -- the treasury (=
+      the Timelock deployed in phase 2), NOT the Migration contract. This
+      is the call that opens the migration window, so it goes LAST: after
+      11a, in the same session, nothing between them.
 - [ ] Verify on-chain that the exemption is active
 - [ ] Simulate one claim end-to-end and confirm exact 1:1 receipt
-- [ ] The migration window effectively OPENS here. The immutable deadline
+- [ ] The migration window effectively OPENS at 11b. The immutable deadline
       started at phase 1, claims open at this step: a difference of minutes
       against a window of months, accepted deliberately.
+
+Launch order, numbered (docs/SCENARI_TESTNET.md G6, with the predecessor
+exemption moved from first to last -- TWO_PHASE_RESULTS.md -- and the LP
+step added):
+
+```
+ 1  pair DMN/WBNB does NOT already exist on the factory (#25)
+ 2  phase 1 + phase 2 deploy, stakingRewardShareBps = 1000
+ 3  post-broadcast verification, 34/34 (MANDATORY GATE)
+ 4  automation inert until the pair has reserves (#27, fail-open fix)
+ 5  initial liquidity, BNB leg on the NET amount (#17), price verified
+ 6  LP tokens: deployer -> Timelock, published tx; assert deployer LP == 0
+ 7  one pool only; stored pair == factory pair
+ 8  reserves non-zero -> automation live
+ 9  small test swap -> fee applied
+10  first poke -> conversion, budgets respected; monitor saw everything
+11a DMX setMaxTxAmount raised   (owner call, same session as 11b)
+11b DMX excludeFromFee(TIMELOCK) -- the migration window opens here
+```
 
 **Legacy token custody (Zenith #6)**
 
@@ -119,9 +164,10 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       across the three contracts -- no tolerance window, since the
       two-phase design removes the reason for one. Paste its full output
       into the launch record.
-- [ ] **ONLY THEN, launch order step 4: the predecessor fee exemption** --
-      see the #29 section above. The migration window opens there, against a
-      deployment that has already passed every gate.
+- [ ] **ONLY THEN, launch order step 11: DMX `setMaxTxAmount` raised (11a),
+      then the predecessor fee exemption (11b)** -- see the #29 section
+      above. The migration window opens at 11b, against a deployment that
+      has already passed every gate.
 - [ ] Contracts **verified on BscScan** (source + constructors).
 - [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%;
       `MAX_PAUSE_DURATION` = **14 days** -- confirmed on-chain post-deploy
@@ -153,6 +199,18 @@ input initializes the pool at the wrong price.
       would disable fees on all buys and sells, and enable fee-free
       transfers through liquidity removal
 
+**LP tokens to the Timelock (launch order step 6, right after initial
+liquidity)**
+
+- [ ] Transfer ALL the LP tokens of the DMN/WBNB pair from the deployer to
+      the Timelock, in a published transaction (hash in the launch record).
+- [ ] Post-broadcast assert, from mined state: `pair.balanceOf(deployer) ==
+      0` and `pair.balanceOf(timelock) == pair.totalSupply() - MINIMUM_LIQUIDITY`
+      (the 1000 wei PancakeSwap locks at pair creation). The deployer holds
+      no LP; the Timelock holds all of it.
+- [ ] From here the pool can be withdrawn only by proposal -> vote -> queue
+      -> 7-day timelock -> execute (docs/TREASURY_POLICY_v1.0.md, section 2).
+
 **Automation state at launch (Zenith #27)**
 
 - [ ] Automation (fee swap and buyback) must be DISABLED or the fail-open
@@ -179,11 +237,13 @@ input initializes the pool at the wrong price.
 - [ ] Initial liquidity amount â€” it determines slippage and how easily the
       price can be manipulated. Thin liquidity also makes the buyback
       mechanism behave poorly.
-- [ ] What happens to the LP tokens: locked (verifiable, with a stated
-      duration and platform), burned (permanent, irreversible), or held. For
-      a project whose stated position is "don't trust, verify", a verifiable
-      lock is the coherent choice â€” and the lock transaction should be
-      published.
+- [x] What happens to the LP tokens -- DECIDED: held by the Timelock,
+      withdrawable only by vote + 7 days. Transferred right after initial
+      liquidity in a published transaction (launch order step 6 above);
+      the Timelock's LP position grows with every swap's fee. The earlier
+      options (third-party lock with a stated duration, or burn) are
+      superseded: the Timelock IS the verifiable lock, with no platform
+      risk and no expiry.
 - [ ] Sequence relative to the migration window: opening trading before
       holders have migrated means the price forms on minimal volume. Decide
       and announce the order.
