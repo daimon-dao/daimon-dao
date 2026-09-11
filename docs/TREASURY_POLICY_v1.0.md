@@ -1,7 +1,9 @@
 # Daimon Treasury Policy
-*Draft v1.0 — September 2026. To be published before the first
+*Draft v1.1 — September 2026. To be published before the first
 mainnet governance proposal. Where this text and the deployed code
 disagree, the code is the only authority.*
+*v1.1 amends §2 and §7 only: the treasury is the fee destination from
+deploy, so the first vote is one proposal, the split.*
 
 ---
 
@@ -27,13 +29,15 @@ and the protocol's own wallet at zero. Not "small": the arithmetic
 makes the amount exactly zero, and no transaction to that address
 can fire.
 
-**From the first vote, 40%.** The first governance proposal on
-mainnet will do two things: set the treasury contract as the
-destination of the protocol's fee share, and set the split to **60%
-stakers / 40% treasury** — the 60/40 the code was written with, now
-pointed at a contract instead of a wallet. From that vote on, the
-40% accumulates in the treasury, in BNB, untouched by anyone, until
-a further vote spends it.
+**From the first vote, 40%.** The destination is decided before
+any vote: `marketingWallet` is the treasury contract from deploy —
+set to the Timelock's predicted address, the same prediction that
+binds the migration's treasury. The first governance proposal on
+mainnet therefore does one thing: set the split to **60% stakers /
+40% treasury** (`setStakingRewardShareBps(600)`) — the 60/40 the
+code was written with, now pointed at a contract instead of a
+wallet. From that vote on, the 40% accumulates in the treasury, in
+BNB, untouched by anyone, until a further vote spends it.
 
 **This replaces the two-wallet model of the v0.1 whitepaper** — a
 governed treasury plus an operational multisig receiving the fee
@@ -204,8 +208,7 @@ transfer between non-exempt addresses pays the protocol's fee, the
 first proposals have a natural order:
 
 ```
-1  destination = treasury, then split 60/40    the income begins
-   (two proposals, executed in that order)
+1  split 60/40 (one proposal)                  the income begins
 2  fee exemption of the treasury               so DMN can leave it
                                                 without loss
 3  a first deposit, small, in one place        the capital begins
