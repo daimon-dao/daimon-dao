@@ -1,8 +1,8 @@
 # DAIMON (DMN)
 ## An Ownerless, DAO-Governed Deflationary Protocol on BNB Chain
 
-**Whitepaper — Draft v0.1**
-*Work in progress. Sections 1–2 of 13.*
+**Protocol paper — v0.2**
+*Post-audit release. Previously published as "Whitepaper — Draft v0.1".*
 
 ---
 
@@ -19,12 +19,13 @@ mechanics, treasury allocation, even the code itself — can be changed only
 through an on-chain vote followed by a mandatory seven-day public timelock.
 No individual, including those who built it, holds the power to alter,
 accelerate, or bypass that process. One safeguard account exists — the
-guardian — and its powers are purely negative: it can pause the token in
-windows of at most fourteen days that expire on their own, and it can veto
-an in-flight decision before execution. Every one of those powers ends at an
-unmovable deadline 36 months after deployment; nothing it armed survives
-that instant. This is not a commitment we ask you to trust: it is a property
-of the deployed contracts, verifiable by anyone at any time.
+guardian, a 2-of-3 multisig — and its powers are purely negative: it can
+pause the token in windows of at most fourteen days that expire on their
+own, and it can cancel an in-flight decision before execution, through the
+governor or directly at the timelock. Every one of those powers ends at an
+unmovable deadline 36 months after launch; nothing it armed survives that
+instant. This is not a commitment we ask you to trust: it is a property of
+the deployed contracts, verifiable by anyone at any time.
 
 Holders who lock their tokens receive voting power proportional to both the
 amount and the duration of their commitment, along with rewards paid in BNB —
@@ -34,8 +35,14 @@ inflation, because there is no mechanism capable of producing it.
 Daimon is the migration of an existing token toward complete
 decentralization. Where the previous version had an owner with discretionary
 control and an 11% transaction fee, the new protocol has no owner, a 4% fee
-set by community vote, and a hard ceiling written into the code that no
-future vote can exceed.
+that only a public vote can change, and a hard ceiling written into the code
+that no future vote can exceed.
+
+The contracts have been independently audited. The report is public, and
+every one of its findings is either fixed in the code or accepted with
+written reasoning (Section 10.7). The audited code has since been deployed
+twice more with the mainnet scripts, the second time on a public chain in
+real time, before any mainnet deployment (Section 10.6).
 
 The protocol does not promise returns. It guarantees rules: scarcity that
 cannot be diluted, decisions that cannot be taken in private, and a system
@@ -299,8 +306,9 @@ The owner could set any fee to any value, including 100%, effective on the
 next transaction.
 
 The same applies to the maximum transaction size. Deployed at 0.3% of supply,
-it currently stands at 0.15% — the owner halved it at some point using a
-setter with no lower bound. Nothing in the code prevented setting it to one
+it currently stands at 0.15% — 1.5 billion DMX, read on-chain on 11
+September 2026 — the owner halved it at some point using a setter with no
+lower bound. Nothing in the code prevented setting it to one
 wei, which would have made the token effectively untransferable.
 
 ### 4.1.2 The burn that did not burn
@@ -374,12 +382,19 @@ The problem with DMX was never that it could be drained. It was that its
 economics were entirely at the discretion of one account, with no bound, no
 delay, and no obligation to inform anyone.
 
-One further detail completes the picture: the address receiving the
-marketing fee is the same address that owns the contract. The party
-controlling the parameters is also the direct recipient of the revenue they
-control. Nothing about that arrangement was hidden — it is visible on-chain
-to anyone who looks — but it is precisely the concentration that the new
-architecture is designed to eliminate.
+One further detail completes the picture. DMX routes its marketing fee to
+**two** wallets. `marketingAddress1` is the owner itself:
+`0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae`, an externally owned account
+holding no code, whose ownership was never renounced — `owner()` still
+returns it, re-read on 11 September 2026 at block 121,166,526.
+`marketingAddress2` is `0x41B533AF0Db427dc97988B47f86383f42372f395`. The 7%
+of every transfer that is not reflected is divided in seventieths: 25 to
+each marketing wallet and 20 to the buyback — 2.5% to each wallet, 2% to the
+buyback. The party controlling the parameters is therefore also a direct
+recipient of the revenue it controls. Nothing about that arrangement was
+hidden — it is visible on-chain to anyone who looks — but it is precisely
+the concentration that the new architecture is designed to eliminate. Both
+wallets hold DMX; what becomes of those holdings is stated in Section 11.5.
 
 ### 4.1.5 On how it came to be this way
 
@@ -406,7 +421,7 @@ a better one.
 | | DMX (previous) | DMN (new) |
 |---|---|---|
 | Reflection fee | 4% | 1% |
-| Marketing fee | 5% | 2% — 60% of which is routed to stakers |
+| Marketing fee | 5% | 2% — split between stakers and the treasury by a governance-set share: 100% to stakers at launch, 60/40 after the first mainnet vote (Section 11) |
 | Buyback fee | 2% | 1% |
 | **Total fee** | **11%** | **4%** |
 | **Fee ceiling** | **none** | **10%, enforced in code** |
@@ -418,7 +433,7 @@ a better one.
 | Supply floor | none | **21B, immutable** |
 | Exclusion from reflection | owner-toggleable at runtime | **immutable set, fixed at deployment: dead address and liquidity pair** |
 | Swap slippage protection | none — accepts any output | bounded against the router's own quote — not a bound on MEV loss |
-| Marketing recipient | same address as the owner | governance-set, expected to be a multisig |
+| Marketing recipient | two wallets, one of them the owner | governance-set — the timelock itself, which is the treasury (Section 11) |
 | Staking | none | vote-escrow, rewards in BNB |
 | Governance | none | full on-chain governance |
 
@@ -426,10 +441,16 @@ Two points deserve emphasis.
 
 **The fee reduction is not the important part.** Fees can be adjusted by any
 project at any time; a lower number proves nothing about how it was arrived
-at. What matters is that DMN's 4% was set by an on-chain vote, executed after
-a seven-day public timelock, and that no single account can change it again.
-The full record of that decision — proposal, vote, delay, execution, with
-transaction hashes — is documented in Section 8.
+at. What matters is where the number lives and who can touch it. The audited
+code initialises the fees at 10/20/20 — reflection 1%, buyback 2%, marketing
+2%, a 5% total. The launch configuration sets them to 10/10/20 — the 4%
+above — in phase 2 of the deployment, through the temporary governance role
+the deployer holds during setup, before that role is handed to the timelock
+and revoked; a post-broadcast assert reads the three values back from the
+mined chain. From that moment no single account can change them again: the
+only path is a public vote followed by a seven-day timelock. The first time
+that path was walked — proposal #0, on testnet, which took the fees from 5%
+to 4% — is documented with every transaction hash in Section 9.
 
 **The ceiling matters more than the current value.** The code rejects any
 total fee above 10%. This is not a policy that governance can revise: it is a
@@ -496,6 +517,13 @@ the migration window. The balance swept to the treasury will be slightly
 larger than the amount left unclaimed. This is the reflection mechanism
 working as designed, and the surplus follows the same path as the rest — to
 the DAO, decided by vote.
+
+Two holdings will certainly stay unclaimed, by decision rather than by
+accident: the project's own legacy tokens, held in the two DMX marketing
+wallets described in 4.1.4 — about 42% of the old supply. They will never be
+claimed by anyone. The corresponding DMN reach the treasury through
+`sweepUnclaimed()` like every other unclaimed token, and they do not vote.
+Section 11.5 states the commitment in full.
 
 ## 4.5 Why a migration rather than renouncing ownership
 
@@ -588,26 +616,34 @@ mechanical.
 Two elements sit outside this structure, and both are deliberate.
 
 **Immutable addresses.** The dead address (destination of burned tokens) and
-the migration treasury are fixed at deployment and cannot be changed by
+the migration treasury — the timelock itself, bound in the migration
+contract's constructor — are fixed at deployment and cannot be changed by
 anyone — not by the deployer, not by governance, not by an upgrade. Some
 destinations should not be redirectable, even by a majority.
 
-**The guardian.** One account holds a narrow set of defensive powers outside
-the governance cycle: it can pause the contract in an emergency — for at
-most fourteen days per activation, after which the pause lapses on its own —
-and it can cancel an in-flight governance proposal, or the scheduled
-timelock operation behind it, before execution. It cannot change fees, move
-funds, alter governance parameters, mint, or upgrade anything, and it cannot
-execute: every one of its powers is a brake, never an engine. It exists
-because in the early life of a protocol, seven days of timelock is too slow
-a response to an exploit in progress.
+**The guardian.** One account — a 2-of-3 multisig whose three keys are held
+by different people — holds a narrow set of defensive powers outside the
+governance cycle. Three, precisely. It can pause the token in an emergency,
+for at most fourteen days per activation, after which the pause lifts on its
+own. It can cancel an in-flight governance proposal through the governor,
+which atomically cancels the scheduled timelock operation behind it. And it
+can cancel a scheduled operation directly at the timelock — a second path
+that does not depend on the governor being intact. It cannot change fees,
+move funds, alter governance parameters, mint, or upgrade anything, and it
+cannot execute: every one of its powers is a brake, never an engine. It
+exists because in the early life of a protocol, seven days of timelock is
+too slow a response to an exploit in progress.
 
-Every guardian power expires at the same instant, 36 months after
-deployment. This is not a commitment to renounce; it is a timestamp fixed
-independently in three contracts — token, governor, timelock — that no one,
-governance included, can remove or postpone. After that date pausing and
-cancelling stop working, and any pause still armed has already lapsed:
-decentralization completes itself without anyone's cooperation.
+Every guardian power expires at the same instant, 36 months after launch.
+This is not a commitment to renounce; it is one timestamp, computed by the
+token when it is deployed and copied verbatim into the governor and the
+timelock in the second deployment phase, that no one, governance included,
+can remove or postpone. After that date pausing and both guardian
+cancellation paths stop working, and any pause still armed has already
+lapsed. Exactly one way to cancel a queued operation remains: the timelock
+cancelling its own operation, which only a self-call can trigger — that is,
+an executed governance proposal, never a single party. Decentralization
+completes itself without anyone's cooperation.
 
 Section 8.6 describes the guardian's constraints in full.
 
@@ -682,7 +718,7 @@ into three components:
 |---|---|---|
 | Reflection | 1% | redistributed to all holders |
 | Buyback & burn | 1% | accumulated, then used to buy and burn |
-| Marketing / operations | 2% | 60% to staker rewards, 40% to operations |
+| Marketing / treasury | 2% | converted to BNB; split between the staking reward pool and the treasury by a governance-set share — 100% to stakers at launch, 60/40 after the first mainnet vote |
 | **Total** | **4%** | |
 
 Three structural properties matter more than the current numbers.
@@ -693,15 +729,17 @@ proposal setting fees to 11% would pass a vote, wait out the timelock, and
 then revert on execution. Governance is bounded by the code it governs.
 
 **Who can change them.** Only the timelock, meaning only the outcome of a
-completed governance cycle. The current 4% is itself the result of one: the
-first proposal in Daimon's history reduced fees from 5% to 4%, and its full
-record appears in Section 8.
+completed governance cycle. The 4% is the launch configuration, set in the
+second deployment phase before the deployer's temporary role is revoked
+(Section 4.2). The first governance cycle in Daimon's history took the fees
+from the audited code's 5% to this same 4%, on testnet, and its full record
+appears in Section 9.
 
 **Zero is legal — and it is a model change, not a tuning.** The range has a
 ceiling and no floor: governance can set every fee to zero. Doing so
 switches off nearly everything the fees feed. Reflection stops; no new BNB
-accrues; buyback, burn, staking rewards and operational funding run dry
-once the already-collected inventory is spent; and for as long as fees stay
+accrues; buyback, burn, staking rewards and treasury income run dry once
+the already-collected inventory is spent; and for as long as fees stay
 at zero, the 21-billion floor of 6.2 is out of reach for good. What would
 remain is a freely transferable token with working governance and staking
 as pure voting weight. The decision is reversible by the same path that
@@ -728,11 +766,15 @@ a change in the conversion rate, applied simultaneously to everyone.
 The practical consequence is that holding tokens produces a slow accumulation
 funded by trading activity, with no action required and no gas paid.
 
-One address is excluded from reflection: the dead address that receives
-burned tokens. Excluding it prevents burned supply from accruing
-redistribution that would inflate the apparent burn figure. The tokens
-counted as burned are burned; nothing is added to that number by the
-mechanism itself.
+Two addresses are excluded from reflection, both fixed when the token is
+initialised. The first is the dead address that receives burned tokens:
+excluding it prevents burned supply from accruing redistribution that would
+inflate the apparent burn figure. The tokens counted as burned are burned;
+nothing is added to that number by the mechanism itself. The second is the
+liquidity pair: a pair whose balance grows passively while its recorded
+reserves stay still is a pair whose surplus anyone can pocket by calling
+`skim()` — value taken from the holders the reflection was meant for (audit
+finding #30).
 
 There are no other exclusions, and no function exists to create one. This is
 a deliberate structural choice: the ability to toggle addresses in and out of
@@ -754,8 +796,9 @@ is a consequence of trading.
     on the market, at most one per block → receives BNB
 
 3.  The BNB is split:
-        marketing share  →  60% to the staking reward pool
-                            40% to operations
+        marketing share  →  staking reward pool / treasury, by a
+                            governance-set share (100% to stakers
+                            at launch, 60/40 after the first vote)
         buyback share    →  retained in the contract
 
 4.  On the same trigger, when the retained BNB exceeds a threshold,
@@ -842,10 +885,11 @@ mint function, rewards denominated in DMN could only come from a pre-allocated
 reserve — which would eventually be exhausted, and which would have required
 holding a large team-controlled balance from day one. Neither was acceptable.
 
-Rewards therefore come from the marketing share of transaction fees: 60% of
-that share is converted to BNB by the protocol and deposited into the staking
-reward pool, where it is distributed among stakers in proportion to voting
-power.
+Rewards therefore come from the marketing share of transaction fees. The
+protocol converts that share to BNB and deposits a governance-set portion of
+it into the staking reward pool — all of it at launch, 60% once the first
+mainnet vote routes the remaining 40% to the treasury (Section 11) — where
+it is distributed among stakers in proportion to voting power.
 
 Three properties follow:
 
@@ -1011,7 +1055,7 @@ therefore placed above governance, in the code, where no vote can reach them:
 | Minimum quorum | 10% | **no one** |
 | Minimum timelock delay | 7 days | **no one** |
 | Dead address | fixed at deployment | **no one** |
-| Migration treasury address | fixed at deployment | **no one** |
+| Migration treasury address (the timelock) | fixed at deployment | **no one** |
 | Mint capability | does not exist | **no one** |
 
 A proposal violating any of these would pass a vote, wait out the timelock,
@@ -1023,8 +1067,9 @@ refuse.
 Within those bounds, the DAO controls the protocol completely:
 
 - adjust the fee split and total (up to the ceiling)
-- change the marketing and operations recipient
-- change the staking contract and reward split
+- change the recipient of the treasury share of the fees, and the split
+  between stakers and treasury
+- change the staking contract
 - add or disable staking lock options
 - adjust operational thresholds (swap trigger, slippage tolerance, maximum
   transaction size)
@@ -1042,10 +1087,14 @@ coming.
 ## 8.6 The guardian
 
 One account holds a small set of powers outside the governance cycle, all
-defensive. The guardian can **pause the contract**, and it can **cancel** a
-governance proposal — or the scheduled timelock operation behind it — before
-it executes. That is the entire scope of its authority: brakes, never an
-engine.
+defensive. The guardian is a 2-of-3 multisig: three keys held by different
+people, two of which must sign. It holds exactly three authorities. It can
+**pause the contract**. It can **cancel a governance proposal through the
+governor** — an atomic cross-cancel that also voids the timelock operation
+of a proposal already queued. And it can **cancel a scheduled operation
+directly at the timelock**, a second path that does not depend on the
+governor being intact. That is the entire scope of its authority: brakes,
+never an engine.
 
 It cannot change fees, move funds, alter governance parameters, mint,
 upgrade, propose, or vote. It can stop transfers for a bounded window and it
@@ -1065,15 +1114,18 @@ paused requires actively renewing the window, and every renewal is a public,
 visible act. A lost key or a silent guardian cannot leave the protocol
 frozen.
 
-**Everything expires, at one instant.** All guardian powers — the pause and
-both cancellation paths — end 36 months after deployment. The deadline is a
+**Everything expires, at one instant.** All three authorities — the pause
+and both cancellation paths — end 36 months after launch. The deadline is a
 timestamp the token computes at deployment; the governor and the timelock,
 deployed in a second phase, receive that exact value read back from the
 chain, so the three copies are identical by construction — re-verified
-on-chain after deployment, and modifiable by no one, governance included. After it, new pauses and every cancellation are
-refused, and any pause still armed has already lapsed. From that moment
-governance proposals are uncancellable by any single authority: whatever
-passes the vote and the timelock, executes.
+on-chain after deployment, and modifiable by no one, governance included.
+After it, new pauses and both guardian cancellation paths are refused, and
+any pause still armed has already lapsed. From that moment only one thing
+can cancel a queued operation: the timelock itself, through a self-call —
+which is to say an executed governance proposal, thirteen public days and a
+majority vote, never a single party. Whatever passes the vote and the
+timelock, executes.
 
 **It cannot cost holders the migration.** Every second of pause is credited
 to the migration deadline: if a pause blocks claims, the claim window is
@@ -1268,13 +1320,16 @@ fees above 10%, cannot lower the quorum below 10% or the timelock below seven
 days, cannot redirect the dead address or the migration treasury. The
 protocol constrains its own governance.
 
-**The guardian.** Can pause the contract in self-terminating fourteen-day
-windows, and cancel an in-flight governance action before it executes.
-Cannot touch funds, parameters, or execution — and every one of these powers
-ends at the same 36-month expiry, after which any armed pause has already
-lapsed.
+**The guardian** — a 2-of-3 multisig. Can pause the contract in
+self-terminating fourteen-day windows, cancel a proposal through the
+governor, and cancel a queued operation directly at the timelock. Cannot
+touch funds, parameters, or execution — and every one of these powers ends
+at the same 36-month expiry, after which any armed pause has already lapsed
+and only a governance self-call can cancel.
 
-**The deployer.** Can deploy the contracts and pay the gas. Holds no role
+**The deployer.** Can deploy the contracts and pay the gas. Holds a
+temporary governance role during the second deployment phase, used for the
+launch configuration and revoked in the same broadcast. Holds no role
 afterwards: the deployment scripts renounce every temporary permission and
 then verify, with thirty assertions across the two deployment phases
 and a thirty-four-check verification read back from the live chain, that
@@ -1285,7 +1340,7 @@ published as `THREAT_MODEL.md` in the repository.
 
 ## 10.2 What has been tested
 
-The protocol carries 74 automated tests, all passing, across five categories.
+The protocol carries 180 automated tests, all passing, across six categories.
 
 **Unit tests** cover individual functions and their boundaries.
 
@@ -1313,6 +1368,11 @@ following must hold at every step:
 **Adversarial tests** target the system as an attacker would: snapshot
 manipulation, extreme boundary values (one wei, the entire supply, the exact
 floor, one second before the timelock expires), and game-theoretic incentives.
+
+**Audit regression tests** reproduce the audit findings that were fixed in
+code. Each asserts the secure behaviour, so it failed on the pre-fix code
+and passes on the audited range: a regression would be caught by the test
+that reproduced the original finding.
 
 Static analysis is run with Slither. Every High and Medium finding has been
 examined and documented — with the reasoning — as either a false positive in
@@ -1364,11 +1424,14 @@ mechanism would degrade. Swaps are wrapped so that failure cannot block
 ordinary transfers.
 
 **The least-proven path.** The sequence fee accumulation → swap to BNB →
-distribution → automatic buyback has been exercised once on testnet, under
-laboratory conditions, on a pool with minimal liquidity. It has never run
-under real slippage, real volume or adversarial conditions, and it cannot be
-until mainnet. We consider this the least-proven surface of the protocol and
-have flagged it as such to every auditor we have approached.
+distribution → automatic buyback has been exercised on testnet only: in the
+July campaign on a pool with minimal liquidity, and again in the level-2
+rehearsal of August–September on a real router with real gas, where the
+first conversions moved a testnet-sized pool heavily. It has never run under
+mainnet volume, real slippage or adversarial conditions, and it cannot until
+mainnet. We consider this the least-proven surface of the protocol; it was
+flagged as such to the auditor, and two of the audit's findings (#1 and #28)
+changed how it is triggered — Section 6.5 describes the result.
 
 ## 10.5 The interface is not the protocol
 
@@ -1419,30 +1482,63 @@ and documented on BSC testnet, each with transaction hashes:
   (`AlreadyExecuted`)
 - economic verification of the post-execution fee: exactly 4.00%
 
-One further cycle is in progress at the time of writing: the governance
-proposal that will sweep unclaimed migration tokens to the treasury has been
-proposed and voted, and awaits its timelock period. It is the last function of
-the system never yet executed on-chain.
+The last function of the system — the governance sweep of unclaimed
+migration tokens to the treasury — was executed afterwards, on 7 August
+2026, as proposal #2: 999,121,813,473 DMN moved from the migration contract
+to the treasury by a passed vote, after its seven days, with the total
+supply unchanged to the wei.
 
-The complete record is published as `TESTNET_RESULTS.md`.
+The complete record is published as
+[`TESTNET_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TESTNET_RESULTS.md).
+
+**Two rehearsals of the launch itself.** After the audit, the audited code
+was deployed twice more with the mainnet scripts, at two levels. Level 1,
+on a local fork where time can be warped, proved the logical sequences: the
+launch order, the cancellation paths, the pause and its expiry, and the
+deviation that turned the deployment into two phases (a single-broadcast
+script fixes the guardian expiry during simulation while the token computes
+its own from the block it is mined in). Level 2, on the public BSC testnet
+in real time from 28 August to 10 September 2026, proved what a local node
+cannot: real nonces, real gas, 34 of 34 post-broadcast checks read from
+mined state, the guardian expiry identical across the three contracts, and
+a full governance cycle on a real clock — propose, vote, queue, seven real
+days of timelock, execute — every transaction signed from an encrypted
+keystore and recorded. Both journals are public:
+[`TESTNET_L1_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TESTNET_L1_RESULTS.md)
+(with its follow-up
+[`TWO_PHASE_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TWO_PHASE_RESULTS.md))
+and
+[`CHAPEL_L2_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/CHAPEL_L2_RESULTS.md).
 
 ## 10.7 External audit
 
 Everything above was produced by the same people who wrote the code. That is
 useful and insufficient.
 
-The contracts are frozen at the tag `audit-scope-v2` and submitted for
-independent security review. Our commitments regarding it are three:
+The contracts were frozen at tag `audit-scope-v2` and reviewed
+independently by Zenith. The audit is complete. The report is published in
+full — not a summary, not a certificate, not selected excerpts:
+[Daimon DAO — Zenith Audit Report](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf).
 
-**The report will be published in full**, whatever it contains. Not a summary,
-not a certificate, not selected excerpts.
+It records 37 findings: 1 critical, 1 high, 7 medium, 12 low and 16
+informational. 29 were fixed in code; 8 were accepted, each with written
+reasoning. The exact range of code the report describes is frozen forever at
+tag `audit-final`. Every rehearsal since has run that code untouched, and
+the mainnet deployment will: at the commit that releases this document,
+`src/` differs from `audit-final` by nothing.
 
-**We will not deploy to mainnet before it is complete.** No launch date has
-been announced, and none will be until the review has concluded.
+Three commitments were made before the audit. Their status:
 
-**The auditor receives our own list of concerns**, including the
-least-proven path described in 10.4. An audit exists to find what we missed,
-not to confirm what we already know.
+**The report is published in full** — kept, at the link above.
+
+**We will not deploy to mainnet before it is complete** — kept. The audit is
+complete; no launch date has been announced, and none will be until the
+published mainnet checklist is green from the first line to the last.
+
+**The auditor received our own list of concerns**, including the
+least-proven path described in 10.4. Two findings (#1 and #28) came out of
+that surface. An audit exists to find what we missed, not to confirm what
+we already know.
 
 A public bug bounty is planned following launch, so that the incentive to
 report a vulnerability permanently exceeds the incentive to exploit it.
@@ -1451,69 +1547,121 @@ report a vulnerability permanently exceeds the incentive to exploit it.
 
 # 11. Funds and treasury
 
-## 11.1 Two locations, two rules
+## 11.1 One treasury, and it is a contract
 
-Protocol funds exist in two places, governed differently, for a reason worth
-explaining rather than assuming.
+Protocol funds have one home: the timelock. The DaimonTimelock contract
+*is* the treasury — not a wallet that points to it, not a multisig that
+manages it on its behalf. It has no owner and no keys. Nothing leaves it
+except through a public governance proposal: five days of voting, seven days
+in the open, then an execution anyone can trigger. The guardian, during its
+36-month mandate, can cancel a queued outflow; it can never redirect one,
+and after the mandate only a vote can cancel at all.
 
-**The treasury** holds the reserve: legacy tokens collected during migration,
-unclaimed DMN swept after the deadline, and any assets the DAO accumulates.
-It is controlled by the timelock. Every outflow requires a proposal, a vote,
-a seven-day delay and an execution. No individual can move a single token
-from it.
+The migration contract's `treasury` pointer is the timelock's address,
+bound `immutable` in its constructor and derived at deployment rather than
+typed in: phase 1 binds it to the timelock address phase 2 will create,
+phase 2 verifies the prediction came true, and the post-broadcast
+verification re-reads it from the live chain. The legacy tokens collected by
+every claim, and the unclaimed DMN swept after the deadline, therefore land
+in the same governed contract as everything else.
 
-**The operational wallet** receives the marketing share of transaction fees
-in BNB. It is a multi-signature wallet with known signers, used for ordinary
-expenses: services, tooling, design, infrastructure.
+## 11.2 Why there is no operational wallet
 
-## 11.2 Why not everything under governance
+The v0.1 draft of this document described two locations: a governed
+treasury, and an operational multisig receiving the marketing share of the
+fees in BNB, with known signers, for small recurring expenses. That model is
+withdrawn, and the reason is worth stating rather than hiding.
 
-A protocol where every expenditure requires a vote sounds more decentralized.
-In practice it is unworkable: submitting a proposal, waiting a day, running a
-five-day vote and waiting seven more days in order to pay for a design asset
-is not governance, it is paralysis. Projects that adopt it either abandon it
-quietly or stop spending.
+Part of the protocol's income, paid into a wallet managed by people, is —
+for a project with no legal entity — income of those people. A contract
+governed by public vote is not, until it distributes. So there is one
+treasury and no operational wallet, and no signer anywhere in the flow of
+funds. The flexibility the operational wallet was meant to provide — small,
+frequent expenses without a vote for each — will come from the legal entity
+the protocol is expected to fund, once it exists, through periodic budgets
+approved by proposal and accounted for in public. Until then, a payment for
+work done for the protocol is a proposal like any other.
 
-The two-location structure resolves the tension without pretending it does
-not exist:
+## 11.3 What flows in, and when
 
-- Large decisions — reserves, allocations, anything material — are voted. No
-  trust required.
-- Small operational costs are handled by a multisig funded by a limited and
-  ongoing revenue share. Trust required, but **bounded and accountable**.
+**At launch, nothing from fees.** `marketingWallet` is set to the timelock
+at deployment, and the share of the marketing fee routed to stakers is set
+to 1000 basis points — all of it — in the second deployment phase. The
+arithmetic makes the amount that would reach the treasury exactly zero, and
+no transaction to that address fires. The post-broadcast verification
+asserts the share from mined state.
 
-The operational wallet never holds the protocol's reserves. If a signing key
-were compromised, the exposure is the current operating balance, not the
-treasury. The vault stays locked either way.
+**From the first vote, 40%.** The first mainnet proposal sets the split to
+60% stakers / 40% treasury — the 60/40 the code was written with, now
+pointed at a contract rather than a wallet. From that vote on, the
+treasury's share accumulates in BNB, untouched by anyone, until a further
+vote spends it.
 
-This is the structure used by mature DAOs — a governed treasury alongside
-operational multisigs with limited budgets — for the same reasons.
+**Three inflows the code provides by itself.**
 
-## 11.3 What governance controls here
+- *The legacy tokens.* Every migrating holder's DMX are transferred to the
+  treasury, where they stay in non-circulating custody for the entire claim
+  window — an audit requirement (finding #6), now a property of a contract
+  rather than a promise by signers: nothing can move them before a vote.
+- *The unclaimed DMN.* After the deadline, governance sweeps whatever DMN
+  remain in the migration contract into the treasury (Section 4.4).
+- *The pool itself.* The LP tokens of the initial DMN/WBNB liquidity are
+  transferred from the deployer to the timelock right after the liquidity is
+  added, in a published transaction, and the launch record asserts from
+  mined state that the deployer holds none. The pool can no longer be
+  withdrawn except by vote, and the treasury's position in it grows with
+  every swap's fee.
 
-Even the operational wallet is not outside the system. The address that
-receives the marketing share is set by a governance-only function: the DAO
-can redirect that revenue stream at any time, by vote. What it does not do is
-approve each individual payment.
+**And, in future, the fees of any service module the DAO adds.**
+
+## 11.4 What governance controls here
+
+The recipient of the fee share and the split between stakers and treasury
+are set by governance-only functions: the DAO can redirect that stream at
+any time, by vote. Every outflow is a proposal; there is no standing budget
+inside the protocol and no one authorised to spend without a vote.
 
 Two *destinations* are permanently fixed, beyond even governance's power to
 redirect: the dead address that receives burned tokens, and the migration
-treasury. Both pointers are `immutable`, set at deployment. The distinction
-deserves precision, because the two cases are not the same. Tokens at the
-dead address are beyond anyone's reach, forever. The migration treasury is a
-multisig: its **address** cannot be changed by anyone, but the funds it
-holds are managed by its signers — under the custody commitment made for the
-migration, which keeps the collected legacy tokens out of circulation for
-the entire claim window. What no majority can do is quietly point either
-stream somewhere else.
+treasury. Both pointers are `immutable`, set at deployment. Tokens at the
+dead address are beyond anyone's reach, forever. The migration treasury is
+the timelock: its address cannot be changed by anyone, and what it holds
+moves only by vote. What no majority can do is quietly point either stream
+somewhere else.
 
-## 11.4 Commitments
+## 11.5 The project's own tokens
 
-The operational wallet's signers will be public. Its spending will be
-reportable on-chain, because every transaction it makes is visible by
-construction. And if the community concludes that the arrangement should
-change — a lower share, a spending cap enforced in code, full treasury
-control — that is a proposal like any other.
+The two DMX marketing wallets described in 4.1.4 — the owner's and the
+second one — hold about 42% of the old supply. Neither will ever claim. The
+corresponding DMN stay in the migration contract and reach the treasury
+through `sweepUnclaimed()` after the deadline, without a transfer, without a
+fee, and without passing through any person's hands. The project's tokens
+become the protocol's, and they do not vote: governance is decided by those
+who bought their tokens, the team included. What they are for is decided
+use by use, by public vote; what they are not for is written in the
+treasury policy — no burn by decision, no distribution to holders, stakers
+or anyone who has not done work for the protocol, no lotteries.
+
+## 11.6 The continuity burn
+
+DMX tokens sent to the dead address over the years cannot migrate: no key
+exists to claim for them. The DMN that correspond to them are swept to the
+treasury with the rest and then sent, by governance vote, to the dead
+address — the same amount the DMX dead address holds at a stated block. Once
+there, anyone may call `burnDeadBalanceToFloor()` and remove them from the
+supply for good. DMN's supply thus resumes exactly where DMX's burn left off
+— and this time the supply actually decreases, which the predecessor's
+accounting never did (4.1.2).
+
+## 11.7 Commitments
+
+The treasury's address, its balances and every proposal are public. Its
+spending is reportable on-chain because every transaction it makes is
+visible by construction. Its policy — what it holds, what it may do, what it
+will never do — is published as
+[`docs/TREASURY_POLICY_v1.0.md`](https://github.com/daimon-dao/daimon-dao/blob/master/docs/TREASURY_POLICY_v1.0.md)
+and can be amended only by the same process that moves the funds. There are
+no signers to name, because there is no one to trust.
 
 ---
 
@@ -1523,16 +1671,21 @@ This roadmap distinguishes between what exists, what is intended, and what is
 a long-term possibility. No dates are given beyond the current phase, and
 nothing below constitutes a commitment to deliver.
 
-It is also, by design, incomplete. Section 12.5 explains why.
+It is also, by design, incomplete. Section 12.4 explains why.
 
 ## 12.1 Phase 1 — Now
 
 The protocol described in this document: token, staking, governance, timelock,
-migration. Deployed and fully exercised on BSC testnet, frozen for external
-audit, awaiting review before mainnet deployment.
+migration. Audited, with the report published and the audited range frozen
+at tag `audit-final`; deployed and exercised three times — the July
+testnet campaign, then the two post-audit rehearsals of the launch order
+with the mainnet scripts, on a local fork and on the public testnet
+(Section 10.6).
 
-Completing this phase means: audit concluded and published, mainnet
-deployment, migration window open, initial liquidity in place.
+What remains of this phase: mainnet deployment through the published
+checklist, the migration window open, initial liquidity in place with its LP
+tokens in the treasury, and the first governance proposals of the treasury
+policy. No date is given.
 
 ## 12.2 Phase 2 — Daimon as a DeFi protocol
 
@@ -1584,27 +1737,38 @@ than announced. Modules that handle user funds will be built with the same
 constraints as the core protocol: no owner, no privileged withdrawal, no
 parameter without a bound.
 
-## 12.3 Phase 3 — An active treasury
+**The treasury module.** The treasury exists from launch — it is the
+timelock, Section 11 — and until a dedicated module exists it operates by
+ad-hoc proposals: few, small, one at a time. A treasury module — an
+allowlist of approved assets and protocols, per-operation limits, its own
+audit — comes after launch and after the first service module, when the
+treasury can pay for it. A treasury able to interact with external contracts
+is the largest and most attractive attack surface a protocol can create, and
+it is not built on credit.
 
-The treasury currently holds assets and does nothing with them. A future
-capability would allow the DAO to allocate them into approved protocols, so
-that idle capital generates revenue feeding the same cycle.
+What the treasury is meant to hold is decided already, and will be reached
+by proposals over time: **20% BNB, 40% BTCB, 40% XAUt** — the chain's own
+asset for operations, gas and deposits, and the two premises the project
+started from, Bitcoin and gold. **Never stablecoins**: not as a reserve, not
+as a parking place, not as an exception. What can be printed is not money
+by this treasury's definition.
 
-Mechanically this is a timelock call to an approved contract, following a
-vote. The difficulty is not the mechanism: a treasury able to interact with
-external contracts is the largest and most attractive attack surface a
-protocol can create. It would require an allowlist of approved protocols
-rather than arbitrary calls, per-operation limits, a dedicated audit, and
-deployment only after the core protocol has operated on mainnet long enough
-to be considered stable.
+**Said plainly: BTCB and XAUt are custodial wrappers.** Native Bitcoin does
+not exist on BNB Chain, and gold exists on no chain except as a claim on
+bars in someone's vault. Holding them means accepting an issuer's risk. The
+treasury accepts it, states it, and pursues the only mitigation there is:
+the deepest, most audited issuers available on this chain, and
+diversification across issuers as more become available. The choice of XAUt
+is a choice of chain, not of faith.
 
-**On what this is not.** Capital that generates return is capital that carries
-risk: third-party contract failure, impermanent loss, market conditions.
-Returns may be positive, zero, or negative. Nothing here promises yield, and
-any strategy would be selected by the community with its risks stated
-explicitly in the proposal.
+**On what this is not.** Capital that earns is capital that risks:
+third-party contract failure, impermanent loss, market conditions. Yields
+may be positive, zero, or negative. Nothing here promises yield; every
+strategy is proposed with its risks written in the proposal itself, and what
+the treasury will never do — leverage, derivatives, trading, oracles,
+stablecoins, distributions to individuals — is written in its policy.
 
-## 12.4 Phase 4 — Infrastructure
+## 12.3 Phase 3 — Infrastructure
 
 A distant possibility, included because a roadmap that stops at the
 comfortable horizon is not a roadmap.
@@ -1628,7 +1792,7 @@ design, the principle of ownerlessness — these are logic, and logic is
 portable. A different chain would change where the protocol runs, not what it
 does.
 
-## 12.5 The roadmap is not fixed
+## 12.4 The roadmap is not fixed
 
 Everything above will be wrong in some respect, and that is expected.
 
@@ -1694,8 +1858,8 @@ poorly. The seven-day timelock exists so that a mistake is visible before it
 takes effect, not so that it becomes impossible.
 
 **The code may contain flaws.** It has been tested extensively, analysed
-statically, attacked deliberately by its own authors, and submitted for
-independent review. None of that makes it perfect. Contracts audited by the
+statically, attacked deliberately by its own authors, and independently
+audited, with the report public. None of that makes it perfect. Contracts audited by the
 best firms in the industry have been exploited. The honest statement is that
 we have reduced the probability of failure as far as we know how, not that we
 have eliminated it.
@@ -1745,10 +1909,13 @@ knowledge at the date of publication. Contract addresses, parameters, and
 technical details should be verified directly on-chain, which remains the
 authoritative source in all cases.
 
+The full legal disclaimer and terms of use are published in the repository
+as `DISCLAIMER_TERMS`; the English text is the authoritative one.
+
 ---
 
 **Repository:** `github.com/daimon-dao/daimon-dao`
-**Audit scope:** tag `audit-scope-v2`
+**Audited reference:** tag `audit-final` (scope submitted at `audit-scope-v2`)
+**Audit report:** [Zenith, August 2026](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
 
-*Draft v0.1 — pending external audit. This document will be updated to
-reflect the audit outcome before publication.*
+*v0.2 — post-audit release.*

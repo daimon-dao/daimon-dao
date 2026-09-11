@@ -13,7 +13,7 @@ is exempt, so exempting Migration has no effect: the exemption target is the
 TREASURY -- which, since the two-phase deploy, IS the Timelock.
 
 **The predecessor, recorded here explicitly** (until now it appeared only in
-the whitepaper, section 4.1):
+the protocol paper, section 4.1):
 
 - DMX token: `0x36EbA94407B53c631eE822C219e94580fadd67c7` (BSC mainnet,
   chain 56).
@@ -253,7 +253,7 @@ liquidity)**
 - [ ] Verify a small test swap triggers the fee correctly (4%) and that
       accumulated fees reach the threshold path as expected
 - [ ] Confirm the buyback path executes on a real pool with real slippage â€”
-      this is the least-proven surface, flagged in the whitepaper and to
+      this is the least-proven surface, flagged in the protocol paper and to
       every auditor
 
 ## dApp
@@ -297,7 +297,7 @@ liquidity)**
 - [ ] Set `NEXT_PUBLIC_CHAIN_ID=56` (this alone removes the noindex tag and
       the testnet banner)
 - [ ] Add the new domain to the WalletConnect/Reown allowlist
-- [ ] Update every link: README, org profile, whitepaper, social channels
+- [ ] Update every link: README, org profile, protocol paper, social channels
 - [ ] Announce the official domain explicitly and repeatedly: at launch,
       clone sites will appear
 
@@ -335,7 +335,7 @@ and a statement of intent, not the main channel.
       the treasury can fund it. A structure decided by DAO vote and paid from
       protocol revenue is more coherent with the project than one funded
       personally in advance.
-- [ ] Confirm the whitepaper disclaimer (Section 14) is adequate for the
+- [ ] Confirm the protocol paper disclaimer (Section 14) is adequate for the
       jurisdictions where the interface is accessible
 - [ ] Review tax obligations arising from protocol operations and treasury
       holdings

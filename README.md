@@ -6,7 +6,7 @@
 
 **No owner. No mint. Floor 21B. — DAO on BNB Chain**
 
-**[📄 Whitepaper v0.1 (EN)](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_EN_v0.1.pdf)** · [versione italiana](https://github.com/daimon-dao/daimon-dao/releases/download/whitepaper-v0.1/Daimon_Whitepaper_IT_v0.1.pdf) · [release](https://github.com/daimon-dao/daimon-dao/releases/tag/whitepaper-v0.1)
+**[📄 Protocol paper v0.2 (EN)](docs/protocol-paper/Daimon_Protocol_Paper_EN_v0.2.pdf)** · [versione italiana](docs/protocol-paper/Daimon_Protocol_Paper_IT_v0.2.pdf) · [changelog](docs/protocol-paper/CHANGELOG.md) · [v0.1 release](https://github.com/daimon-dao/daimon-dao/releases/tag/whitepaper-v0.1)
 
 **[🛡️ Zenith Audit Report (Aug 2026)](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)** — full report published: 37 findings, all resolved (29 fixed in code, 8 accepted with rationale). Audited reference frozen at tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
 
@@ -59,10 +59,11 @@ of timelock, execute — every transaction recorded and monitored, see
 
 ## Status of decisions
 
-The whitepaper is **v0.1**, a pre-audit draft; v0.2 is in progress.
-Decisions taken after it are recorded in these documents, which take
-precedence over the whitepaper where they differ (and the deployed code
-takes precedence over all of them):
+The protocol paper is **v0.2**, the post-audit release of 2026-09-11 (the
+document was called the whitepaper up to v0.1), and it incorporates the
+decisions below. The decision documents remain the detailed record: where
+the paper and a decision document differ, the decision document takes
+precedence, and the deployed code takes precedence over all of them:
 
 - [docs/TREASURY_POLICY_v1.0.md](docs/TREASURY_POLICY_v1.0.md) — the
   treasury: one governed contract, no operational wallet, what it holds
@@ -81,8 +82,9 @@ takes precedence over all of them):
 
 ## Documentation
 
-- [docs/whitepaper/](docs/whitepaper/) — the whitepaper (EN primary, IT
-  translation), with versioning policy and changelog
+- [docs/protocol-paper/](docs/protocol-paper/) — the protocol paper (EN
+  primary, IT translation), with versioning policy, changelog and the PDF
+  build script
 - [THREAT_MODEL.md](THREAT_MODEL.md) — threat model, actors, defenses, known
   limits and design choices
 - [SECURITY.md](SECURITY.md) — how to report vulnerabilities (responsible
