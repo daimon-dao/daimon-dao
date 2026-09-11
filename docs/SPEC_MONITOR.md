@@ -49,6 +49,21 @@ suonare mai: se suona, la configurazione del deploy è sbagliata
 previsto. L'heartbeat riporta lo stato a ogni battito: "marketing
 wallet: 0 movimenti da sempre".
 
+L'INVARIANTE SI INVERTE dopo la proposta 60/40 (G1 del
+CALENDARIO_GOVERNANCE_Q1: `setMarketingWallet(TIMELOCK)` poi
+`setStakingRewardShareBps(600)`). Da quel momento il marketingWallet È
+il Timelock e le sue entrate sono ATTESE (il 40% della quota marketing
+a ogni poke): un alert URGENT su ogni entrata suonerebbe di continuo
+e ucciderebbe l'attenzione. Dopo G1 la regola diventa: entrate sul
+Timelock = notifica (o silenzio); resta URGENT qualsiasi USCITA dal
+Timelock non abbinata a un'operazione eseguita (`CallExecuted` con lo
+stesso id nello stesso ciclo). L'invariante deve quindi essere
+CONFIGURABILE (indirizzo osservato + verso: "mai in entrata" prima di
+G1, "mai in uscita senza proposta" dopo), e il cambio di configurazione
+va fatto il giorno stesso dell'esecuzione di G1 -- il bot vede
+`MarketingWalletSet(TIMELOCK)` e può proporlo, ma non deve
+auto-riconfigurarsi.
+
 DRENAGGIO DELLA POOL: leggere getReserves() della pair a ogni ciclo e
 confrontare con la lettura precedente. -20% in un blocco → urgente;
 -30% cumulativo in un'ora → urgente (copre il drenaggio graduale);
@@ -69,6 +84,15 @@ confrontare con la lettura precedente. -20% in un blocco → urgente;
    standard di OpenZeppelin: un filtro costruito sulla firma sbagliata
    non produce errori, produce silenzio — che è il modo peggiore in
    cui un monitor può fallire.
+3. Le vie SILENZIOSE verso l'esenzione fee sono TRE, non una:
+   `initialize()` (esenzioni di deploy), `setStakingContract()` (esenta
+   il suo argomento -- e lo marca mandatoryFeeExempt -- senza emettere
+   ExcludedFromFeeSet: emette solo `StakingContractSet(staking)`,
+   src/DaimonV2.sol:954-963) e -- l'unica con evento --
+   `setExcludedFromFee()`. La regola "stato all'avvio, eventi per i
+   cambi" copre anche la seconda via: su ogni `StakingContractSet` il
+   bot rilegge `isExcludedFromFee` del nuovo indirizzo invece di
+   aspettare un evento che non arriverà.
 
 Osservare gli eventi emessi dal token (nomi verificati sul sorgente e
 riletti da Chapel; le firme esatte dall'ABI):
@@ -96,6 +120,17 @@ quando diventa eseguibile. Il saldo DMN del contratto token supera
 minimumTokensBeforeSwap (c'è inventario da convertire, serve un poke).
 notifyRewardAmount con importo fuori dall'ordinario. Un singolo stake
 sopra il 5% del voting power totale.
+
+APPROVAZIONI STANTIE (policy della issue #24: le operazioni approvate
+NON scadono -- un'operazione in coda resta eseguibile finché non viene
+eseguita o cancellata). Il bot tiene la lista delle operazioni con
+`readyTimestamp` raggiunto e `executed == false` e `canceled == false`
+(letta da STORAGE, `operations(id)`, non dai log) e la riporta con
+l'ETÀ di ciascuna (ora - readyTimestamp) nell'heartbeat e in una
+notifica giornaliera finché la lista non è vuota. Non è URGENT: è
+l'informazione che permette al guardian di cancellare durante il
+mandato e a chiunque di eseguire. "Pronta e non eseguita da 3 giorni"
+è un fatto che nessuno deve scoprire per caso.
 
 ### Cosa NON osservare
 
@@ -148,6 +183,25 @@ lo stato. Intervallo suggerito per la Fase 1: 15-30 secondi.
 RPC: nodi pubblici BSC per iniziare, con più endpoint e fallback. Se
 tutti falliscono, il bot deve AVVISARE, non restare in silenzio — un
 bot che non legge la chain è un bot cieco.
+
+PRUNING DEI NODI PUBBLICI (verificato su Chapel, giorno 4 della
+campagna: eth_getLogs risponde solo sugli ultimi ~45000 blocchi e
+sotto restituisce "History has been pruned"; la finestra è rolling).
+Conseguenze di progetto:
+- l'AVVIO è basato sullo STATO: saldi, esenzioni, operazioni pendenti,
+  fee, parametri -- tutto letto con eth_call al primo ciclo. Nessuna
+  ricostruzione della storia dai log all'avvio, mai;
+- la storia degli EVENTI è best-effort dentro la finestra leggibile:
+  si segue live, a chunk di al più 50000 blocchi (cap del nodo), e un
+  chunk che risponde "pruned" viene riportato come tale, non come
+  "zero eventi";
+- `toBlock` NON deve mai superare la testa dell'endpoint che si sta
+  interrogando: con più endpoint le teste differiscono di qualche
+  blocco, e chiedere a un nodo un intervallo che finisce oltre la sua
+  testa produce risposte vuote o errori che il bot ha registrato come
+  BLIND(1) (gara osservata in esercizio). La testa si legge dallo
+  STESSO endpoint subito prima della query, e il cursore avanza solo
+  fino a quella.
 
 Telegram: bot creato con @BotFather, gruppo privato del team dedicato
 SOLO agli alert (se ci si chiacchiera dentro, gli alert si perdono).
