@@ -140,10 +140,11 @@ Ogni transazione. Variazioni di prezzo. Ogni nuovo holder.
 
 Da aggiungere quando la Fase 1 gira stabile. Saldo BNB del Timelock e
 di ogni BEP-20 rilevante (BTCB 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c,
-ETH 0x2170Ed0880ac9A755fd29B2688956BD959F933F8,
-USDT 0x55d398326f99059fF775485246999027B3197955, DMN). Riepilogo
-giornaliero con saldi e variazioni: messaggio di servizio a un'ora
-fissa, non un alert.
+XAUt 0x21cAef8A43163Eea865baeE23b9C2E327696A3bf -- Tether Gold, BEP-20,
+6 decimali --, DMN). Nessuna stablecoin: la politica della treasury le
+esclude (TREASURY_POLICY §4), quindi non c'è saldo da osservare.
+Riepilogo giornaliero con saldi e variazioni: messaggio di servizio a
+un'ora fissa, non un alert.
 
 ## FASE 3 — LE ENTRATE DEL PROTOCOLLO
 
@@ -157,7 +158,7 @@ settimanale.
 ## FASE 4 — LE POSIZIONI DEFI
 
 Solo se e quando la treasury impiegherà le riserve. Riconoscere i
-token che rappresentano posizioni (es. vUSDT = USDT su Venus),
+token che rappresentano posizioni (es. vBTCB = BTCB su Venus),
 convertirli nel valore sottostante, riportare dove sono i fondi e in
 che forma. Richiede un'integrazione per protocollo, non
 generalizzabile.
