@@ -358,13 +358,6 @@ for unincorporated projects, and the data stays with the counterparty. It
 does not make the protocol any less ownerless: no signer holds any privileged
 role on-chain.
 
-## Post-launch governance
-
-- [ ] `marketingWallet` and `stakingContract` remain modifiable **only** via
-      proposal â†’ vote â†’ queue â†’ timelock 7d â†’ execute (no EOA path).
-- [ ] Guardian renewal/rotation before the 36-month expiry, if desired, via
-      governance.
-
 ---
 
 **Freeze:** the contracts in `src/` are frozen at tag `audit-final`. Any
