@@ -137,7 +137,10 @@ In the same `.env` (or as environment variables) you can set
 and logs a warning (acceptable on testnet only). There is NO treasury
 variable: the migration treasury is derived (it IS the Timelock).
 `TESTNET_TREASURY_OVERRIDE` exists for rehearsals only -- loudly logged,
-refused on chain 56.
+refused on chain 56. The same rule applies to `MARKETING_WALLET`: by
+default the marketing wallet IS the Timelock; the variable is a testnet-only
+override, loudly logged, and refused on chain 56 (phase 1 refuses to
+simulate, phase 2 refuses a state file that carries it).
 
 ## 4. Simulation (recommended before deploy)
 

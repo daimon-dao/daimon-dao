@@ -85,9 +85,12 @@ contract DeployPhase2 is Script {
         require(address(migration.newDaimon()) == address(token), "Phase2: migration is not bound to this token");
         // The marketing wallet phase 1 wrote into the token, cross-checked
         // live: by default it is the predicted timelock this phase must
-        // fulfil; an override is honoured only if the state file says so.
+        // fulfil; an override is honoured only if the state file says so,
+        // and -- like the treasury override -- never on BSC mainnet: a state
+        // file produced with the override can never drive a mainnet phase 2.
         require(token.marketingWallet() == fileMarketing, "Phase2: token.marketingWallet does not match the state file");
         if (marketingOverridden) {
+            require(block.chainid != 56, "Phase2: the state file carries a MARKETING_WALLET override - not valid on BSC mainnet");
             console2.log("!!! MARKETING_WALLET override active on this deploy:", fileMarketing);
         } else {
             require(fileMarketing == predictedTimelock, "Phase2: state file marketing wallet is not the predicted timelock");

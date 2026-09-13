@@ -42,9 +42,12 @@ import {MockOldDaimon} from "../src/mocks/MockOldDaimon.sol";
  * launch-day input nobody should be able to get wrong). Local/testnet
  * rehearsals may set TESTNET_TREASURY_OVERRIDE instead -- loudly logged,
  * refused on BSC mainnet. MARKETING_WALLET is no longer required either:
- * by default the marketing wallet is the SAME predicted Timelock (it is
- * governance-rotatable, so an explicit MARKETING_WALLET override is still
- * honoured, loudly logged). And the predecessor fee exemption is NOT
+ * by default the marketing wallet is the SAME predicted Timelock. An
+ * explicit MARKETING_WALLET override is honoured on testnets only, loudly
+ * logged, and REFUSED on BSC mainnet exactly like the treasury override
+ * (decided after Level 2b Day 0: the launch configuration has no wallet
+ * other than the Timelock, and a rotation later is a governance proposal,
+ * not a deploy input). And the predecessor fee exemption is NOT
  * performed here any more: it is the act that opens the migration window,
  * so it belongs AFTER the post-broadcast verification (see the launch
  * order in CHECKLIST_MAINNET.md).
@@ -65,10 +68,21 @@ contract DeployPhase1 is Script {
         // the marketing share of the fees, which is nothing while
         // stakingRewardShareBps == 1000, and it stays modifiable by governance
         // (setMarketingWallet). MARKETING_WALLET survives as an EXPLICIT
-        // override, loudly logged; the campaign harness uses it to point the
-        // wallet at a keyless sentinel that must receive nothing.
+        // override for local/testnet rehearsals only, loudly logged (the
+        // Level-1 harness points it at a keyless sentinel that must receive
+        // nothing). On BSC mainnet it is REFUSED, like the treasury override
+        // below and for the same reason: a hand-typed wallet is a launch-day
+        // input nobody should be able to get wrong. The guard sits HERE,
+        // before any transaction, so a production run with the override set
+        // fails in simulation with nothing broadcast.
         address marketingOverride = vm.envOr("MARKETING_WALLET", address(0));
         bool marketingOverridden = marketingOverride != address(0);
+        if (marketingOverridden) {
+            require(
+                block.chainid != 56,
+                "Phase1: MARKETING_WALLET override is not available on BSC mainnet (chain 56). The marketing wallet IS the Timelock."
+            );
+        }
         address oldDaimonAddr = vm.envOr("OLD_DAIMON", address(0));
         uint256 oldSupply = vm.envOr("OLD_SUPPLY", uint256(1_000_000_000 ether));
         uint256 migrationDuration = vm.envOr("MIGRATION_DURATION", uint256(30 days));
@@ -147,8 +161,9 @@ contract DeployPhase1 is Script {
         // Same prediction, same reasoning: initialize() needs the address
         // before the Timelock exists, and phase 2 must land the Timelock
         // there or refuse. Unlike the treasury this one is NOT immutable
-        // (governance can rotate it later), which is why an explicit
-        // override is tolerated instead of refused on mainnet.
+        // (governance can rotate it later through a proposal) -- which is
+        // exactly why the deploy takes no override on mainnet: the launch
+        // wallet is the Timelock, any other wallet is a governance decision.
         address marketingWallet = marketingOverridden ? marketingOverride : predictedTimelock;
 
         // ---- 4. UUPS proxy with atomic initialize ----
