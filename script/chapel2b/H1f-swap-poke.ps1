@@ -28,7 +28,13 @@ $sDmn = CQ $st.token "balanceOf(address)(uint256)" @($script:AddrBook.stranger)
 $inv1 = Fee-Inventory
 $exp96 = [System.Numerics.BigInteger]::Divide($amt * 96, 100)
 $expInv = [System.Numerics.BigInteger]::Divide($amt * $liq, 1000)
-Log-Step "H1.18" "oldowner sends 0.50 B DMN to the stranger (an ordinary, taxed transfer)" "the stranger receives 96% (+ its reflection share, < 0.01%); inventory += 3% (liquidityFee) exactly" "stranger DMN=$sDmn wei (96% = $exp96), inventory +$($inv1 - $inv0) wei (expected $expInv)" $hS0.hash $(if ($sDmn -ge $exp96 -and (($sDmn - $exp96) * 10000) -le $exp96 -and ($inv1 - $inv0) -eq $expInv) { "PASS" } else { "DEVIATION" })
+## Inventory expectation, corrected BEFORE this runner ran (H1.16 note): the
+## contract's fee inventory is a reflection-participating balance, so every
+## taxed transfer credits it the 3% liquidityFee PLUS its pro-rata share of
+## the 1% reflection (about 1.7e-5 of the fee at today's balances). The
+## assert is therefore "3% exactly floored, plus at most 0.01% of it", the
+## form Day 0 used (>=), tightened with an upper bound.
+Log-Step "H1.18" "oldowner sends 0.50 B DMN to the stranger (an ordinary, taxed transfer)" "the stranger receives 96% (+ its reflection share, < 0.01%); inventory += 3% (liquidityFee) plus the contract's own reflection share (< 0.01% of it)" "stranger DMN=$sDmn wei (96% = $exp96), inventory +$($inv1 - $inv0) wei (3% = $expInv, extra $($inv1 - $inv0 - $expInv))" $hS0.hash $(if ($sDmn -ge $exp96 -and (($sDmn - $exp96) * 10000) -le $exp96 -and ($inv1 - $inv0) -ge $expInv -and (($inv1 - $inv0 - $expInv) * 10000) -le $expInv) { "PASS" } else { "DEVIATION" })
 
 # ---- Step 9: the test sell through the real router ------------------------
 $sellAmt = BW "0.05"
@@ -44,7 +50,7 @@ $pairGot = $resA[0] - $resB[0]
 $exp96s = [System.Numerics.BigInteger]::Divide($sellAmt * 96, 100)
 $exp95s = [System.Numerics.BigInteger]::Divide($sellAmt * 95, 100)
 $expInvS = [System.Numerics.BigInteger]::Divide($sellAmt * $liq, 1000)
-Log-Step "H1.19" "Step 9: the stranger sells 0.05 B through the real router" "the pair receives EXACTLY 96% of the amount sent (fee 4%), NOT 95%; inventory += 3% exactly; the seller receives BNB" "pair DMN reserve +$pairGot wei = $(FmtB $pairGot) (96% would be $exp96s, 95% would be $exp95s); inventory +$($inv2 - $inv1) wei (expected $expInvS); stranger BNB delta (gas included)=$(FmtT ($sBnb1 - $sBnb0)), BNB out of the pool=$(FmtT ($resB[1] - $resA[1])); sell gas=$($hS.gasUsed)" "$($hA.hash) / $($hS.hash)" $(if ($pairGot -eq $exp96s -and ($inv2 - $inv1) -eq $expInvS -and ($resB[1] - $resA[1]) -gt 0) { "PASS" } else { "DEVIATION" })
+Log-Step "H1.19" "Step 9: the stranger sells 0.05 B through the real router" "the pair (reward-excluded) receives EXACTLY 96% of the amount sent (fee 4%), NOT 95%; inventory += 3% plus the contract's reflection share (< 0.01% of it); the seller receives BNB" "pair DMN reserve +$pairGot wei = $(FmtB $pairGot) (96% would be $exp96s, 95% would be $exp95s); inventory +$($inv2 - $inv1) wei (3% = $expInvS, extra $($inv2 - $inv1 - $expInvS)); stranger BNB delta (gas included)=$(FmtT ($sBnb1 - $sBnb0)), BNB out of the pool=$(FmtT ($resB[1] - $resA[1])); sell gas=$($hS.gasUsed)" "$($hA.hash) / $($hS.hash)" $(if ($pairGot -eq $exp96s -and ($inv2 - $inv1) -ge $expInvS -and (($inv2 - $inv1 - $expInvS) * 10000) -le $expInvS -and ($resB[1] - $resA[1]) -gt 0) { "PASS" } else { "DEVIATION" })
 Log-Step "H1.20" "Did the router sell trigger any conversion? (#1)" "no: router-initiated transfers skip the automation, inventory only grew, contract BNB zero, Timelock BNB zero" "inventory $(FmtB $inv1) -> $(FmtB $inv2), contract BNB=$(FmtT (Bal $st.token)), timelock BNB=$(FmtT (Bal $st.timelock))" "-" $(if ($inv2 -gt $inv1 -and (Bal $st.token) -eq 0 -and (Bal $st.timelock) -eq 0) { "PASS" } else { "DEVIATION" })
 
 # ---- Arm the inventory above the threshold with ordinary transfers --------

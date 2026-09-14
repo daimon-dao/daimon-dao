@@ -17,23 +17,30 @@ $tlEx = CQRaw $st.old "excludedFromFee(address)(bool)" @($st.timelock)
 Log-Step "H1.10" "Why the owner can claim before 11b: its status on the predecessor, read live" "owner() == oldowner (cap-exempt as sender/recipient), excludedFromFee(oldowner) == true (no 11% on the claimant -> treasury leg); the treasury itself NOT exempt (11b not done), cap still 1.5B (11a not done)" "owner=$owner, excludedFromFee(oldowner)=$ex, excludedFromFee(timelock)=$tlEx, maxTxAmount=$(FmtB $cap)" "-" $(if ("$owner".ToLower() -eq "$($script:AddrBook.oldowner)".ToLower() -and "$ex" -eq "true" -and "$tlEx" -eq "false" -and $cap -eq (BW "1.50")) { "PASS" } else { "DEVIATION" })
 
 # ---- Sizing: the tBNB actually available, the price parameter -------------
+# Decision (c) on the maxTx finding (operator, 2026-09-14): the initial
+# liquidity is the LARGEST single addLiquidityETH the token's 5B maxTx
+# allows -- 5B gross, 4.8B net, BNB leg = 4.8B x price -- no parameter
+# change, no exemption to any person; further depth comes from the
+# treasury, which is maxTx-exempt through GOVERNANCE_ROLE. On Chapel the
+# same ratio is scaled down to the tBNB oldowner holds, price unchanged.
 $avail = Bal $script:AddrBook.oldowner
 $gasReserve = [System.Numerics.BigInteger]::Parse("30000000000000000")      # 0.03 tBNB kept for the day's gas
-$target = [System.Numerics.BigInteger]::Parse("3000000000000000000")        # 3 tBNB
+$tax = CQ $st.token "taxFee()(uint256)"; $liq = CQ $st.token "liquidityFee()(uint256)"
+$maxTx = CQ $st.token "maxTxAmount()(uint256)"
+$capNet = NetOfGross $maxTx $tax $liq                                        # the net the pair receives from a maxTx-sized gross
+$target = [System.Numerics.BigInteger]::Divide($capNet * $script:PRICE_WEI_PER_TOKEN, $script:E18)   # the BNB leg of that net at the price
 $bnbWei = $avail - $gasReserve
 if ($bnbWei -gt $target) { $bnbWei = $target }
 $mille = [System.Numerics.BigInteger]::Parse("1000000000000000")
 $bnbWei = [System.Numerics.BigInteger]::Divide($bnbWei, $mille) * $mille       # whole 0.001 tBNB
 if ($bnbWei -lt [System.Numerics.BigInteger]::Parse("50000000000000000")) { throw "STOP: oldowner holds $(FmtT $avail) tBNB -- less than 0.05 usable for liquidity" }
-$tax = CQ $st.token "taxFee()(uint256)"; $liq = CQ $st.token "liquidityFee()(uint256)"
 $netTarget = [System.Numerics.BigInteger]::Divide($bnbWei * $script:E18, $script:PRICE_WEI_PER_TOKEN)
 $gross = CeilDiv ($netTarget * 1000) (1000 - $tax - $liq)
 $net = NetOfGross $gross $tax $liq
-$maxTx = CQ $st.token "maxTxAmount()(uint256)"
 $sizingOk = ($net -ge $netTarget -and ($net - $netTarget) -lt 1000 -and $gross -le $maxTx -and $tax -eq 10 -and $liq -eq 30)
-Log-Step "H1.11" "Sizing from live values: tBNB available to oldowner vs the 3 tBNB target; DMN leg derived from the price parameter $($script:PRICE_LABEL)" "BNB = min(3, available - 0.03) rounded to 0.001; net DMN = BNB * 1e18 / $($script:PRICE_WEI_PER_TOKEN); gross = ceil(net * 1000 / (1000 - taxFee - liquidityFee)) so that the pair receives >= the net target by < 1000 wei; gross <= token maxTxAmount (a single addLiquidityETH)" "available=$(FmtT $avail) tBNB, used=$(FmtT $bnbWei) tBNB$(if ($bnbWei -lt $target) { ' (LESS than the 3 tBNB target: the faucet allowed less)' } else { ' (the full target)' }); fees=$tax/$liq per mille; net target=$(FmtB $netTarget) ($netTarget wei); gross=$(FmtB $gross) ($gross wei); net of gross=$net wei (over target by $($net - $netTarget) wei); token maxTxAmount=$(FmtB $maxTx)" "-" $(if ($sizingOk) { "PASS" } else { "DEVIATION" })
-if ($gross -gt $maxTx) { Log-Note "STOP: at this price the DMN leg ($(FmtB $gross) gross) exceeds the token's maxTxAmount ($(FmtB $maxTx)): the provider is not exempt, a single addLiquidityETH would revert with TransferAmountExceedsMaxTx, and a second router add re-prices on the gross (#17). Not worked around; decision for the operator (the finding stands for mainnet at 3 BNB: 3 / 4.69e-10 = 6.40 B net, 6.66 B gross, cap 5 B)."; throw "STOP: gross exceeds maxTxAmount" }
+Log-Step "H1.11" "Sizing from live values, decision (c) on the maxTx finding: the largest single addLiquidityETH the token's maxTx allows, scaled to the tBNB oldowner holds; DMN leg derived from the price parameter $($script:PRICE_LABEL)" "cap: maxTxAmount gross -> net -> BNB leg at the price (mainnet: 5B gross, 4.8B net, $(FmtT $target) BNB); BNB = min(cap leg, available - 0.03) rounded to 0.001; net DMN = BNB * 1e18 / $($script:PRICE_WEI_PER_TOKEN); gross = ceil(net * 1000 / (1000 - taxFee - liquidityFee)) so the pair receives >= the net target by < 1000 wei; gross <= maxTxAmount (ONE addLiquidityETH, no exemption, no parameter change)" "token maxTxAmount=$(FmtB $maxTx) -> cap net=$(FmtB $capNet) -> cap BNB leg=$(FmtT $target) tBNB; available=$(FmtT $avail) tBNB, used=$(FmtT $bnbWei) tBNB$(if ($bnbWei -lt $target) { ' (LESS than the cap leg: Chapel scale, the ratio kept)' } else { ' (the full cap leg)' }); fees=$tax/$liq per mille; net target=$(FmtB $netTarget) ($netTarget wei); gross=$(FmtB $gross) ($gross wei); net of gross=$net wei (over target by $($net - $netTarget) wei)" "-" $(if ($sizingOk) { "PASS" } else { "DEVIATION" })
 if (-not $sizingOk) { throw "STOP: sizing assert failed" }
+Log-Note "Decision (c), recorded: the initial liquidity is the largest single addLiquidityETH the 5B maxTx allows (5B gross, 4.8B net, BNB leg = 4.8B x 4.69e-10 = $(FmtT $target) BNB on mainnet). No parameter change, no exemption to any person. Further depth comes from the treasury, which is maxTx-exempt through GOVERNANCE_ROLE (the Timelock holds every LP token from step 6 and adds liquidity by proposal). On Chapel the same ratio is scaled down to what oldowner holds; the price is the parameter, unchanged."
 
 # ---- 5a: the claim, exactly gross ----------------------------------------
 $tOld0 = CQ $st.old "balanceOf(address)(uint256)" @($st.timelock)

@@ -20,7 +20,12 @@ $ErrorActionPreference = "Stop"
 $script:RPC  = "https://bsc-testnet.publicnode.com"
 $script:ROOT = (git rev-parse --show-toplevel)
 $script:LOG  = Join-Path $ROOT (Join-Path "docs" "CHAPEL_2B_RESULTS.md")
-$script:STATE = Join-Path $ROOT (Join-Path "script" (Join-Path "chapel2b" "state.json"))
+# StatePath, not STATE: PowerShell variable names are case-insensitive and a
+# runner assigning $state (H3a, 2026-09-14: "$state = Prop-State ...")
+# overwrote the library's state-file path with the word "Pending". Same
+# lesson as AddrBook at Level 2; the name is deliberately one no scenario
+# would use.
+$script:StatePath = Join-Path $ROOT (Join-Path "script" (Join-Path "chapel2b" "state.json"))
 $script:ROUTER = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"   # PancakeSwap V2, BSC testnet
 $script:GUARDIAN = "0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F" # the test Safe (2 of 3)
 $script:DEAD = "0x000000000000000000000000000000000000dEaD"
@@ -134,13 +139,19 @@ function Expect-Revert { param($who, $to, $sig, [string[]]$sendArgs = @(), [stri
     $j = $r | ConvertFrom-Json
     if ($j.status -eq "0x1") { return "DID-NOT-REVERT ($($j.transactionHash))" }
   }
+  # cast's stderr arrives as ErrorRecords that Out-String wraps at the
+  # console width, so a revert string can be split across lines anywhere
+  # (H2.2, 2026-09-14: "Transfer amount exceeds the maxTxAmount." was
+  # returned by the chain and missed by the matcher). Match on the
+  # whitespace-flattened text.
+  $flat = ($r -replace '\s+', ' ').Trim()
   if ($errSig -ne "") {
     $name = $errSig -replace "\(\)$", ""
     $sel = ""
     if ($errSig -match "^\w+\(.*\)$") { $sel = (cast sig $errSig 2>$null) }
-    if ($r -match [regex]::Escape($name)) { return "reverted with $name" }
-    if ($sel -and $r -match [regex]::Escape($sel.Substring(0, 10))) { return "reverted with $name" }
-    return "reverted (different reason): $(($r -replace '\s+',' ').Trim().Substring(0, [Math]::Min(160, $r.Trim().Length)))"
+    if ($flat -match [regex]::Escape($name)) { return "reverted with $name" }
+    if ($sel -and $flat -match [regex]::Escape($sel.Substring(0, 10))) { return "reverted with $name" }
+    return "reverted (different reason): $($flat.Substring(0, [Math]::Min(160, $flat.Length)))"
   }
   return "reverted"
 }
@@ -160,8 +171,23 @@ function Assert-Invariants { param([string]$context)
   $st.invariantChecks = [int]$st.invariantChecks + 1
   Save-State $st
 }
-function Save-State { param($obj) $obj | ConvertTo-Json -Depth 5 | Set-Content $script:STATE -Encoding utf8 }
-function Load-State { if (Test-Path $script:STATE) { return (Get-Content $script:STATE -Raw | ConvertFrom-Json) } else { return $null } }
+## The invariant counter lives in the file, not in any runner's copy: a
+## runner saves the object it loaded at its start, so without this merge
+## its final Save-State would clobber the count Assert-Invariants advanced
+## meanwhile (Day 1, 2026-09-14: the file said 6 where 21 checks had run;
+## reconstructed from the runners' code and recorded in the journal).
+function Save-State { param($obj)
+  if (Test-Path $script:StatePath) {
+    try {
+      $onDisk = Get-Content $script:StatePath -Raw | ConvertFrom-Json
+      if ($onDisk -and [int]$onDisk.invariantChecks -gt [int]$obj.invariantChecks) {
+        $obj | Add-Member -NotePropertyName invariantChecks -NotePropertyValue ([int]$onDisk.invariantChecks) -Force
+      }
+    } catch {}
+  }
+  $obj | ConvertTo-Json -Depth 5 | Set-Content $script:StatePath -Encoding utf8
+}
+function Load-State { if (Test-Path $script:StatePath) { return (Get-Content $script:StatePath -Raw | ConvertFrom-Json) } else { return $null } }
 function S { return Load-State }
 function Set-StateField { param($name, $value)
   $st = Load-State
@@ -255,8 +281,13 @@ function Run-ForgeScript { param([string]$path, [string]$who, [switch]$Broadcast
 ## 11 abstain, 12 canceled, 13 executed, 14 queued, 15 salt, 16 quorumBps.
 function Prop-Field { param($id, [int]$idx)
   $st = S
+  $to = "$($st.governor)"
+  if (-not ($to -match "^0x[0-9a-fA-F]{40}$")) { throw "Prop-Field: no governor in the state file ('$to')" }
   $sig = "proposals(uint256)(address,address,uint256,bytes,string,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bytes32,uint256)"
-  $r = (cast call $st.governor $sig "$id" --rpc-url $script:RPC 2>&1 | Out-String)
+  $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $r = (cast call $to $sig "$id" --rpc-url $script:RPC 2>&1 | Out-String)
+  $c = $LASTEXITCODE; $ErrorActionPreference = $prev
+  if ($c -ne 0) { throw "Prop-Field FAILED [$to id=$id]: $(($r -replace '\s+',' ').Trim())" }
   $lines = @()
   foreach ($l in ($r -split "`n")) { $t = $l.Trim(); if ($t -ne "") { $lines += $t } }
   return (($lines[$idx] -split "\s+")[0]).Trim()
