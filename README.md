@@ -79,6 +79,8 @@ precedence, and the deployed code takes precedence over all of them:
   two testnet campaigns executed (kept as the original plan)
 - [CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md) — the level-2 campaign
   journal: every step, every hash, the campaign closure
+- [docs/TEAM_HOLDINGS.md](docs/TEAM_HOLDINGS.md) — the team's holdings and
+  the commitment not to sell without 30 days' public notice
 
 ## Documentation
 
