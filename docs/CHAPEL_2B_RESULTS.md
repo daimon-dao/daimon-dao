@@ -646,3 +646,23 @@ parallel; day 13/14: execute (not before 2026-09-27 10:11:31 UTC), H3.4
 poke that pays the marketing branch for the first time on a public chain,
 H5 closure. The keystore password file is deleted at H5.5, after the
 closing journal is pushed.
+
+## Day 2 -- Vote (2026-09-15)
+
+The governance cycle on the real clock, second sitting: the vote on
+proposal 0. One signed transaction today (castVote by the holder), the
+same harness and roles as Day 1, the same invariant asserted after the
+send. Preflight is read from live state and refuses to loop: a Pending
+proposal stops the runner with the seconds to voteStart. Proposal 1, the
+duplicate, is read and left untouched.
+
+
+### H3.2 -- The vote: the holder casts FOR on proposal 0; quorum from one staker; the duplicate receives nothing
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H3.2.1 | Preflight from live state, before the vote | proposal 0 Active (voteStart <= now <= voteEnd); the holder's votingPowerAt(snapshot 130964515) == snapshotTotalVotingPower == totalVotingPowerAt(snapshot) == 4.00 B; quorum needed == 1000 bps of 4.00 B == 0.40 B; hasVoted false on 0 and 1; tallies 0/0/0 on both; proposal 1 Active too | block=131187872 ts=1789481203 (2026-09-15 14:06:43 UTC), voting open since 14112 s, closes in 417888 s; state0=Active, state1=Active; votingPowerAt(holder,130964515)=4.0000 B, totalVotingPowerAt(130964515)=4.0000 B, snapshotTotalVotingPower=4.0000 B, quorumBpsSnapshot=1000, quorumNeeded=0.4000 B (400000000000000000000000000 wei); hasVoted0=False hasVoted1=False; tally0 for/against/abstain=0/0/0, tally1=0/0/0 (2026-09-15 14:06 UTC) | - | PASS |
+| H3.2.2 | The holder casts FOR (support 1) on proposal 0 | tx mined; hasVoted true; forVotes == votingPowerAt(holder, snapshot) == 4.00 B, against 0, abstain 0; state still Active (the window is open); ONE log: VoteCast(id 0, holder, 1, weight == forVotes) from the governor; quorum For+Abstain >= 0.40 B; For > Against | block=131187896 ts=1789481213 (2026-09-15 14:06:53 UTC), gas=87520; state=Active, hasVoted=True; for/against/abstain=4.0000 B/0/0 (for=4000000000000000000000000000 wei); VoteCast decoded: emitter=0x41f55dac95a028c58dd51fd72eec9101ed2ded05, id=0, voter=0x583982463da108879566868506cba32e7b023576, support=1, weight=4.0000 B (4000000000000000000000000000 wei); logs in receipt=1; quorum: For+Abstain=4.0000 B vs needed 0.4000 B = 1000 % of the bar (2026-09-15 14:06 UTC) | 0xdec995de5fb825affd6eadf99f2259039d433d22451bab5370d3dd58b89f2a8a | PASS |
+| H3.2.3 | Proposal 1 (the duplicate) after the vote, read only | untouched: hasVoted false, tallies 0/0/0, still Active; it lapses to Defeated after 2026-09-20 10:13:25 UTC (quorum 0 < 0.40 B) | state1=Active, hasVoted1=False, for/against/abstain=0/0/0 (2026-09-15 14:07 UTC) | - | PASS |
+
+> Calendar: proposal 0 stays Active until voteEnd 1789899091 (2026-09-20 10:11:31 UTC); from then state() reads Succeeded (quorum 4.0000 B >= 0.4000 B, For 4.0000 B > Against 0) and queue() arms the 7-day Timelock; earliest execute if queued at once 2026-09-27 10:11:31 UTC. Proposal 1 lapses to Defeated after 2026-09-20 10:13:25 UTC and is read then. Nothing else is signed today.
