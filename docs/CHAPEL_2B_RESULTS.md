@@ -666,3 +666,121 @@ duplicate, is read and left untouched.
 | H3.2.3 | Proposal 1 (the duplicate) after the vote, read only | untouched: hasVoted false, tallies 0/0/0, still Active; it lapses to Defeated after 2026-09-20 10:13:25 UTC (quorum 0 < 0.40 B) | state1=Active, hasVoted1=False, for/against/abstain=0/0/0 (2026-09-15 14:07 UTC) | - | PASS |
 
 > Calendar: proposal 0 stays Active until voteEnd 1789899091 (2026-09-20 10:11:31 UTC); from then state() reads Succeeded (quorum 4.0000 B >= 0.4000 B, For 4.0000 B > Against 0) and queue() arms the 7-day Timelock; earliest execute if queued at once 2026-09-27 10:11:31 UTC. Proposal 1 lapses to Defeated after 2026-09-20 10:13:25 UTC and is read then. Nothing else is signed today.
+
+## Days 3-4 -- Guardian drill (2026-09-16/17)
+
+H4.1, H4.2 and H4.4 of the drill kit (`script/chapel2b/DRILL_KIT.md`,
+commit e4b422f): four Safe transactions, all four `setPaused` on the token,
+signed by the guardians through the Safe web interface with their Ledgers.
+The harness signs nothing for the Safe, by design, so this entry is written
+READ-ONLY from mined state: every receipt (status, block, logs) re-read
+with cast, every derived claim below -- who signed, what was scheduled,
+where the deadline moved -- computed from those receipts and from live
+calls. The campaign RPC (publicnode) served the four TRANSACTIONS but
+returned null for their RECEIPTS (load-balanced backends prune, the
+monitor's history lesson again); the receipts here come from the archival
+endpoint `data-seed-prebsc-1-s1.bnbchain.org:8545` (T1 cross-checked
+identical on `-2-s1`), the live reads from the campaign RPC. The times
+noted in the group during the drill (18:00:10, 21:48:31, 14:39:19,
+15:05:26) run 13-17 s AFTER the mined timestamps; the chain's are recorded.
+Rule H4.8 was applied aloud on every confirmation.
+
+The signers, as the drill names them and as the chain identifies them (the
+executor is `tx.from`; the co-signer is recovered from the ECDSA entry in
+the `signatures` field over the safeTxHash the Safe logged in
+`ExecutionSuccess`; the four transactions are the Safe's first four,
+nonces 0-3):
+
+| signer | address |
+|---|---|
+| F1 (Psy) | `0xD9dB15E21836789a2CB9AfFe6EEbe2454162fc16` |
+| F2 | `0xdFfeAEb85Bb580641351649D4AD4ce0C6ABf687f` |
+| F3 | `0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b` |
+
+### H4.1 -- Pause: F1 proposes, F2 confirms and executes -- the first setPaused(true) ever mined on this deployment
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.1.1 | T1: `setPaused(true)` through the Safe -- status, target, calldata, Safe nonce, all from mined state | status 0x1; `to` == the Safe; inner call == kit row 2a: the token, value 0, `0x16c38b3c...01`, operation CALL; the Safe's FIRST transaction (nonce 0), threshold 2 | status=0x1, block=131410964, ts=1789581597 (2026-09-16 17:59:57 UTC), gas=164551; to=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, inner target=0x48BD45D02641e688f63bD5129272C30A8828ad0b, data=0x16c38b3c...0001 (== kit 2a "setPaused(true)"), operation=0, Safe nonce=0, threshold=2 (SafeMultiSigTransaction) (2026-09-17 20:25 UTC) | 0x0c54e11750bcc957d65cafefbf5fa382a438b3ff779b7c48105ccb10b27aeb3d | PASS |
+| H4.1.2 | The events of T1 | `PausedSet(true)` + `PauseScheduled(until)` from the TOKEN (the sentinel's URGENT pair), `ExecutionSuccess` from the SAFE | PausedSet(true); PauseScheduled(until=1790791197 = 2026-09-30 17:59:57 UTC), until - ts = 1209600 s EXACTLY (+14 days, the #36 window; the guardianExpiry clamp not reached); ExecutionSuccess(safeTxHash=0xa176a7077358ba27ffe5716e6aa7617152aefcaff13935fb7600d402d1039066, payment=0) | - | PASS |
+| H4.1.3 | The choreography, from the signature bytes | exactly TWO entries in `signatures` (130 bytes); the ECDSA one recovers to F1 over the safeTxHash (the proposer); the pre-validated one (v=1) is the executor == tx.from == F2 | ECDSA(v=27): ecrecover(safeTxHash) = 0xD9dB15E21836789a2CB9AfFe6EEbe2454162fc16 (F1); pre-validated = 0xdFfeAEb85Bb580641351649D4AD4ce0C6ABf687f (F2) = tx.from | - | PASS |
+
+### H4.2 -- Unpause: F3 proposes, F1 confirms -- the window closed early, 3 h 48 m into its 14 days
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.2.1 | T2: `setPaused(false)` through the Safe | status 0x1; inner call == kit 2a "setPaused(false)"; Safe nonce 1; mined INSIDE T1's window (an early unpause, the only kind the drill runs: a lapse is H4.3, not run by the 28/08 decision) | status=0x1, block=131441401, ts=1789595294 (2026-09-16 21:48:14 UTC), gas=77887; inner target=the token, data=0x16c38b3c...0000, Safe nonce=1; 13697 s (3 h 48 m 17 s) after T1, with 1195903 s (13 d 20 h 11 m 43 s) of scheduled window unused (2026-09-17 20:25 UTC) | 0x5590d2bb4b0120108d7203c058ba04386f57907daa3cb4b2718ba323d383c67b | PASS |
+| H4.2.2 | The events of T2 | `PausedSet(false)` from the token and NO `PauseScheduled` (an unpause schedules nothing); `ExecutionSuccess` from the Safe | PausedSet(false); token logs in receipt=1 (no PauseScheduled); ExecutionSuccess(safeTxHash=0x78744755a7e24dc31409c4807232126f7ccb2da132b96d7c30fdb8f58e3ebb17, payment=0) | - | PASS |
+| H4.2.3 | The choreography, from the signature bytes | ECDSA recovers to F3 (the proposer); executor == tx.from == F1 | ECDSA(v=27): ecrecover(safeTxHash) = 0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b (F3); pre-validated = 0xD9dB15E21836789a2CB9AfFe6EEbe2454162fc16 (F1) = tx.from | - | PASS |
+
+### H4.4 -- "Psy unreachable": pause and unpause by F2 and F3 alone -- F1's key appears in neither transaction
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.4.1 | T3: `setPaused(true)`, the second pause, with F1 out of the loop | status 0x1; inner call == kit 2a "setPaused(true)"; Safe nonce 2 | status=0x1, block=131576184, ts=1789655946 (2026-09-17 14:39:06 UTC), gas=113259; inner target=the token, data=0x16c38b3c...0001, Safe nonce=2 (2026-09-17 20:25 UTC) | 0x09480f2d85b29a40d1768b129204c1b6f69dd02e21c0e52c621d9e63a2d57f5d | PASS |
+| H4.4.2 | The events of T3 | `PausedSet(true)` + `PauseScheduled(until)` again at +14 days exactly; `ExecutionSuccess` | PausedSet(true); PauseScheduled(until=1790865546 = 2026-10-01 14:39:06 UTC), until - ts = 1209600 s EXACTLY, second time to the second; ExecutionSuccess(safeTxHash=0x5347388a4864b4d8834a7bedb3a9445f787004aa0ec1bf5fed3ab650653982ec, payment=0) | - | PASS |
+| H4.4.3 | T3 choreography | ECDSA recovers to F2 (the proposer); executor == tx.from == F3; F1 nowhere | ECDSA(v=27): ecrecover(safeTxHash) = 0xdFfeAEb85Bb580641351649D4AD4ce0C6ABf687f (F2); pre-validated = 0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b (F3) = tx.from | - | PASS |
+| H4.4.4 | T4: `setPaused(false)`, closing the second window | status 0x1; inner call == kit 2a "setPaused(false)"; Safe nonce 3; `PausedSet(false)`, no `PauseScheduled`, `ExecutionSuccess` | status=0x1, block=131579664, ts=1789657513 (2026-09-17 15:05:13 UTC), gas=77875; data=0x16c38b3c...0000, Safe nonce=3; 1567 s (26 m 07 s) after T3, 1208033 s (13 d 23 h 33 m 53 s) of window unused; PausedSet(false); ExecutionSuccess(safeTxHash=0x00f16f9b45400d3d2264ef680955e49ecb7f92b6e28ab99824d60503970dd1c3, payment=0) (2026-09-17 20:25 UTC) | 0x91ab55323130c3c3c8fc700542f6a7b1ed41cb9295403a22382e47b1bed67e67 | PASS |
+| H4.4.5 | T4 choreography, and the point of the drill | ECDSA recovers to F3 (the proposer); executor == tx.from == F2; across T3 AND T4 the address of F1 appears in NO field: not tx.from, not in the signature bytes | ECDSA(v=27): ecrecover(safeTxHash) = 0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b (F3); pre-validated = 0xdFfeAEb85Bb580641351649D4AD4ce0C6ABf687f (F2) = tx.from; 0xD9dB15E2...fc16 absent from both transactions' inputs and logs | - | PASS |
+
+> The point, observed on chain: between 14:39:06 and 15:05:13 UTC on
+> 2026-09-17 the guardian paused and unpaused the token with F1 absent --
+> four signature entries across the two transactions, none of them F1's.
+> The 2-of-3 works with the operator entirely out of the loop, which is
+> what the mandate is for.
+
+### The pause credit and the migration deadline, read live (block 131622352, 2026-09-17 20:25:23 UTC)
+
+| read | expected | observed | verdict |
+|---|---|---|---|
+| token `isPaused()` / `paused` / `pauseUntil` | false / false / 0 -- both windows closed early by their unpauses | false / false / 0 | PASS |
+| token `cumulativePauseSeconds` | the UNION of the two scheduled windows, not their sum: 1209600 (T1's full window) + 74349 (T3's window outruns the first window's accounted end by T3 - T1 = 74349 s; `_pauseAccountedUntil` prevents the double count, DaimonV2.sol setPaused) = 1283949 | 1283949 (14 d 20 h 39 m 09 s) | PASS |
+| migration `effectiveMigrationDeadline()` | the kit's preparation base 1791972340 (2026-10-14 10:05:40 UTC) + cumulativePauseSeconds = 1793256289 | 1793256289 = **2026-10-29 06:44:49 UTC** | PASS |
+
+> Audit finding #36, observed on a public chain: each 2b pause
+> self-scheduled its own end at +14 days TO THE SECOND (1790791197 =
+> T1 + 1209600, 1790865546 = T3 + 1209600), needing no second call to end;
+> the early unpauses clawed nothing back; and the double-count guard meant
+> the second pause credited only the 20 h 39 m 09 s by which its window
+> outran the first. Net: the effective migration deadline moved 2026-10-14
+> -> 2026-10-29, +14 d 20 h 39 m 09 s of credit for 4 h 14 m 24 s of
+> actual pause. The kit predicted "~14 days" for the first pair alone: it
+> held, and the second pair cost the deadline only its overhang.
+
+### Findings of the drill, recorded not fixed
+
+1. **The Safe interface reported failure for transactions that succeeded
+   on chain.** On BNB Chain testnet the Safe web app returned HTTP 422 and
+   showed as "failed" transactions the chain had mined with status 0x1 --
+   all four above are status 0x1 with `ExecutionSuccess` in the logs. The
+   chain (and the monitor) is the only source of truth; the interface is a
+   convenience. Rule H4.8's premise in practice: what gets read aloud
+   before confirming is the calldata, and what settles "did it work" is
+   the receipt, never the web app's verdict.
+2. **MetaMask signs only with the account of the physically connected
+   Ledger.** With a different account selected in MetaMask than the Ledger
+   actually plugged in, signing fails with "does not belong to the
+   connected device". The fix at the desk is selecting the matching
+   account, not reconnecting the device. For the mainnet runbook.
+3. **A queued Safe transaction disappears from the other signers' view
+   once an execution attempt is made** -- including an attempt the
+   interface itself reports as failed (finding 1). Coordination has to
+   assume the executor sees state the others no longer do: the group
+   announces execution attempts aloud, and the result is confirmed from
+   the chain, not from the queue view. For the mainnet runbook.
+
+**3 scenarios plus the live accounting, 14 asserted rows: 14 PASS, 0 NOTE,
+0 DEVIATION.** The harness signed nothing; the four transactions are the
+Safe's, nonces 0-3, 433572 gas in total at 0.1 gwei. `git diff audit-final
+-- src/` stays empty (this entry only READS `setPaused`).
+
+What remains of H4, on the calendar: H4.3 (a pause left to lapse) is not
+run on the real clock, by the 2026-08-28 decision -- the self-termination
+is the E2 reference, and #36's scheduling side is now observed above.
+H4.5-H4.7 run on the P-A/P-B calendar: voting on ids 2 and 3 opened
+2026-09-16 22:54 UTC and closes 2026-09-21 22:54 UTC; the proposers' own
+FOR votes (1.20 B each against the 0.64 B quorum) must land in that window
+for the queue drills, then anyone queues after voteEnd and the Safe cancels
+inside the 7 days, stopwatch from `CallScheduled` to `Cancelled`.
+Proposal 0 is unchanged (Succeeded expected 2026-09-20 10:11:31 UTC,
+earliest execute 2026-09-27 10:11:31 UTC).
