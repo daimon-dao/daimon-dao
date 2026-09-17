@@ -784,3 +784,26 @@ for the queue drills, then anyone queues after voteEnd and the Safe cancels
 inside the 7 days, stopwatch from `CallScheduled` to `Cancelled`.
 Proposal 0 is unchanged (Succeeded expected 2026-09-20 10:11:31 UTC,
 earliest execute 2026-09-27 10:11:31 UTC).
+
+## Day 5 -- Drill proposals voted (2026-09-17)
+
+The prerequisite of the queue-side cancel drills (H4.5-H4.7), run inside
+the P-A/P-B voting window: each proposer casts its own FOR on its OWN
+proposal and on nothing else -- staker3 on id 2 (P-A, hostile), staker1
+on id 3 (P-B, harmless). The holder votes on NEITHER: it is the
+campaign's voter on proposal 0, and Scenario W requires the hostile
+proposal to pass without the team voting. Two signed transactions, the
+same harness and invariant as every day before; keystores were checked
+against the kit's proposer addresses before anything was signed.
+
+
+### D5 -- The proposers' own FOR votes on P-A (id 2) and P-B (id 3); quorum from one voter each; the holder abstains by design
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| D5.1 | Preflight from live state, before the votes | both proposals Active (voteStart <= now <= voteEnd); proposer fields == the kit's staker3/staker1; snapshots == kit (131258242 / 131258303); snapshotTotalVotingPower == 6.40 B, quorumBps 1000, quorum needed == 0.64 B; votingPowerAt(proposer, snapshot) == 1.20 B >= quorum; hasVoted false everywhere it must be (each proposer on both ids, the holder on 2 and 3); tallies 0/0/0 on both; proposal 0 exactly as Day 2 left it (Active, 4.00 B / 0 / 0, holder hasVoted true) | block=131628154 ts=1789679334 (2026-09-17 21:08:54 UTC); P-A: state=Active, proposer=0xbb843DFe3dec6D7dFc4Ef194A1a9BDc7A07eac84, snap=131258242, window 2026-09-16 22:54:30..2026-09-21 22:54:30, weight=1.2000 B, tally=0/0/0, hvSelf=False hvHolder=False; P-B: state=Active, proposer=0xfbcE9e13C309549c82B0775C8587E3470f2837b0, snap=131258303, window 2026-09-16 22:54:58..2026-09-21 22:54:58, weight=1.2000 B, tally=0/0/0, hvSelf=False hvHolder=False; cross staker3-on-3=False staker1-on-2=False; snapTvp=6.4000 B/6.4000 B, quorumNeeded=0.6400 B; proposal 0: state=Active, tally=4.0000 B/0/0, holderVoted=True (2026-09-17 21:09 UTC) | - | PASS |
+| D5.2 | staker3 casts FOR (support 1) on proposal 2 (P-A: hostile, setMaxTxAmount(type(uint256).max)) | tx mined; hasVoted true; forVotes == votingPowerAt(proposer, snapshot 131258242) == 1.20 B, against 0, abstain 0; state still Active (the window is open); ONE log: VoteCast(id 2, proposer, 1, weight == forVotes) from the governor; quorum For+Abstain >= 0.64 B; For > Against | block=131628191 ts=1789679350 (2026-09-17 21:09:10 UTC), gas=87532; state=Active, hasVoted=True; for/against/abstain=1.2000 B/0/0 (for=1200000000000000000000000000 wei); VoteCast decoded (receipt from bsc-testnet.publicnode.com): emitter=0x41f55dac95a028c58dd51fd72eec9101ed2ded05, id=2, voter=0xbb843dfe3dec6d7dfc4ef194a1a9bdc7a07eac84, support=1, weight=1.2000 B (1200000000000000000000000000 wei); logs in receipt=1; quorum: For+Abstain=1.2000 B vs needed 0.6400 B = 187 % of the bar (2026-09-17 21:09 UTC) | 0x554119c24d898f716e4253ab34008236df68011292c46e6a1cbdb5aa2a75b9e3 | PASS |
+| D5.3 | staker1 casts FOR (support 1) on proposal 3 (P-B: harmless, setMaxSwapSlippageBps(500) no-op) | tx mined; hasVoted true; forVotes == votingPowerAt(proposer, snapshot 131258303) == 1.20 B, against 0, abstain 0; state still Active (the window is open); ONE log: VoteCast(id 3, proposer, 1, weight == forVotes) from the governor; quorum For+Abstain >= 0.64 B; For > Against | block=131628206 ts=1789679357 (2026-09-17 21:09:17 UTC), gas=87532; state=Active, hasVoted=True; for/against/abstain=1.2000 B/0/0 (for=1200000000000000000000000000 wei); VoteCast decoded (receipt from bsc-testnet.publicnode.com): emitter=0x41f55dac95a028c58dd51fd72eec9101ed2ded05, id=3, voter=0xfbce9e13c309549c82b0775c8587e3470f2837b0, support=1, weight=1.2000 B (1200000000000000000000000000 wei); logs in receipt=1; quorum: For+Abstain=1.2000 B vs needed 0.6400 B = 187 % of the bar (2026-09-17 21:09 UTC) | 0xcd88ca5dcd971d9ec7e56ef70d0c00f59af52f4b055246beaeca1545a16ca980 | PASS |
+| D5.4 | Proposal 0 and the deliberate non-votes, after both sends, read only | proposal 0 untouched: still Active, tally 4.00 B / 0 / 0, neither staker has voted on it; the holder has voted on NEITHER drill proposal (Scenario W discipline) | state0=Active, tally0=4.0000 B/0/0; hasVoted(0, staker3)=False, hasVoted(0, staker1)=False; hasVoted(2, holder)=False, hasVoted(3, holder)=False (2026-09-17 21:09 UTC) | - | PASS |
+
+> Queueable-from timestamps, read from mined state: P-A (id 2) voteEnd 1790031270 = 2026-09-21 22:54:30 UTC, P-B (id 3) voteEnd 1790031298 = 2026-09-21 22:54:58 UTC. From those instants state() reads Succeeded (each 1.20 B FOR clears the 0.64 B quorum alone) and anyone may call queue(id); the 7-day Timelock then puts earliest execute at 2026-09-28 22:54:30 UTC / 2026-09-28 22:54:58 UTC, and the Safe cancels inside that window (H4.5 on P-B via the Governor, H4.6/H4.7 on P-A direct at the Timelock), stopwatch from CallScheduled to Cancelled. Proposal 0 runs its own calendar: Succeeded expected 2026-09-20 10:11:31 UTC. Nothing else is signed today.
