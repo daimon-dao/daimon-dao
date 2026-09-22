@@ -875,3 +875,133 @@ proposal stops the runner before anything is signed.
 | D7.13 | Read back over eth_getLogs: ProposalQueued on the governor, CallScheduled on the timelock, since the preflight block | exactly 2 each -- today's two queues; with Day 6's this Timelock now carries three scheduled operations, all pending | ProposalQueued found=2, CallScheduled found=2 (blocks 132415055-132415117, unreadable chunks=0/0) (2026-09-21 23:35 UTC) | - | PASS |
 
 > Cancel windows, read from the Timelock's storage. P-A (id 2, hostile): opId 0xd895606ccce44f00f6ca3af8a1fa99e6e1dbcf2221fd7b6b3ab50a39d9398e7d, CallScheduled in block 132415086 at 1790033711 (2026-09-21 23:35:11 UTC), readyTimestamp 1790638511 = 2026-09-28 23:35:11 UTC; the guardian may cancel from now until that instant, 7d 23h 59m 46s at the time of this note (2026-09-21 23:35:25 UTC); planned path H4.6/H4.7 -- Timelock.cancel(opId) direct by the Safe, then Governor.state(2) must read Canceled on its own. P-B (id 3, harmless): opId 0x86564200b67e9203c71e7eb160f7e5afdc016d7f632d18daf803800bfd0ccb12, CallScheduled in block 132415101 at 1790033717 (2026-09-21 23:35:17 UTC), readyTimestamp 1790638517 = 2026-09-28 23:35:17 UTC; the guardian may cancel from now until that instant, 7d 23h 59m 52s at the time of this note; planned path H4.5 -- Governor.cancel(3) by the Safe, the atomic cross-cancel of the Timelock operation. Both opIds equal the values precomputed in DRILL_KIT.md 2c, so the Safe rows written on 2026-09-15 are valid as printed: target the Timelock 0xd8e86A7764247aA4Ecd751A4AFaB6e68a53f9736 with calldata 0xc4d252f5 + opId for P-A, target the Governor 0x41F55DAc95A028c58Dd51FD72eec9101ed2DEd05 with 0x40e58ee5 + id for P-B; the kit's condition for signing the Timelock row (CallScheduled seen) is met by D7.6/D7.9. The stopwatch of each drill runs from the CallScheduled timestamp above to the Cancelled block. If the Safe does NOT cancel before readyTimestamp, execute(id) becomes possible for anyone: for P-B a no-op, for P-A the removal of the per-transfer cap on the drill deployment -- the whole point of the drill is that it never gets there. Nothing is canceled by this harness; the cancellations are the signers' work, in the Safe, with the H4.8 read-aloud. Proposal 0 (the campaign's own) is untouched, earliest execute unchanged at 2026-09-28 15:34:59 UTC. Wallet choice, recorded as an assumption: the holder signed both queues, as on Day 6; queue() is permissionless and every value verified above is sender-independent. Nothing else is signed today.
+
+## Day 8 -- Guardian cancellations (H4.5, H4.6, H4.7) (2026-09-22)
+
+The queue-side half of the drill kit (`script/chapel2b/DRILL_KIT.md` 2b/2c):
+two Safe transactions, signed by the guardians through the Safe web
+interface with their Ledgers, inside the 7-day windows Day 7 opened. T5
+cancels P-B (id 3, harmless) THROUGH the Governor -- the atomic
+cross-cancel; T6 cancels P-A (id 2, hostile) DIRECTLY at the Timelock,
+bypassing the Governor -- the independent guardian path, and then the
+Governor must agree on its own. The harness signs nothing for the Safe,
+by design, so this entry is written READ-ONLY from mined state, as Days
+3-4 were: every receipt re-read with cast, every derived claim -- who
+signed, what was cancelled, how far into the delay -- computed from the
+receipts and from live calls. This time the campaign RPC (publicnode)
+served both RECEIPTS; each was re-read from the archival endpoint
+`data-seed-prebsc-1-s1.bnbchain.org:8545` and the two copies are
+identical in every field that matters (status, block, hash, from, to,
+gasUsed, index, the logs). The signers are as in the Days 3-4 table (F1
+`0xD9dB...fc16`, F2 `0xdFfe...687f`, F3 `0xacA4...0F9b`); the executor is
+`tx.from`, the co-signer is recovered from the ECDSA entry in
+`signatures` over the safeTxHash the Safe logged in `ExecutionSuccess`
+(the hash itself recomputed with `Safe.getTransactionHash` at the logged
+nonce; the recovery is a static call to the ecrecover precompile). The
+two transactions are the Safe's fifth and sixth, nonces 4 and 5. Rule
+H4.8 was applied aloud on both confirmations. Live reads at block
+132591687, 2026-09-22 21:39:43 UTC, unless noted.
+
+### H4.5 -- P-B cancelled through the Governor: F1 proposes, F3 confirms and executes -- ProposalCanceled(3) and the Timelock's Cancelled in ONE transaction
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.5.1 | T5: `Governor.cancel(3)` through the Safe -- status, target, calldata, Safe nonce, all from mined state | status 0x1; `to` == the Safe; inner call == kit row 2b for P-B: the GOVERNOR, value 0, `0x40e58ee5...03`, operation CALL; Safe nonce 4 (the fifth transaction), threshold 2; mined INSIDE P-B's window (before readyTimestamp 1790638517) | status=0x1, block=132589551, ts=1790112222 (2026-09-22 21:23:42 UTC), txIndex=0, gas=122800; to=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, inner target=0x41F55DAc95A028c58Dd51FD72eec9101ed2DEd05 (the Governor), data=0x40e58ee5...0003 (== kit 2b "P-B, id 3"), operation=0, safeTxGas=baseGas=gasPrice=0, Safe nonce=4, threshold=2 (SafeMultiSigTransaction additionalInfo); F3's EOA nonce 1 (2026-09-22 21:39 UTC) | 0x56babddceabcb341dae31c79c003554f983095ea9d57c670e89564636c6466d2 | PASS |
+| H4.5.2 | The events of T5 -- the atomic cross-cancel (#26) | exactly 4 logs: `SafeMultiSigTransaction` (Safe), `Cancelled(id == P-B opId)` from the TIMELOCK, `ProposalCanceled(3)` from the GOVERNOR, `ExecutionSuccess` (Safe) -- the Timelock's cancel and the Governor's flag in the SAME transaction, the Timelock's first (the Governor cancels the operation, then marks itself) | logs=4; logIndex 0 SafeMultiSigTransaction (0x4253...104F); logIndex 1 Cancelled(id=0x86564200b67e9203c71e7eb160f7e5afdc016d7f632d18daf803800bfd0ccb12) from 0xd8e8...9736 (the Timelock); logIndex 2 ProposalCanceled(id=3) from 0x41f5...ded05 (the Governor); logIndex 3 ExecutionSuccess(safeTxHash=0x4b6d40c1c2ea9490d64c8dccbaffbb3400f6d115db5ce01dec885f15372870ee, payment=0); opId == Day 7's D7.8 == the kit's | - | PASS |
+| H4.5.3 | The choreography, from the signature bytes | exactly TWO entries in `signatures` (130 bytes), sorted by owner address; the ECDSA one recovers to F1 over the safeTxHash (the proposer); the pre-validated one (v=1) is the executor == tx.from == F3; the logged safeTxHash == `getTransactionHash(...)` at nonce 4; `checkNSignatures` accepts the bytes as F3 and refuses them as F2 | 130 bytes; entry 0 pre-validated (v=1) = 0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b (F3) = tx.from; entry 1 ECDSA (v=27): ecrecover(safeTxHash) = 0xD9dB15E21836789a2CB9AfFe6EEbe2454162fc16 (F1); getTransactionHash(nonce 4) = 0x4b6d40c1...70ee == logged; checkNSignatures(hash, data, sigs, 2) static: as F3 -> accepted (empty return), as F2 -> GS025 | - | PASS |
+| H4.5.4 | The stopwatch: `CallScheduled` (Day 7, D7.9) to `Cancelled` | inside the delay, with margin before readyTimestamp 1790638517 | CallScheduled ts=1790033717 (2026-09-21 23:35:17 UTC) -> Cancelled ts=1790112222 (2026-09-22 21:23:42 UTC) = 78505 s (21 h 48 m 25 s) into the delay; 526295 s (6 d 02 h 11 m 35 s) of window unused before readyTimestamp 2026-09-28 23:35:17 UTC | - | PASS |
+
+### H4.6 -- P-A cancelled directly at the Timelock: F3 proposes, F1 confirms and executes -- the Governor is never called
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.6.1 | T6: `Timelock.cancel(opId)` through the Safe -- status, target, calldata, Safe nonce, all from mined state | status 0x1; `to` == the Safe; inner call == kit row 2c for P-A: the TIMELOCK, value 0, `0xc4d252f5` + opId 0xd895606c...98e7d, operation CALL; Safe nonce 5 (the sixth transaction), threshold 2; mined INSIDE P-A's window (before readyTimestamp 1790638511) | status=0x1, block=132590593, ts=1790112691 (2026-09-22 21:31:31 UTC), txIndex=2, gas=92861; to=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, inner target=0xd8e86A7764247aA4Ecd751A4AFaB6e68a53f9736 (the Timelock), data=0xc4d252f5d895606ccce44f00f6ca3af8a1fa99e6e1dbcf2221fd7b6b3ab50a39d9398e7d (== kit 2c "P-A, id 2"), operation=0, safeTxGas=baseGas=gasPrice=0, Safe nonce=5, threshold=2; F1's EOA nonce 4; 469 s (7 m 49 s) after T5 (2026-09-22 21:39 UTC) | 0x160c72eaabb0ac38c0edd46a76dd3bd56de8c5e0b0df36f5d8b277624844a82d | PASS |
+| H4.6.2 | The events of T6 -- the Governor absent | exactly 3 logs: `SafeMultiSigTransaction` (Safe), `Cancelled(id == P-A opId)` from the TIMELOCK, `ExecutionSuccess` (Safe); NO log from the Governor (0x41F5...DEd05 emits nothing: it was never called) | logs=3; logIndex 2 SafeMultiSigTransaction; logIndex 3 Cancelled(id=0xd895606ccce44f00f6ca3af8a1fa99e6e1dbcf2221fd7b6b3ab50a39d9398e7d) from 0xd8e8...9736 (the Timelock); logIndex 4 ExecutionSuccess(safeTxHash=0x302aa1544c6d8c2f46141ecac874842cec5db664b5d7c40701a0bbf25f3811f4, payment=0); Governor logs in receipt=0; opId == Day 7's D7.5 == the kit's | - | PASS |
+| H4.6.3 | The choreography, from the signature bytes | ECDSA recovers to F3 (the proposer); executor == tx.from == F1; the logged safeTxHash == `getTransactionHash(...)` at nonce 5; `checkNSignatures` accepts the bytes as F1 | 130 bytes; entry 0 ECDSA (v=28): ecrecover(safeTxHash) = 0xacA4FaA9A0CB89749ad8CB4383EF8c3AE1530F9b (F3); entry 1 pre-validated (v=1) = 0xD9dB15E21836789a2CB9AfFe6EEbe2454162fc16 (F1) = tx.from; getTransactionHash(nonce 5) = 0x302aa154...11f4 == logged; checkNSignatures static as F1 -> accepted (empty return) | - | PASS |
+| H4.6.4 | The stopwatch: `CallScheduled` (Day 7, D7.6) to `Cancelled` | inside the delay, with margin before readyTimestamp 1790638511 | CallScheduled ts=1790033711 (2026-09-21 23:35:11 UTC) -> Cancelled ts=1790112691 (2026-09-22 21:31:31 UTC) = 78980 s (21 h 56 m 20 s) into the delay; 525820 s (6 d 02 h 03 m 40 s) of window unused before readyTimestamp 2026-09-28 23:35:11 UTC | - | PASS |
+
+### H4.7 -- The point of the drill: Governor.state(2) reads Canceled on its own; neither operation can ever execute
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H4.7.1 | `Governor.state(2)` live, the Governor having NEVER been called for P-A | the raw word 6 = `ProposalState.Canceled` (enum Pending 0, Active 1, Defeated 2, Succeeded 3, Queued 4, Executed 5, Canceled 6) | raw=0x0000000000000000000000000000000000000000000000000000000000000006 -> uint8 6 = **Canceled** (block 132591687, 2026-09-22 21:39:43 UTC) | - | PASS |
+| H4.7.2 | `proposals(2)` -- the struct behind that answer | the Governor's OWN flags untouched: canceled=false, executed=false, queued=true (nothing in the Governor was written by T6); state() reaches Canceled through the `p.queued` branch (#26): `timelock.operations(timelock.hashOperation(target, value, data, 0x0, timelockSalt)).canceled == true`; hashOperation re-derived on chain from the struct == the kit's opId | canceled=**false** executed=false queued=**true**; target=0x48BD...ad0b, value=0, data=0xec28438a + ffff...ffff (setMaxTxAmount(type(uint256).max), == kit), timelockSalt=0x58a832d2ab8d15f59c6f9093ab4d93ab2d3a6df30f1d19a0efc3b11163972250; tally 1.20 B/0/0 unchanged; hashOperation(struct) = 0xd895606ccce44f00f6ca3af8a1fa99e6e1dbcf2221fd7b6b3ab50a39d9398e7d == kit; operations(opId).canceled = true -> state() = Canceled | - | PASS |
+| H4.7.3 | `Governor.state(3)` and `proposals(3)` -- the other path, for contrast | raw 6 = Canceled as well, but here the Governor's own flag IS set: canceled=true (written by T5's `cancel(3)`), executed=false, queued=true. Two paths, one answer | state(3) raw=0x...06 -> 6 = Canceled; proposals(3): canceled=**true** executed=false queued=true; data=0xe89d59de...01f4 (setMaxSwapSlippageBps(500), == kit), timelockSalt=0xbece6405b58ad27650973b1ef8a096dde74dd496c2574ff41914cb6b0c181213; tally 1.20 B/0/0 unchanged | - | PASS |
+| H4.7.4 | `Timelock.operations(opId)` for both drill operations | canceled=true, executed=false on both; readyTimestamp UNTOUCHED by the cancel (the slot keeps its schedule, only the flag flips: 1790638511 / 1790638517) | P-A 0xd895606c...98e7d: readyTimestamp=1790638511 (2026-09-28 23:35:11 UTC) executed=false canceled=**true**; P-B 0x86564200...ccb12: readyTimestamp=1790638517 (2026-09-28 23:35:17 UTC) executed=false canceled=**true** | - | PASS |
+| H4.7.5 | Static execute attempts, both contracts, both operations -- nothing sent, the exact revert recorded | `Timelock.execute(target, 0, data, 0x0, salt)` as the Governor (the EXECUTOR): `OperationNotReady()` -- the `readyTimestamp == 0 \|\| canceled` gate, and it will still revert after 2026-09-28 (the gate precedes the clock check); as the Safe: `AccessControlUnauthorizedAccount(safe, EXECUTOR_ROLE)` -- the guardian cannot execute anything; `Governor.execute(2)` / `execute(3)` by anyone: `ProposalNotSucceeded()` -- state() is Canceled, neither Succeeded nor Queued | Timelock.execute(P-A) from the Governor -> reverted 0xf800799b = OperationNotReady(); Timelock.execute(P-B) from the Governor -> 0xf800799b = OperationNotReady(); Timelock.execute(P-A) from the Safe -> 0xe2517d3f = AccessControlUnauthorizedAccount(0x4253...104F, 0xd8aa0f31...9e63 = EXECUTOR_ROLE); Governor.execute(2) from F1 -> 0xfeace5cd = ProposalNotSucceeded(); Governor.execute(3) from F1 -> 0xfeace5cd = ProposalNotSucceeded() | - | PASS |
+| H4.7.6 | Double cancels and the convergence path, static -- nothing sent | `Timelock.cancel(opId)` again by the Safe: `OperationAlreadyCanceled()` on both; `Governor.cancel(3)` again by the Safe: `ProposalAlreadyCanceled()`; `Governor.cancel(2)` by the Safe WOULD succeed (the struct's flag is still false, the Timelock's is true: the `if (!opCanceled)` branch skips the re-cancel and only converges the flag) -- read, recorded, NOT sent: state(2) already answers Canceled without it | Timelock.cancel(P-A) from the Safe -> 0xe5aa780e = OperationAlreadyCanceled(); Timelock.cancel(P-B) -> 0xe5aa780e = OperationAlreadyCanceled(); Governor.cancel(3) from the Safe -> 0x7fe099a0 = ProposalAlreadyCanceled(); Governor.cancel(2) from the Safe -> returns 0x (would succeed), not sent | - | PASS |
+| H4.7.7 | What P-A wanted to change, read live | `maxTxAmount` still 5 B (0.5 % of supply): the per-transfer cap the hostile proposal would have removed is intact; the token's roles unchanged; not paused | maxTxAmount=5000000000000000000000000000 (5.0000 B); isPaused=false, cumulativePauseSeconds=1283949 (== Days 3-4); token: timelock GOVERNANCE_ROLE=true, safe GUARDIAN_ROLE=true, safe GOVERNANCE_ROLE=false, safe DEFAULT_ADMIN=false | - | PASS |
+
+### Untouched by the day, read live
+
+| step | read | expected | observed | verdict |
+|---|---|---|---|---|
+| U8.1 | Proposal 0 (the campaign's own) | still Queued (4); struct queued=true, executed=canceled=false; tally 4.00 B / 0 / 0; its operation's readyTimestamp still Day 6's 1790609699, executed=canceled=false; `execute(0)` and the Timelock's execute still `TooEarly()` | state(0) raw=0x...04 -> 4 = Queued; proposals(0): canceled=false executed=false queued=true, tally=4.0000 B/0/0, data=setStakingRewardShareBps(600), salt=0xc338b2d3...30a0; operations(0x37dfdc53...5033): readyTimestamp=1790609699 (2026-09-28 15:34:59 UTC) executed=false canceled=false; Governor.execute(0) from F1 -> 0x085de625 = TooEarly(); Timelock.execute(op0) from the Governor -> 0x085de625 = TooEarly(); 496516 s (5 d 17 h 55 m 16 s) to go at the read; proposal 1 still Defeated | PASS |
+| U8.2 | The Safe and its roles | owners F1, F2, F3, threshold 2, nonce 6 (four pause-drill transactions + T5 + T6), Safe 1.3.0; on the Timelock the Safe holds CANCELLER_ROLE and NOTHING else (no PROPOSER, no EXECUTOR, no ADMIN); the Governor's `guardian` == the Safe; the Governor holds PROPOSER, EXECUTOR and CANCELLER; the Timelock self-administers; getMinDelay 604800; guardianAuthorityExpiry the same on Timelock and Governor | owners=[0xD9dB15E2...fc16, 0xdFfeAEb8...687f, 0xacA4FaA9...0F9b], threshold=2, nonce=6, VERSION="1.3.0"; Timelock: safe CANCELLER=true PROPOSER=false EXECUTOR=false ADMIN=false; governor PROPOSER=true EXECUTOR=true CANCELLER=true; self CANCELLER=true ADMIN=true; getMinDelay=604800; guardianAuthorityExpiry=1883988338 on both (== Day 1) ; Governor.guardian=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F | PASS |
+| U8.3 | The 2b invariant and the LP | the Timelock holds 0 BNB and 0 DMN; its LP unchanged since Day 1's close; the Safe holds 0 BNB and 0 DMN (payment=0 on both ExecutionSuccess: the executors paid their own gas) | Timelock: BNB=0 wei, DMN=0, LP=11497751703836292291632 wei (== Day 1 close); Safe: BNB=0 wei, DMN=0; signer BNB after the day: F1=0.49991, F2=0.04998, F3=0.04998; the two transactions cost 215661 gas in total at 0.1 gwei | PASS |
+| U8.4 | Read back over eth_getLogs since Day 7's last block (132415117) | exactly 2 `Cancelled` on the Timelock (T5's, T6's), exactly 1 `ProposalCanceled` on the Governor (T5's, id 3), 0 `CallExecuted`, 0 `ProposalExecuted`, 0 new `CallScheduled` | Cancelled found=2 (0x86564200...ccb12 in block 132589551 tx 0x56babddc..., 0xd895606c...98e7d in block 132590593 tx 0x160c72ea...), ProposalCanceled found=1 (id 3, block 132589551), CallExecuted=0, ProposalExecuted=0, CallScheduled=0 -- over 4 chunks of 50000 blocks on publicnode, the 2 oldest (132415117-132515116, before the day) pruned/unreadable, the 2 holding the day readable; the archival endpoint refuses getLogs (-32005 limit exceeded); the storage reads of H4.7.4/U8.1 (executed=false on all three operations) settle the same question independently of the log service | PASS |
+
+> **Scenario W, closed end to end on a public chain.** P-A was proposed
+> by staker3 on 2026-09-15 22:54:30 UTC (a `setMaxTxAmount(type(uint256).max)`
+> that removes the per-transfer cap), reached the 10 % quorum on its
+> proposer's own 1.20 B FOR against a 0.64 B bar WITHOUT ANY TEAM VOTE
+> (the holder cast nothing on it, Day 5), passed at voteEnd 2026-09-21
+> 22:54:30 UTC on the clock alone, was queued into the Timelock at
+> 23:35:11 UTC the same day (queue() is permissionless: anyone), and was
+> stopped by the guardian at 2026-09-22 21:31:31 UTC -- 21 h 56 m 20 s
+> into its 7-day delay, 6 d 02 h 03 m 40 s before it could have been
+> executed -- with a single `Timelock.cancel(opId)` signed 2-of-3 (F3, F1),
+> the Governor never called. The Governor reports the proposal Canceled
+> anyway (H4.7.1) because state() reads the Timelock's flag (#26): the two
+> contracts cannot disagree about whether P-A is alive. Its operation can
+> no longer be executed by the EXECUTOR (`OperationNotReady`, H4.7.5), and
+> the Safe, which stopped it, could not execute it either
+> (`AccessControlUnauthorizedAccount`): the guardian is a brake, not a
+> steering wheel. The cap it targeted is still 5 B (H4.7.7). The harmless
+> twin P-B went the other way, through `Governor.cancel(3)`, and the
+> Timelock's `Cancelled` and the Governor's `ProposalCanceled(3)` landed in
+> the same transaction (H4.5.2): the atomic cross-cancel, observed.
+
+### Findings of the day, recorded not fixed
+
+1. **The Governor's struct flag and the Governor's state() can differ,
+   by design, after a direct Timelock cancel.** `proposals(2).canceled` is
+   false and will stay false unless someone calls `Governor.cancel(2)`
+   (which would succeed, H4.7.6, and only converge the flag); `state(2)` is
+   Canceled regardless. Anything that reads the struct's `canceled` field
+   instead of `state()` -- an indexer, a dashboard, the monitor -- would
+   report P-A as Queued. For `SPEC_MONITOR.md`: proposal state is
+   `state(id)`, never the struct; a `Cancelled` on the Timelock is the
+   URGENT signal for a queued proposal even when no `ProposalCanceled`
+   follows. Contract behaviour as audited (#26).
+2. **publicnode served both receipts this time**, where on Days 3-4 it
+   returned null for the four pause transactions; identical to the
+   archival copy field by field. The variance is the backend the
+   load-balancer picks, not the chain. The archival endpoint in turn
+   refuses `eth_getLogs` (`-32005 limit exceeded`) and publicnode caps a
+   range at 50000 blocks and has pruned the two oldest chunks since Day 7
+   (U8.4). Every claim above that a log service could carry is also made
+   from storage (`operations`, `proposals`, `state`), which no backend
+   prunes.
+3. **The direct Timelock cancel is the cheaper one**: 92861 gas against
+   122800 for the cross-cancel through the Governor, the difference being
+   the Governor's own writes and events. Not a reason to prefer it -- the
+   cross-cancel is what keeps the Governor's flags honest -- but the
+   mainnet runbook can quote both.
+
+**3 scenarios plus the untouched reads, 19 asserted rows: 19 PASS, 0 NOTE,
+0 DEVIATION.** The harness signed nothing; the two transactions are the
+Safe's, nonces 4 and 5, 215661 gas in total at 0.1 gwei. `git diff
+audit-final -- src/` stays empty (this entry only READS `cancel`,
+`state`, `operations`, `execute`).
+
+The H4 drill is complete on Chapel: H4.1, H4.2, H4.4 (Days 3-4), H4.5,
+H4.6, H4.7 (today); H4.3 (a pause left to lapse) is not run on the real
+clock, by the 2026-08-28 decision. P-A and P-B are terminal: Canceled has
+no path out in either contract, and nothing is ever signed for them
+again (the optional `Governor.cancel(2)` flag convergence is not needed
+and not planned). What remains is the campaign's own proposal: proposal 0
+stays Queued with earliest execute **2026-09-28 15:34:59 UTC**, and the
+H3.3b/H3.4 sitting (execute, then the first poke that pays the marketing
+branch on a public chain) runs from that instant, not before. The Safe
+will not cancel it.
