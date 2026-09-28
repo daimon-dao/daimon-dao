@@ -161,11 +161,20 @@ function Expect-Revert { param($who, $to, $sig, [string[]]$sendArgs = @(), [stri
 ## predecessor-token balance grows with every claim (that is the treasury
 ## working) and its LP balance is set by step 6: neither is a token
 ## payout. Counted in the state file; reported at closing.
+## The flip (H3.4, Day 9): once the first poke at share 600 has paid the
+## Timelock and the amount has been verified wei-exact, the runner records
+## it as timelockBnbExpected. From then on the native half reads "the
+## Timelock holds EXACTLY what the verified conversions paid it" -- any
+## other inflow or outflow is still a violation. The DMN half never flips.
 function Assert-Invariants { param([string]$context)
   $st = Load-State
   if (-not $st -or -not $st.timelock) { return }
   $nat = Bal $st.timelock
-  if ($nat -ne 0) { throw "INVARIANT VIOLATED [$context]: the Timelock holds $nat wei of native -- BNB reached the treasury from the token with share 1000" }
+  if ($st.timelockBnbExpected) {
+    $exp = [System.Numerics.BigInteger]::Parse("$($st.timelockBnbExpected)")
+    if ($nat -ne $exp) { throw "INVARIANT VIOLATED [$context]: the Timelock holds $nat wei of native, the verified conversions paid it $exp" }
+  }
+  elseif ($nat -ne 0) { throw "INVARIANT VIOLATED [$context]: the Timelock holds $nat wei of native -- BNB reached the treasury from the token with share 1000" }
   $dmn = CQ $st.token "balanceOf(address)(uint256)" @($st.timelock)
   if ($dmn -ne 0) { throw "INVARIANT VIOLATED [$context]: the Timelock holds $dmn wei of DMN" }
   $st.invariantChecks = [int]$st.invariantChecks + 1
