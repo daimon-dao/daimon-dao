@@ -7,6 +7,25 @@ any statement can be cited against an immutable snapshot.
 
 ---
 
+## [Unreleased] — for v0.3
+
+Source changes only: the released v0.2 PDFs are not regenerated, and the
+`.md` sources run ahead of them until v0.3 is built and tagged.
+
+- **§4.4 and §11.3, §11.5, the project's own tokens** (EN and IT): "neither
+  will ever claim" is amended. The project wallets claim ONLY the
+  initial-liquidity quota, before the migration window opens, and the LP
+  tokens of that liquidity go to the timelock in a published transaction;
+  everything else reaches the treasury through `sweepUnclaimed()` and does
+  not vote. §11.3 now names the liquidity provider (the DMX owner, not the
+  deployer) as the sender of the LP tokens. Reason: the initial liquidity
+  needs DMN before any holder can claim, and only the DMX owner -- fee- and
+  cap-exempt on DMX -- can claim exactly 1:1 before the window opens
+  (Chapel campaign 2b, docs/CHAPEL_2B_RESULTS.md, H1.10-H1.14; same
+  amendment in docs/TREASURY_POLICY_v1.0.md v1.2, §2 and §6b).
+
+---
+
 ## [0.2] — 2026-09-11
 
 **Post-audit release.** The document is renamed **protocol paper**: files,
