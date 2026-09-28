@@ -518,12 +518,14 @@ larger than the amount left unclaimed. This is the reflection mechanism
 working as designed, and the surplus follows the same path as the rest — to
 the DAO, decided by vote.
 
-Two holdings will certainly stay unclaimed, by decision rather than by
+Two holdings will stay almost entirely unclaimed, by decision rather than by
 accident: the project's own legacy tokens, held in the two DMX marketing
-wallets described in 4.1.4 — about 42% of the old supply. They will never be
-claimed by anyone. The corresponding DMN reach the treasury through
-`sweepUnclaimed()` like every other unclaimed token, and they do not vote.
-Section 11.5 states the commitment in full.
+wallets described in 4.1.4 — about 42% of the old supply. The project
+wallets claim only the initial-liquidity quota, before the migration window
+opens, and the LP tokens of that liquidity go to the timelock in a published
+transaction. Everything else stays unclaimed: the corresponding DMN reach the
+treasury through `sweepUnclaimed()` like every other unclaimed token, and
+they do not vote. Section 11.5 states the commitment in full.
 
 ## 4.5 Why a migration rather than renouncing ownership
 
@@ -1606,9 +1608,10 @@ vote spends it.
 - *The unclaimed DMN.* After the deadline, governance sweeps whatever DMN
   remain in the migration contract into the treasury (Section 4.4).
 - *The pool itself.* The LP tokens of the initial DMN/WBNB liquidity are
-  transferred from the deployer to the timelock right after the liquidity is
-  added, in a published transaction, and the launch record asserts from
-  mined state that the deployer holds none. The pool can no longer be
+  transferred from the liquidity provider — the DMX owner, which claims only
+  that quota (11.5) — to the timelock right after the liquidity is added, in
+  a published transaction, and the launch record asserts from mined state
+  that no project wallet holds any. The pool can no longer be
   withdrawn except by vote, and the treasury's position in it grows with
   every swap's fee.
 
@@ -1632,11 +1635,13 @@ somewhere else.
 ## 11.5 The project's own tokens
 
 The two DMX marketing wallets described in 4.1.4 — the owner's and the
-second one — hold about 42% of the old supply. Neither will ever claim. The
-corresponding DMN stay in the migration contract and reach the treasury
-through `sweepUnclaimed()` after the deadline, without a transfer, without a
-fee, and without passing through any person's hands. The project's tokens
-become the protocol's, and they do not vote: governance is decided by those
+second one — hold about 42% of the old supply. They claim only the
+initial-liquidity quota, before the migration window opens, and the LP
+tokens of that liquidity go to the timelock in a published transaction
+(11.3). Everything else stays in the migration contract and reaches the
+treasury through `sweepUnclaimed()` after the deadline, without a transfer,
+without a fee, and without passing through any person's hands, and does not
+vote. The project's tokens become the protocol's: governance is decided by those
 who bought their tokens, the team included. What they are for is decided
 use by use, by public vote; what they are not for is written in the
 treasury policy — no burn by decision, no distribution to holders, stakers

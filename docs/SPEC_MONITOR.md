@@ -98,6 +98,18 @@ confrontare con la lettura precedente. -20% in un blocco → urgente;
    cambi" copre anche la seconda via: su ogni `StakingContractSet` il
    bot rilegge `isExcludedFromFee` del nuovo indirizzo invece di
    aspettare un evento che non arriverà.
+4. Lo STATO di una proposta si legge da `Governor.state(id)`, MAI dal
+   flag `canceled` della struct `proposals(id)`. Dopo una cancellazione
+   diretta sul Timelock (`Timelock.cancel(opId)`, il guardian che
+   ferma un'operazione in coda senza passare dal Governor) il flag
+   della struct resta `false` -- e ci resta finché qualcuno non chiama
+   `Governor.cancel(id)` solo per allinearlo -- mentre `state(id)`
+   legge il flag del Timelock e risponde Canceled. Osservato su Chapel
+   (campagna 2b, Day 8, H4.7: `proposals(2).canceled == false` con
+   `state(2) == Canceled`). Un monitor che legge la struct vedrebbe
+   come Queued una proposta morta. Di conseguenza: un `Cancelled` del
+   Timelock su un'operazione in coda è il segnale URGENT anche quando
+   nessun `ProposalCanceled` lo accompagna.
 
 Osservare gli eventi emessi dal token (nomi verificati sul sorgente e
 riletti da Chapel; le firme esatte dall'ABI):

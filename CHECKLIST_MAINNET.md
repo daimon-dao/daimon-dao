@@ -3,7 +3,10 @@
 To be executed **only after** the professional audit, on the range frozen at
 tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final)
 (the audited code: the scope submitted at `audit-scope-v2` plus the 29 fixes;
-`git diff audit-final -- src/` must be empty).
+`git diff audit-final -- src/` must be empty; `forge test` passes 187
+tests: the 180 of `audit-final` plus the 7 of `test/OldDaimonMaxTx.t.sol`).
+The launch configuration below was rehearsed end to end on Chapel
+(docs/CHAPEL_2B_RESULTS.md, tag `launch-config-rc1`).
 Every line is blocking.
 
 ## Predecessor token configuration (Zenith #29) -- and WHEN it happens
@@ -26,9 +29,12 @@ the protocol paper, section 4.1):
   to `claim()` too -- see launch order step 11a below.
 - The two DMX marketing wallets: `marketingAddress1` = the owner above,
   `marketingAddress2` = `0x41B533AF0Db427dc97988B47f86383f42372f395`.
-  Decision: NEITHER will claim. The DMN corresponding to their DMX stay in
-  the Migration contract and reach the treasury through `sweepUnclaimed()`
-  after the deadline (docs/TREASURY_POLICY_v1.0.md, section 2).
+  Decision: the project wallets claim ONLY the initial-liquidity quota --
+  the DMX owner, at launch step 5a, before the migration window opens --
+  with the LP tokens going to the Timelock in a published transaction
+  (step 6). Everything else stays in the Migration contract, reaches the
+  treasury through `sweepUnclaimed()` after the deadline, and does not vote
+  (docs/TREASURY_POLICY_v1.0.md, sections 2 and 6b).
 
 The exemption is what makes claims possible: without it, `claim()` reverts
 with `AmountMismatch` (#29 -- by design, and proven on-chain by campaign
@@ -53,7 +59,8 @@ order:
       applies to `claim()` too: the claim is a DMX transfer claimant ->
       treasury, and the fee exemption does NOT lift the transfer cap. Large
       claims (the 76.9B top holder, any holder above 1.5B) would revert.
-      Raise it FIRST, verify the new value on-chain.
+      Raise it FIRST, to the full supply (1000B, `1000000000000 * 1e18`),
+      as rehearsed on Chapel; verify the new value on-chain.
 - [ ] **11b -- `oldDaimon.excludeFromFee(<TIMELOCK>)`** -- the treasury (=
       the Timelock deployed in phase 2), NOT the Migration contract. This
       is the call that opens the migration window, so it goes LAST: after
@@ -71,18 +78,33 @@ step added):
 ```
  1  pair DMN/WBNB does NOT already exist on the factory (#25)
  2  phase 1 + phase 2 deploy, stakingRewardShareBps = 1000
- 3  post-broadcast verification, 34/34 today, 36/36 once the two
-    planned checks land (MANDATORY GATE)
+ 3  post-broadcast verification, 36/36 (MANDATORY GATE)
  4  automation inert until the pair has reserves (#27, fail-open fix)
- 5  initial liquidity, BNB leg on the NET amount (#17), price verified
- 6  LP tokens: deployer -> Timelock, published tx; assert deployer LP == 0
+ 5a the DMX owner (fee- and maxTx-exempt on DMX) claims ONLY the DMN
+    needed for the initial liquidity, before the window opens
+ 5b initial liquidity: the largest single addLiquidityETH under the DMN
+    5B maxTx cap (~4.8B net), priced at the DMX pool price read live
+    that day, DMN sent gross for the 4% (#17), price verified
+ 6  ALL LP tokens -> Timelock, published tx; assert provider LP == 0
  7  one pool only; stored pair == factory pair
  8  reserves non-zero -> automation live
  9  small test swap -> fee applied
 10  first poke -> conversion, budgets respected; monitor saw everything
-11a DMX setMaxTxAmount raised   (owner call, same session as 11b)
+11a DMX setMaxTxAmount raised to the full supply (owner call, same
+    session as 11b)
 11b DMX excludeFromFee(TIMELOCK) -- the migration window opens here
 ```
+
+The deployer and the DMX owner are two different wallets. The deployer
+signs phases 1 and 2 and nothing between them; the DMX owner signs 5a,
+5b, 6, 11a and 11b. Only the DMX owner can claim before 11b: it is
+exempt from DMX's fee and cap, so its claim is exact 1:1 while the
+treasury is not yet exempt (Chapel 2b, H1.10-H1.14). Why 5b is sized by
+the cap and not by a BNB amount: a non-exempt provider's single add is
+bound by DMN's own 5B `maxTxAmount`, and a second router add would
+re-price on the gross (#17). Decision (c): no parameter change, no
+exemption to any person; further depth comes from the treasury by
+proposal (GOVERNANCE_ROLE is maxTx-exempt).
 
 **Legacy token custody (Zenith #6)**
 
@@ -122,6 +144,10 @@ it becomes an operational requirement:
       cancel, for a 36-month mandate). Must not coincide with the deployer.
 - [ ] **`deployer` â†’ dedicated Ledger.** Renounces all roles at the end of the
       script; use a hardware signer anyway, not a hot wallet.
+- [ ] **The deployer is NOT the DMX owner.** Two different wallets: the
+      deployer signs the two deploy phases only; the DMX owner signs the
+      liquidity claim (5a), the liquidity (5b), the LP transfer (6) and the
+      two predecessor calls (11a, 11b).
 - [ ] **`_governance` (Timelock) = the only GOVERNANCE_ROLE.** The deployer
       must end up with no roles after the wiring.
 
@@ -152,7 +178,9 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       has happened yet -- in particular the predecessor fee exemption is not
       in place, so NO CLAIM can have occurred: the only cost is gas.
 - [ ] **Phase 2 -- `DeployPhase2.s.sol`** (Timelock + Staking + Governor +
-      wiring + renounce; 20 asserts): preflight refuses to broadcast unless
+      wiring + `setFees(10, 10, 20)` by the deployer's temporary
+      GOVERNANCE_ROLE before the hand-over + renounce; 25 asserts):
+      preflight refuses to broadcast unless
       the live chain matches the state file (nonce, code, linkage, supply);
       the guardian expiry is read from the LIVE token and passed verbatim --
       no file and no human ever carries it; the timelock MUST land on the
@@ -162,7 +190,7 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       phase 2 is interrupted mid-broadcast, resume with `--resume` -- a
       fresh rerun would shift nonces and refuse.
 - [ ] **Post-broadcast verification -- `script/verify-deploy.ps1 -Rpc <url>`
-      passes with exit code 0 (34 checks). MANDATORY LAUNCH GATE.** The
+      passes with exit code 0 (36 checks). MANDATORY LAUNCH GATE.** The
       in-script asserts above run in the simulation context; this runner
       re-reads every invariant from MINED state through plain `eth_call`:
       roles, admin absence, supply placement, canceller roles, launch share
@@ -171,11 +199,10 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       across the three contracts -- no tolerance window, since the
       two-phase design removes the reason for one. Paste its full output
       into the launch record.
-      **PLANNED, not yet in the script** (to be implemented with the script
-      changes, together with the phase-2 `setFees` call): two further checks
-      re-read from mined state, `fees == (10, 10, 20)` and `marketingWallet
-      == the deployed Timelock`, taking the count from 34 to 36. Until they
-      land, the gate is 34/34 and both facts are checked by hand.
+      The two checks added with the phase-2 `setFees` call are EFFECTIVE in
+      the script: `fees == (10, 10, 20)` and `marketingWallet == the
+      deployed Timelock`, re-read from mined state (34 -> 36). 36/36 green
+      on Chapel from mined state (docs/CHAPEL_2B_RESULTS.md, H1.7).
 - [ ] **ONLY THEN, launch order step 11: DMX `setMaxTxAmount` raised (11a),
       then the predecessor fee exemption (11b)** -- see the #29 section
       above. The migration window opens at 11b, against a deployment that
@@ -214,12 +241,14 @@ input initializes the pool at the wrong price.
 **LP tokens to the Timelock (launch order step 6, right after initial
 liquidity)**
 
-- [ ] Transfer ALL the LP tokens of the DMN/WBNB pair from the deployer to
-      the Timelock, in a published transaction (hash in the launch record).
-- [ ] Post-broadcast assert, from mined state: `pair.balanceOf(deployer) ==
-      0` and `pair.balanceOf(timelock) == pair.totalSupply() - MINIMUM_LIQUIDITY`
-      (the 1000 wei PancakeSwap locks at pair creation). The deployer holds
-      no LP; the Timelock holds all of it.
+- [ ] Transfer ALL the LP tokens of the DMN/WBNB pair from the liquidity
+      provider (the DMX owner, step 5b) to the Timelock, in a published
+      transaction (hash in the launch record).
+- [ ] Post-broadcast assert, from mined state: `pair.balanceOf(provider) ==
+      0`, `pair.balanceOf(deployer) == 0` and `pair.balanceOf(timelock) ==
+      pair.totalSupply() - MINIMUM_LIQUIDITY` (the 1000 wei PancakeSwap locks
+      at pair creation). No project wallet holds LP; the Timelock holds all
+      of it (rehearsed: docs/CHAPEL_2B_RESULTS.md, H1.14).
 - [ ] From here the pool can be withdrawn only by proposal -> vote -> queue
       -> 7-day timelock -> execute (docs/TREASURY_POLICY_v1.0.md, section 2).
 
@@ -246,9 +275,12 @@ liquidity)**
 
 **Decisions to make and document before launch**
 
-- [ ] Initial liquidity amount â€” it determines slippage and how easily the
-      price can be manipulated. Thin liquidity also makes the buyback
-      mechanism behave poorly.
+- [x] Initial liquidity amount -- DECIDED, decision (c): the largest single
+      addLiquidityETH under the DMN 5B maxTx cap (~4.8B net; at the
+      2026-09-10 DMX price of 4.69e-10 BNB/token, 2.2512 BNB -- re-priced
+      live on launch day). Thin liquidity makes each fee-swap conversion
+      move the price (about -7.8% per 0.2B chunk at that pool, by
+      arithmetic); further depth comes from the treasury by proposal.
 - [x] What happens to the LP tokens -- DECIDED: held by the Timelock,
       withdrawable only by vote + 7 days. Transferred right after initial
       liquidity in a published transaction (launch order step 6 above);

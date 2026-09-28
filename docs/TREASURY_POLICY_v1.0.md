@@ -1,9 +1,11 @@
 # Daimon Treasury Policy
-*Draft v1.1 — September 2026. To be published before the first
+*Draft v1.2 — September 2026. To be published before the first
 mainnet governance proposal. Where this text and the deployed code
 disagree, the code is the only authority.*
 *v1.1 amends §2 and §7 only: the treasury is the fee destination from
 deploy, so the first vote is one proposal, the split.*
+*v1.2 amends §2 and §6b only: the project wallets claim the
+initial-liquidity quota and nothing else, its LP going to the treasury.*
 
 ---
 
@@ -60,10 +62,13 @@ approved by proposal and accounted for in public.
   DMN remain in the migration contract into the treasury. This
   includes, by choice, the DMN corresponding to the project's own
   legacy holdings — the two deployer-linked wallets from 2022, about
-  42% of the old supply — which will never be claimed by anyone: they
-  reach the treasury without a transfer, without a fee, and without
-  passing through any person's hands. The project's tokens become
-  the protocol's, and they do not vote: governance is decided by
+  42% of the old supply. The project wallets claim ONLY the
+  initial-liquidity quota, before the migration window opens, and
+  the LP tokens of that liquidity go to the Timelock in a published
+  transaction (the next point). Everything else reaches the treasury
+  through the sweep — without a transfer, without a fee, and without
+  passing through any person's hands — and does not vote. The
+  project's tokens become the protocol's: governance is decided by
   those who bought their tokens, the team included.
 - *The pool itself.* The LP tokens of the initial DMN/WBNB liquidity
   are transferred to the treasury at launch, in a published
@@ -168,8 +173,10 @@ always after a public vote.
 
 After the migration sweep, the treasury will hold the DMN that
 correspond to the project's legacy holdings — about 42% of the old
-supply, tokens no person owns and no proposal can hand to a person.
-They do not vote. What they are for, in order of priority, each use
+supply, less the initial-liquidity quota the project wallets claim
+before the window opens (whose LP tokens the treasury holds from
+launch, §2) — tokens no person owns and no proposal can hand to a
+person. They do not vote. What they are for, in order of priority, each use
 a public vote:
 
 1. **Liquidity at home.** Deepening the DMN/WBNB pool, with the LP

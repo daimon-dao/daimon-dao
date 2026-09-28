@@ -47,6 +47,12 @@ This concerns personal holdings. The project's own legacy holdings
 the Treasury Policy: they never claim, they reach the treasury
 through the migration sweep, and they do not vote.
 
+*Amended 2026-09-28: the project's legacy wallets claim only the
+quota needed for the initial liquidity, before the migration
+window opens, with the LP tokens transferred to the Timelock in a
+published transaction. Everything else reaches the treasury
+through the migration sweep and does not vote.*
+
 This statement binds no one in law. It is a commitment of conduct,
 dated by this repository's history.
 
@@ -99,6 +105,13 @@ progetto (circa il 42% della vecchia supply, in due wallet collegati
 al deployer) seguono la Politica della Treasury: non fanno mai il
 claim, arrivano alla treasury con lo sweep della migrazione, e non
 votano.
+
+*Emendato il 2026-09-28: i wallet storici del progetto fanno
+il claim soltanto della quota necessaria alla liquidità iniziale,
+prima che la finestra di migrazione si apra, con i token LP
+trasferiti al Timelock in una transazione pubblicata. Tutto il
+resto arriva alla treasury con lo sweep della migrazione e non
+vota.*
 
 Questa dichiarazione non vincola nessuno per legge. È un impegno di
 condotta, datato dalla storia di questo repository.

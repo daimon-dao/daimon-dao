@@ -541,12 +541,15 @@ leggermente superiore alla quantità non riscattata. È il meccanismo di
 reflection che funziona come progettato, e il surplus segue lo stesso percorso
 del resto — alla DAO, deciso dal voto.
 
-Due posizioni resteranno certamente non riscattate, per decisione e non per
-caso: i token legacy del progetto stesso, detenuti nei due wallet marketing
-di DMX descritti in 4.1.4 — circa il 42% della vecchia supply. Non verranno
-mai riscattati da nessuno. I DMN corrispondenti raggiungono la tesoreria
-attraverso `sweepUnclaimed()` come ogni altro token non riscattato, e non
-votano. La Sezione 11.5 dichiara l'impegno per intero.
+Due posizioni resteranno quasi per intero non riscattate, per decisione e non
+per caso: i token legacy del progetto stesso, detenuti nei due wallet
+marketing di DMX descritti in 4.1.4 — circa il 42% della vecchia supply. I
+wallet del progetto riscattano solo la quota della liquidità iniziale, prima
+che si apra la finestra di migrazione, e i token LP di quella liquidità vanno
+al timelock in una transazione pubblicata. Tutto il resto resta non
+riscattato: i DMN corrispondenti raggiungono la tesoreria attraverso
+`sweepUnclaimed()` come ogni altro token non riscattato, e non votano. La
+Sezione 11.5 dichiara l'impegno per intero.
 
 ## 4.5 Perché una migrazione invece di rinunciare all'ownership
 
@@ -1695,9 +1698,10 @@ chiunque, finché un ulteriore voto non la spende.
 - *I DMN non riscattati.* Dopo la scadenza, la governance trasferisce alla
   tesoreria tutti i DMN rimasti nel contratto di migrazione (Sezione 4.4).
 - *La pool stessa.* I token LP della liquidità iniziale DMN/WBNB vengono
-  trasferiti dal deployer al timelock subito dopo l'aggiunta della
-  liquidità, in una transazione pubblicata, e il registro di lancio
-  asserisce dallo stato minato che il deployer non ne detiene alcuno. La
+  trasferiti da chi fornisce la liquidità — il proprietario di DMX, che
+  riscatta solo quella quota (11.5) — al timelock subito dopo l'aggiunta
+  della liquidità, in una transazione pubblicata, e il registro di lancio
+  asserisce dallo stato minato che nessun wallet del progetto ne detiene. La
   pool non può più essere ritirata se non per voto, e la posizione della
   tesoreria in essa cresce con la fee di ogni swap.
 
@@ -1723,11 +1727,13 @@ puntare in silenzio uno dei due flussi altrove.
 ## 11.5 I token del progetto stesso
 
 I due wallet marketing di DMX descritti in 4.1.4 — quello del proprietario e
-il secondo — detengono circa il 42% della vecchia supply. Nessuno dei due
-riscatterà mai. I DMN corrispondenti restano nel contratto di migrazione e
-raggiungono la tesoreria attraverso `sweepUnclaimed()` dopo la scadenza,
-senza un trasferimento, senza una fee, e senza passare per le mani di alcuna
-persona. I token del progetto diventano del protocollo, e non votano: la
+il secondo — detengono circa il 42% della vecchia supply. Riscattano solo la
+quota della liquidità iniziale, prima che si apra la finestra di migrazione,
+e i token LP di quella liquidità vanno al timelock in una transazione
+pubblicata (11.3). Tutto il resto resta nel contratto di migrazione e
+raggiunge la tesoreria attraverso `sweepUnclaimed()` dopo la scadenza, senza
+un trasferimento, senza una fee, e senza passare per le mani di alcuna
+persona, e non vota. I token del progetto diventano del protocollo: la
 governance è decisa da chi i propri token li ha comprati, team incluso. A
 cosa servono è deciso uso per uso, con un voto pubblico; a cosa non servono
 è scritto nella politica della tesoreria — nessun burn per decisione,

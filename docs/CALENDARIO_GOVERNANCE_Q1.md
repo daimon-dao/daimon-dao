@@ -51,6 +51,26 @@ pubblico solleva un'obiezione fondata.
 
 ---
 
+## G1b — Taratura del chunk di conversione (dopo i primi poke reali)
+
+**Perché** (finding 2b, 14/9): il fee-swap converte un chunk fisso di
+0,2 mld DMN per blocco; sulla pool di lancio dimensionata al cap
+(~4,8 mld) è il 4% della riserva e muove il prezzo di ~7,8% a ogni
+poke (5,9% a 3 BNB). Decisione: (a) accettare al lancio — a volumi
+iniziali i poke sono rari; (b) tarare via governance con i numeri
+reali dei primi poke letti dalla sentinella.
+
+    G1b  target TOKEN   setMinimumTokensBeforeSwap(X)   X da decidere
+                                                        sui dati (es.
+                                                        0,05 mld →
+                                                        ~2% per poke)
+
+**Sentinella**: ParamsUpdated("minimumTokensBeforeSwap") — notifica,
+non urgente. **Cosa succede se** troppo piccolo → più poke, più gas
+per chi li fa, stesso volume convertito: nessun rischio di fondi.
+
+---
+
 ## G2 — Esenzione fee della treasury
 
 **Perché**: il Timelock non è fee-exempt; ogni DMN che ne esce
@@ -106,10 +126,12 @@ sé, governance-only) → G2 eseguita.
 ```
 G4a  target MIGRATION  sweepUnclaimed()            porta in treasury i DMN
                                                     non riscattati: i 427 mld
-                                                    del progetto (mai claimati,
-                                                    per scelta), l'equivalente
-                                                    del dead di DMX, e quelli
-                                                    dei non-migranti
+                                                    del progetto meno la sola
+                                                    quota della liquidità
+                                                    iniziale (vedi sotto),
+                                                    l'equivalente del dead di
+                                                    DMX, e quelli dei
+                                                    non-migranti
 G4b  target TOKEN      transfer(DEAD, X)           X = saldo del dead
                                                     address di DMX al
                                                     blocco N dichiarato
@@ -119,6 +141,12 @@ G4b  target TOKEN      transfer(DEAD, X)           X = saldo del dead
                                                     in 10 secondi)
 poi, permissionless, chiunque: burnDeadBalanceToFloor()
 ```
+
+I wallet del progetto riscattano SOLO la quota della liquidità
+iniziale, prima che si apra la finestra di migrazione (passo 5a del
+lancio, CHECKLIST_MAINNET), e i token LP di quella liquidità vanno al
+Timelock in una transazione pubblicata (passo 6). Tutto il resto
+arriva in treasury con lo sweep di G4a e non vota.
 
 **Esito atteso**: `balanceOf(DEAD)` +X, poi `totalSupply()` −X
 (fino al floor). La supply di DMN riparte da dove DMX si era fermato.
@@ -144,6 +172,22 @@ modulo). Rendicontato dall'entità in pubblico.
 **Sentinella**: uscita abbinata a proposta → NOTIFICATION.
 **Cosa succede se**: destinatario diverso dall'indirizzo pubblicato →
 il pubblico e il guardian hanno 7 giorni per fermarla.
+
+Decisione del 12/9: l'entità è tra le ultime cose — fino ad allora la
+treasury accumula intoccata e i costi di deploy e audit restano
+personali, documentati per rimborso futuro.
+
+---
+
+## G4c — La vecchia pool DMX, a finestra chiusa
+
+I token LP della pool DMX sono dell'owner (0xF8EC). Alla chiusura
+della migrazione (annunciata con data): ritiro della vecchia pool →
+i BNB vanno alla TREASURY (non nella pool DMN direttamente: l'owner
+non è esente e incontrerebbe il cap di 5 mld e il #17) → la treasury
+aggiunge liquidità DMN/WBNB per proposta con i propri DMN dello
+sweep, senza cap (GOVERNANCE_ROLE), LP nel Timelock. Tutto ciò che
+era in DMX finisce in DMN e nel protocollo.
 
 ---
 
