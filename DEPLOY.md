@@ -53,18 +53,21 @@ occurred -- the cost is gas only.
    **DaimonStaking**, **DaimonGovernor** (quorum 10%, threshold 1000 DMN).
 6. **Full wiring**: governor = proposer + executor + canceller of the
    timelock, timelock = governance of the token and staking,
-   `stakingRewardShareBps = 1000` (launch compliance), and a **final
-   renounce of all the deployer's bootstrap roles** (including the
-   timelock's ADMIN_ROLE). Phase-2 asserts (20). If interrupted
+   `stakingRewardShareBps = 1000` (launch compliance), `setFees(10, 10, 20)`
+   (the 4% model, set by the deployer's temporary GOVERNANCE_ROLE before it
+   is handed to the Timelock), and a **final renounce of all the deployer's
+   bootstrap roles** (including the timelock's ADMIN_ROLE). Phase-2 asserts
+   (25). If interrupted
    mid-broadcast, resume with `--resume` — a fresh rerun would refuse.
 
 **Post-broadcast verification — [script/verify-deploy.ps1](script/verify-deploy.ps1):**
 the mandatory final gate. The in-script asserts run in the simulation
-context; this runner re-reads 34 invariants from MINED state through plain
-`eth_call` (34 today, 36 once the two planned checks land: fees ==
-(10,10,20) and marketingWallet == the deployed Timelock), including the
-guardian expiry EXACTLY equal across the three contracts and the migration
-treasury being the Timelock, and exits non-zero on any failure.
+context; this runner re-reads 36 invariants from MINED state through plain
+`eth_call` -- including fees == (10,10,20), marketingWallet == the deployed
+Timelock, the guardian expiry EXACTLY equal across the three contracts and
+the migration treasury being the Timelock -- and exits non-zero on any
+failure. All 36 are effective in the script: 36/36 green on Chapel from
+mined state (docs/CHAPEL_2B_RESULTS.md, H1.7).
 
 > The guardian keeps only pause (token) and cancel (timelock/governor), by
 > design. On testnet it can be the deployer; **in production it is the
@@ -78,7 +81,9 @@ treasury being the Timelock, and exits non-zero on any failure.
   `foundry_stable_win32_amd64.zip` from the releases at
   https://github.com/foundry-rs/foundry and put the binaries in the PATH, or
   on Linux/macOS: `curl -L https://foundry.paradigm.xyz | bash && foundryup`
-- Project dependencies already in `lib/` (`forge build` must pass).
+- Project dependencies already in `lib/` (`forge build` must pass;
+  `forge test` passes 187 tests: the 180 of `audit-final` plus the 7 of
+  `test/OldDaimonMaxTx.t.sol`).
 
 ## 2. BNB testnet from the faucet
 
@@ -199,6 +204,17 @@ cast send <OLD_DAIMON> "excludeFromFee(address)" <TIMELOCK> --rpc-url bsc_testne
 
 The immutable migration deadline started at phase 1; claims open here — a
 difference of minutes against a window of months, accepted deliberately.
+
+On mainnet this step is the end of a longer launch order
+(CHECKLIST_MAINNET.md): between the gate and the exemption, the DMX owner
+-- a different wallet from the deployer, fee- and maxTx-exempt on DMX --
+claims ONLY the DMN for the initial liquidity (5a), adds the largest single
+addLiquidityETH under the DMN 5B maxTx cap (~4.8B net) at the DMX pool
+price read live that day, DMN sent gross for the 4% (5b, #17), and sends
+ALL the LP tokens to the Timelock in a published transaction (6). The
+predecessor calls then come in one session: `setMaxTxAmount` raised to the
+full supply (11a), then `excludeFromFee(<TIMELOCK>)` (11b). Rehearsed end
+to end on Chapel: docs/CHAPEL_2B_RESULTS.md.
 
 (In bash replace the backticks with `\`. With option B use `--private-key ...`
 instead of `--account ...`.)
