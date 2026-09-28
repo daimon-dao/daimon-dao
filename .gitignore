@@ -12,3 +12,6 @@ script/campaign/anvil.log
 script/campaign/forkpin.txt
 script/chapel/keystore-map.json
 script/chapel/state.json
+# Level-2b Chapel campaign: keystore map and per-run state
+script/chapel2b/keystore-map.json
+script/chapel2b/state.json

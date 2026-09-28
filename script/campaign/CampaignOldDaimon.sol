@@ -10,7 +10,14 @@ pragma solidity 0.8.26;
  *    onlyOwner; src/mocks/MockOldDaimon deliberately keeps them
  *    permissionless for unit-test convenience, as its own header states —
  *    src/ is untouchable, so the campaign uses this owner-gated twin);
- *  - 11% total transfer fee, the real DMX figure (the src mock uses 5%).
+ *  - 11% total transfer fee, the real DMX figure (the src mock uses 5%);
+ *  - the transfer cap (Level 2b, H0.5): _maxTxAmount = 1.5B, applied to
+ *    EVERY transfer unless `from` or `to` is the owner. A fee exemption
+ *    does NOT lift it. Read on the real DMX on 2026-09-10/11
+ *    (CHECKLIST_MAINNET.md, "Predecessor token configuration"): it binds
+ *    claim() too, since the claim is a transfer claimant -> treasury, which
+ *    is why launch order step 11a raises it BEFORE the exemption opens the
+ *    window. Owner-adjustable through setMaxTxAmount, like the real one.
  *
  * Interface-compatible with everything DaimonMigration and Deploy.s.sol
  * need from OLD_DAIMON: balanceOf, transfer, transferFrom, approve,
@@ -26,10 +33,13 @@ contract CampaignOldDaimon {
     mapping(address => mapping(address => uint256)) private _allowances;
     mapping(address => bool) public excludedFromFee;
     uint256 public constant taxFeeBps = 110; // 11% out of 1000, the real DMX total fee
+    /// The real DMX _maxTxAmount: 1500000000 * 1e18, read on-chain 2026-09-11.
+    uint256 public maxTxAmount = 1_500_000_000 ether;
     uint256 public totalSupply;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
+    event MaxTxAmountUpdated(uint256 maxTxAmount);
 
     constructor(uint256 initialSupply, address holder) {
         owner = msg.sender;
@@ -59,6 +69,13 @@ contract CampaignOldDaimon {
         excludedFromFee[account] = true;
     }
 
+    /// Owner-only, like the real predecessor: launch order step 11a.
+    function setMaxTxAmount(uint256 amount) external {
+        require(msg.sender == owner, "DMX: only owner");
+        maxTxAmount = amount;
+        emit MaxTxAmountUpdated(amount);
+    }
+
     function transfer(address recipient, uint256 amount) external returns (bool) {
         _transfer(msg.sender, recipient, amount);
         return true;
@@ -72,6 +89,13 @@ contract CampaignOldDaimon {
     }
 
     function _transfer(address sender, address recipient, uint256 amount) private {
+        // The cap first, exactly as the SafeMoon-family predecessor does it:
+        // only the owner is exempt (as sender OR recipient); the fee
+        // exemptions below have no bearing on it. Same revert string as the
+        // real DMX, so a campaign runner matches on it.
+        if (sender != owner && recipient != owner) {
+            require(amount <= maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
+        }
         uint256 fee = excludedFromFee[recipient] || excludedFromFee[sender] ? 0 : (amount * taxFeeBps) / 1000;
         uint256 net = amount - fee;
 
