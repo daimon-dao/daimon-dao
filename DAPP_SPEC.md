@@ -161,6 +161,14 @@ In timelock    → 7-day countdown, then an "Execute" button (execute)
 Executed/Defeated/Canceled → status badge
 ```
 
+- **The phase comes from `Governor.state(id)`, never from the `canceled`
+  flag of `proposals(id)`.** After a direct Timelock cancel
+  (`Timelock.cancel(opId)`, the guardian stopping a queued operation without
+  the Governor) the struct's flag stays `false` while `state(id)` reads the
+  Timelock and returns Canceled (observed on Chapel, campaign 2b, H4.7). A
+  card built from the flag would show a dead proposal "In timelock" with an
+  "Execute" button that can only revert.
+
 - Show the quorum: "Quorum: X / Y required (10%)" with a bar.
 - The user's voting power shown at the top: the one AT THE SNAPSHOT of the
   selected proposal (votingPowerAt), not the live one — with a tooltip
