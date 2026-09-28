@@ -1005,3 +1005,122 @@ stays Queued with earliest execute **2026-09-28 15:34:59 UTC**, and the
 H3.3b/H3.4 sitting (execute, then the first poke that pays the marketing
 branch on a public chain) runs from that instant, not before. The Safe
 will not cancel it.
+
+## Day 9 -- Execute and the first poke at 600 (2026-09-28)
+
+The last sitting of the governance cycle on the real clock, and the last
+untested what-if of the campaign. The 7-day delay of queue(0) ended at
+readyTimestamp; execute(0), signed by the holder, applies
+setStakingRewardShareBps(600) through the Timelock (H3.3b). Then the fee
+inventory is armed and a 1-wei direct transfer to the pair pokes the
+automation (H3.4): with share 600 the marketing branch pays the
+marketing wallet -- the Timelock -- for the first time on a public chain,
+through its receive(). The split is verified wei-exact between the block
+before the poke and the poke block, against the ethReceived the token
+emits. The 2b invariant flips in this sitting: the Timelock's BNB is
+verified, then recorded as the expected balance (lib.ps1).
+
+
+### H3.3b -- The execute: proposal 0 applies setStakingRewardShareBps(600) through the Timelock; a second execute is refused
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H3.3b.1 | Preflight from live state, before execute | chain 97; now >= readyTimestamp 1790609699; proposal 0 Queued (queued=true, executed=canceled=false); operation slot readyTimestamp == state file, not executed, not canceled; opId recomputed on-chain == Day 6's; proposal 1 Defeated, 2 and 3 Canceled; share 1000; marketingWallet == Timelock; stakingContract == staking; guardian roles as deployed; Timelock BNB 0, DMN 0; Timelock holds all LP but the 1000 burned | chain=97, block=133695759 ts=1790610032 (2026-09-28 15:40:32 UTC), ready since 333 s; state0=Queued queued=true executed=false canceled=false; op readyTimestamp=1790609699 executed=false canceled=false, opIdMatch=True; state1=Defeated state2=Canceled state3=Canceled; share=1000; marketingWallet=0xd8e86A7764247aA4Ecd751A4AFaB6e68a53f9736; stakingContract=0xdB1C23eAAa306A7dbaD410E0aAa8eBDD249c62d1; token GUARDIAN_ROLE(Safe)=true, timelock CANCELLER_ROLE(Safe)=true, governor.guardian()=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, guardianAuthorityExpiry=1883988338 (2029-09-13 10:05:38 UTC), token GOVERNANCE_ROLE(Timelock)=true; Timelock BNB=0 DMN=0; LP Timelock=11497751703836292291632 of totalSupply 11497751703836292292632 (2026-09-28 15:40 UTC) | - | PASS |
+| H3.3b.2 | The holder calls execute(0) | receipt status 1, from == holder, to == governor, mined at ts >= readyTimestamp; proposals(0).executed true; state() == Executed (5); operations(opId).executed true; token.stakingRewardShareBps() == 600 | status=0x1, from=0x583982463da108879566868506cba32e7b023576, to=0x41f55dac95a028c58dd51fd72eec9101ed2ded05, block=133695792 (ts=1790610047 = 2026-09-28 15:40:47 UTC, 348 s after ready), gas=114198; executed=true, state=Executed (5); op executed=true canceled=false; share=600; receipt served by bsc-testnet.publicnode.com (2026-09-28 15:40 UTC) | 0x3f1b923136c95354ae8599c2641b55b32b3d3be8e0bfa487975656c1db4ab21b | PASS |
+| H3.3b.3 | The events decoded from the execute receipt | exactly 3 logs: ParamsUpdated("stakingRewardShareBps", 600) from the token; CallExecuted(id == opId, target == token) from the timelock; ProposalExecuted(0) from the governor | logs=3; ParamsUpdated param="stakingRewardShareBps" value=600; CallExecuted id=0x37dfdc53dc643b59a0b35a54da5b8430ab82e9641615733ce3ce71e6862c5033 target=0x48bd45d02641e688f63bd5129272c30a8828ad0b; ProposalExecuted id=0 (2026-09-28 15:40 UTC) | 0x3f1b923136c95354ae8599c2641b55b32b3d3be8e0bfa487975656c1db4ab21b | PASS |
+| H3.3b.4 | The stranger tries execute(0) a second time | refused by the Governor itself: AlreadyExecuted() (selector 0x0dc10197), the first check in execute(), before state() or the Timelock; no transaction mined | reverted with AlreadyExecuted; eth_call: cast : Error: server returned an error response: error code 3: execution reverted, data: "0x0dc10197" In C:\Users\Utente\Desktop\Daimon dao\script\chapel2b\D9-execute-poke.ps1:181 car:9 + $raw = (cast call $st.governor " (2026-09-28 15:40 UTC) | - | PASS |
+| H3.3b.5 | After execute: nothing but the share moved | guardian roles unchanged; Timelock BNB 0 and DMN 0 (share 600 is live but no conversion has run yet); LP unchanged | token GUARDIAN_ROLE(Safe)=true, timelock CANCELLER_ROLE(Safe)=true, governor.guardian()=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, guardianAuthorityExpiry=1883988338 (2029-09-13 10:05:38 UTC), token GOVERNANCE_ROLE(Timelock)=true; Timelock BNB=0 DMN=0; LP Timelock=11497751703836292291632 totalSupply=11497751703836292292632 (2026-09-28 15:40 UTC) | - | PASS |
+
+### H3.4 -- The first poke at share 600: the marketing branch pays the Timelock for the first time -- 60/40 of the marketing share, wei-exact
+
+| step | action | expected | observed | tx | verdict |
+|---|---|---|---|---|---|
+| H3.4.1 | The fee inventory vs the threshold, read before arming | recorded: the token's own DMN balance against minimumTokensBeforeSwap; fees 10/10/20 (tax 1%, liquidity 3% of which marketing 2%) | inventory=28103101012351284642331269 wei (0.0281 B) vs threshold 200000000000000000000000000 (0.2000 B), short by 0.1718 B; taxFee=10 liquidityFee=30 marketingFee=20 (2026-09-28 15:41 UTC) | - | PASS |
+| H3.4.2 | Test sell: the stranger sells 0.02 B through the real router | the pair receives EXACTLY 96%; inventory += 3% plus the contract's reflection share (< 0.01% of it); router-initiated, so NO conversion: the Timelock still at 0 BNB | pair DMN +19200000000000000000000001 wei (96% = 19200000000000000000000000); inventory +600005745206697751342427 wei (3% = 600000000000000000000000, extra 5745206697751342427); BNB out of the pool=0.0040; Timelock BNB=0; sell gas=192611 (2026-09-28 15:41 UTC) | 0x6b7160d3c447f42879600e719f7e6d441250fb835e40e81890f78f2176c557dc / 0x2a66a75f3a39fbbbcba55a3d5de11dcf23d5583b16fb4e4bc01b2112cb72c54b | DEVIATION |
+| H3.4.3 | Inventory armed by ordinary taxed transfers holder -> stranger (5.7300 B in 2 sends, each <= 3.00 B) | inventory >= minimumTokensBeforeSwap; harness necessity, recorded as such (as Day 1, H1.21): the stranger's 0.43 B and a 0.78 B-DMN pool cannot carry the ~5.7 B of taxed volume that 0.17 B of inventory needs as sells without moving the price by multiples -- on mainnet the volume is organic | inventory=200612151888499968774129235 wei (0.2006 B) vs threshold 200000000000000000000000000; +0.1719 B from 5.7300 B of volume (2026-09-28 15:41 UTC) | 0x678fa6924d25223d30e9b3a517ee9e0c831573aa26cef09586f9a3e36a68ae62 / 0x6ff458efbc3fbb1de378ed3d5b42f9389d76a980f9b8b8e1acd1ecf3e9bfd60f | NOTE |
+| H3.4.4 | The stranger pokes (1 wei of DMN straight to the pair) at share 600 | receipt status 1; exactly ONE threshold-sized chunk converts (#28 budget): SwapAndLiquify(tokensSwapped == minimumTokensBeforeSwap, ethReceived > 0) emitted -- it is emitted AFTER require(ok1), so its presence proves the call to the Timelock returned true; the token's DMN falls by exactly the chunk between block N-1 and N | status=0x1, block=133695872, gas=299981, logs=12 (receipt from bsc-testnet.publicnode.com); SwapAndLiquify tokensSwapped=200000000000000000000000000 ethReceived=33161075612616959 wei (0.0331 BNB); inventory 200612151888499968774129235 -> 612151888499968774129235, consumed=200000000000000000000000000 (2026-09-28 15:41 UTC) | 0xa2625c564a27c6f4f76e955ca3ca4cf302fdcc965cdc14c2afd668e4c4f69738 | PASS |
+| H3.4.5 | Where the BNB went, with stakingRewardShareBps == 600 -- wei-exact, block N-1 -> N | marketingEth = floor(ethReceived x 20 / 30); staking += floor(marketingEth x 600 / 1000) and RewardNotified(that amount) (not RewardReserved: stakers exist); TIMELOCK += marketingEth - toStaking via call{value} to its receive(); the token retains ethReceived - marketingEth (buyback); the three deltas sum to ethReceived | ethReceived=33161075612616959; marketingEth=22107383741744639; staking +13264430245046783 (expected 13264430245046783, RewardNotified=13264430245046783); TIMELOCK +8842953496697856 (expected 8842953496697856); token +11053691870872320 (expected 11053691870872320); sum=33161075612616959 (2026-09-28 15:41 UTC) | 0xa2625c564a27c6f4f76e955ca3ca4cf302fdcc965cdc14c2afd668e4c4f69738 | PASS |
+| H3.4.6 | The Timelock's BNB balance, before and after the first payment it ever received from the token | 0 before (the invariant held through 27 checks); after == the marketing-wallet share of this one conversion; zero DMN before and after | BNB at block 133695871 = 0 wei; at block 133695872 = 8842953496697856 wei (0.0088 BNB); DMN after = 0 (2026-09-28 15:41 UTC) | 0xa2625c564a27c6f4f76e955ca3ca4cf302fdcc965cdc14c2afd668e4c4f69738 | PASS |
+| H3.4.7 | The chunk against the pool it was sold into (as H1.24, recorded not judged) | recorded | chunk 0.2000 B against DMN reserve 0.7981 B = 2505 bps; BNB drawn 0.0331 of 0.1657; price 207686802 -> 132847432 wei/token, move -3603 bps (2026-09-28 15:41 UTC) | 0xa2625c564a27c6f4f76e955ca3ca4cf302fdcc965cdc14c2afd668e4c4f69738 | PASS |
+| H3.4.8 | Closing reads: guardian, Timelock DMN, LP | guardian roles unchanged from preflight; Timelock DMN still 0; LP totalSupply and the Timelock's LP balance unchanged (the fee swap sells, it adds no liquidity); share still 600 | token GUARDIAN_ROLE(Safe)=true, timelock CANCELLER_ROLE(Safe)=true, governor.guardian()=0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F, guardianAuthorityExpiry=1883988338 (2029-09-13 10:05:38 UTC), token GOVERNANCE_ROLE(Timelock)=true; Timelock DMN=0; LP Timelock=11497751703836292291632 (was 11497751703836292291632), totalSupply=11497751703836292292632 (was 11497751703836292292632); share=600 (2026-09-28 15:41 UTC) | - | PASS |
+| H3.4.9 | The 2b invariant flips (lib.ps1): the Timelock's native must now EQUAL the sum of verified conversions; its DMN must stay 0 | state file timelockBnbExpected = 8842953496697856; Assert-Invariants passes in its new form | timelockBnbExpected=8842953496697856, Timelock BNB now=8842953496697856, invariant checks=33 (2026-09-28 15:41 UTC) | - | PASS |
+
+### Day 9 status (2026-09-28) -- H3.3b and H3.4 closed on a public chain
+
+> **H3.4.2, explained, recorded as DEVIATION of the harness, not of the
+> contract.** The pair's DMN *reserve* grew by 96% + 1 wei. The sell
+> was right, but the harness measured the pair's reserve, not its balance.
+> Read at fixed blocks: at 133695837 (just before the sell) the pair
+> held `778916844349680170575692965` DMN against a reserve of
+> `...964`, last synced at 1789380611 (2026-09-14, Day 1). That 1 wei
+> is Day 1's poke (H1.22): the poke's fee swap syncs the pair *before*
+> the poke's own 1 wei lands, so the wei sits above the reserve until
+> the next swap. The pool saw no swap for 14 days, and today's router
+> sell swept it in. Measured by **balance**, the pair got exactly
+> `19200000000000000000000000` = 96% of 0.02 B, with no deviation.
+> Today's poke left a new stray wei the same way (block 133695872:
+> balance `...966`, reserve `...965`). Harness lesson for mainnet
+> runbooks and the monitor: a sell's received amount is `balanceOf(pair)`
+> delta, never the reserve delta, whenever a poke has run since the last
+> swap. `D9-execute-poke.ps1` is left as it ran.
+
+> **H3.3b.4, the exact error.** The second `execute(0)` (stranger,
+> gas estimation, no transaction mined) reverts with custom error
+> `AlreadyExecuted()`, selector `0x0dc10197`. Its eth_call returns
+> `execution reverted, data: "0x0dc10197"`. The Governor stops it
+> itself, at the first line of `execute()`, before `state()` or the
+> Timelock. (The row's observed text also carries the PowerShell
+> error-record wrapper around cast's stderr. That is cosmetic.)
+
+**H3.4, the numbers (poke `0xa2625c56...f69738`, block 133695872,
+299981 gas):**
+
+| leg | formula | wei | BNB |
+|---|---|---|---|
+| ethReceived (SwapAndLiquify) | swap of 0.2000 B | 33161075612616959 | 0.0332 |
+| marketingEth | floor(ethReceived x 20 / 30) | 22107383741744639 | 0.0221 |
+| staking (RewardNotified) | floor(marketingEth x 600 / 1000) = 60% | 13264430245046783 | 0.0133 |
+| **Timelock** (receive()) | marketingEth - toStaking = 40% | **8842953496697856** | **0.0088** |
+| token (buyback reserve) | ethReceived - marketingEth | 11053691870872320 | 0.0111 |
+
+The three balance deltas between blocks 133695871 and 133695872 each
+equal their formula and sum to ethReceived to the wei. The Timelock
+went from **0 to 8842953496697856 wei**. The call to it succeeded:
+receipt status 1, and `SwapAndLiquify` is emitted only after
+`require(ok1)`. The automation did not block: exactly one
+threshold-sized chunk (0.2000 B) was consumed. **H3.5 did not
+trigger**: the Timelock's `receive()` accepts the marketing branch's
+`call{value}` with the gas the token forwards, on a public chain.
+
+### Findings of the day, recorded not fixed
+
+1. **The stray poke wei** (above). The contract behaves as designed.
+   The finding is about measurement, and it matters to anything that
+   derives a trade size from reserves.
+2. **The chunk is 25% of this pool.** The 0.2 B chunk against a 0.7981 B
+   reserve is 2505 bps, and the price moved by -36.03% (207686802 ->
+   132847432 wei/token). The pool is the Chapel one: 0.249 tBNB at
+   open, 0.166 before this poke, already down from Day 1's -44.73%. Same
+   reading as H1.24: the fixed 0.02%-of-supply chunk needs a mainnet pool
+   deep enough that it is a small fraction of the DMN reserve. This is
+   input for the liquidity decision, not a contract issue.
+3. **The monitor's inversion is now due.** The first BNB from the token
+   to the Timelock has landed. Under share 1000 this would be the
+   anomaly. Under 600 it is the expected 40% leg. The harness invariant
+   flipped in the same sitting (lib.ps1: `timelockBnbExpected` =
+   8842953496697856, re-asserted: 33 checks). The monitor's
+   `marketingBranch` setting should move to `{expectedShareBps: 600,
+   onInbound: NOTIFY}` by hand, as planned (H3.3 of the plan). It stays
+   manual on purpose.
+
+**2 scenarios, 14 asserted rows: 12 PASS, 1 NOTE (H3.4.3: the arming
+volume is a harness necessity, as Day 1's H1.21), 1 DEVIATION (H3.4.2,
+harness measurement, explained above).** Signed today: execute (holder),
+approve + sell (stranger), two arming transfers holder -> stranger
+(3.00 B + 2.73 B), poke (stranger). That is six transactions.
+`git diff audit-final -- src/` stays empty.
+
+H3 is complete on Chapel: propose (Day 1), vote (Day 2), queue (Day 6),
+execute and the first 60/40 poke (today). Proposal 0 is terminal
+(Executed). With 1 Defeated and 2 and 3 Canceled, no proposal of this
+campaign is alive. What remains is H5, the closing.
