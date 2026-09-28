@@ -3,10 +3,14 @@
 To be executed **only after** the professional audit, on the range frozen at
 tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final)
 (the audited code: the scope submitted at `audit-scope-v2` plus the 29 fixes;
-`git diff audit-final -- src/` must be empty; `forge test` passes 187
-tests: the 180 of `audit-final` plus the 7 of `test/OldDaimonMaxTx.t.sol`).
+`git diff audit-final -- src/` must be empty; `forge test` passes 203
+tests: the 180 of `audit-final`, the 7 of `test/OldDaimonMaxTx.t.sol` and
+the 16 of `test/LiquiditySeeder.t.sol`).
 The launch configuration below was rehearsed end to end on Chapel
-(docs/CHAPEL_2B_RESULTS.md, tag `launch-config-rc1`).
+(docs/CHAPEL_2B_RESULTS.md, tag `launch-config-rc1`) and then on a local
+fork of BSC mainnet against the REAL DMX, DMX pool and PancakeSwap router
+(docs/MAINNET_FORK_RESULTS.md, branch `rehearsal/mainnet-fork`). The
+launch-day script, command by command: docs/LAUNCH_DAY.md.
 Every line is blocking.
 
 ## Predecessor token configuration (Zenith #29) -- and WHEN it happens
@@ -31,8 +35,9 @@ the protocol paper, section 4.1):
   `marketingAddress2` = `0x41B533AF0Db427dc97988B47f86383f42372f395`.
   Decision: the project wallets claim ONLY the initial-liquidity quota --
   the DMX owner, at launch step 5a, before the migration window opens --
-  with the LP tokens going to the Timelock in a published transaction
-  (step 6). Everything else stays in the Migration contract, reaches the
+  with the LP tokens minted directly to the Timelock by the
+  LiquiditySeeder in the same transaction (step 5b, which absorbs step 6).
+  Everything else stays in the Migration contract, reaches the
   treasury through `sweepUnclaimed()` after the deadline, and does not vote
   (docs/TREASURY_POLICY_v1.0.md, sections 2 and 6b).
 
@@ -48,8 +53,18 @@ BEFORE phase 1 (de-risking the immutable deadline, which starts at phase 1):
 - [ ] Confirm the DMX owner still has authority to set fee exemptions
       (ownership was never renounced -- verify it is still the case). If it
       cannot, the migration can never open: do NOT deploy anything.
-- [ ] Rehearse on a fork: exempt a test recipient, simulate a transfer from
+- [x] Rehearse on a fork: exempt a test recipient, simulate a transfer from
       a non-exempt holder to it, confirm exact receipt with no fee deducted.
+      DONE on the mainnet fork against the REAL DMX: after 11b a real
+      holder claimed 10.00 B and another 1.00 B, exact on every leg
+      (docs/MAINNET_FORK_RESULTS.md, F12.1/F12.2).
+- [ ] **The DMX owner must NEVER call `lock()` on DMX** (nor
+      `renounceOwnership` / `transferOwnership`) from now until 11b is
+      done. The real DMX is a SafeMoon-style `Ownable`: `lock(time)` zeroes
+      `owner()` until `unlock()` after the lock time, and during a lock
+      nobody can call `excludeFromFee` or `setMaxTxAmount` -- the migration
+      could not open while its immutable deadline runs. `getUnlockTime()`
+      must read 0 on the morning (docs/LAUNCH_DAY.md, P5).
 
 AFTER the post-broadcast verification -- launch order step 11, the LAST
 step, split in TWO owner calls on the predecessor, in ONE session, in this
@@ -65,6 +80,8 @@ order:
       the Timelock deployed in phase 2), NOT the Migration contract. This
       is the call that opens the migration window, so it goes LAST: after
       11a, in the same session, nothing between them.
+- [ ] Neither call emits an event on the real DMX (the mock did): record
+      both transaction hashes by hand; nothing that watches logs sees them.
 - [ ] Verify on-chain that the exemption is active
 - [ ] Simulate one claim end-to-end and confirm exact 1:1 receipt
 - [ ] The migration window effectively OPENS at 11b. The immutable deadline
@@ -82,14 +99,19 @@ step added):
  4  automation inert until the pair has reserves (#27, fail-open fix)
  5a the DMX owner (fee- and maxTx-exempt on DMX) claims ONLY the DMN
     needed for the initial liquidity, before the window opens
- 5b initial liquidity: the largest single addLiquidityETH under the DMN
-    5B maxTx cap (~4.8B net), priced at the DMX pool price read live
-    that day, DMN sent gross for the 4% (#17), price verified
- 6  ALL LP tokens -> Timelock, published tx; assert provider LP == 0
+ 5b initial liquidity THROUGH THE LiquiditySeeder (script/launch/): the
+    largest single add under the DMN 5B maxTx cap (~4.8B net), priced
+    at the DMX pool price read live that day, DMN sent gross for the 4%
+    (#17); one owner call wraps the BNB, sends both legs and mints the
+    LP DIRECTLY to the Timelock; price checked on-chain within 0.10 %
+ 6  merged into 5b: assert, from the seed transaction and from state,
+    Timelock LP == totalSupply - 1000, owner LP == 0, deployer LP == 0
  7  one pool only; stored pair == factory pair
  8  reserves non-zero -> automation live
  9  small test swap -> fee applied
-10  first poke -> conversion, budgets respected; monitor saw everything
+10  first poke -> converts NOTHING on launch day (fee inventory ~0.15B
+    from the 5b transfer, below the 0.2B threshold); zero BNB to the
+    Timelock. The first conversion comes later, with volume
 11a DMX setMaxTxAmount raised to the full supply (owner call, same
     session as 11b)
 11b DMX excludeFromFee(TIMELOCK) -- the migration window opens here
@@ -97,7 +119,7 @@ step added):
 
 The deployer and the DMX owner are two different wallets. The deployer
 signs phases 1 and 2 and nothing between them; the DMX owner signs 5a,
-5b, 6, 11a and 11b. Only the DMX owner can claim before 11b: it is
+5b (deploys the seeder, approves exactly, seeds), 9, 10, 11a and 11b. Only the DMX owner can claim before 11b: it is
 exempt from DMX's fee and cap, so its claim is exact 1:1 while the
 treasury is not yet exempt (Chapel 2b, H1.10-H1.14). Why 5b is sized by
 the cap and not by a BNB amount: a non-exempt provider's single add is
@@ -207,7 +229,25 @@ can see it. Phase 2 reads the mined value from the live chain instead.
       then the predecessor fee exemption (11b)** -- see the #29 section
       above. The migration window opens at 11b, against a deployment that
       has already passed every gate.
-- [ ] Contracts **verified on BscScan** (source + constructors).
+- [ ] **`MIGRATION_DURATION` = 7776000 (90 days)**, set explicitly in the
+      phase-1 environment (unset, the script defaults to 30 days). The
+      deadline is immutable from the Migration's deploy block: read back
+      `migrationDeadline()` == that block's timestamp + 7776000 (rehearsed
+      on the mainnet fork, F2.2b).
+- [ ] **Funding:** deployer **0.1 BNB** (phases 1+2 measured at 13.43M gas:
+      0.00067 BNB at 0.05 gwei, 0.040 at 3 gwei); DMX owner **2.35 BNB**
+      (2.261 BNB liquidity leg at the 2026-09-28 DMX price + gas + margin;
+      it held 0.096 BNB that day). Re-check the leg on the morning with
+      `script/fork/size-liquidity.ps1`.
+- [ ] Contracts **verified** (source + constructors): on **Sourcify** with
+      `script/launch/verify-sourcify.ps1` (free; rehearsed on the Chapel 2b
+      deployment: 7/7 exact_match; `forge verify-contract --verifier
+      sourcify` is NOT used: with forge 1.5.1 it reported "already
+      verified" and verified nothing), and on **BscScan through the manual
+      web form** (Solidity Standard-Json-Input; the script writes the
+      input and the ABI-encoded constructor arguments per contract) -- the
+      Etherscan API has no free tier for BNB Chain. Include the
+      LiquiditySeeder.
 - [ ] Timelock `MIN_DELAY` = **7 days**; `MIN_SUPPLY` = **21B**; fee cap 10%;
       `MAX_PAUSE_DURATION` = **14 days** -- confirmed on-chain post-deploy
       (the expiry parity line is covered by the verification above).
@@ -238,17 +278,24 @@ input initializes the pool at the wrong price.
       would disable fees on all buys and sells, and enable fee-free
       transfers through liquidity removal
 
-**LP tokens to the Timelock (launch order step 6, right after initial
-liquidity)**
+**LP tokens to the Timelock (launch order step 6, merged into 5b)**
 
-- [ ] Transfer ALL the LP tokens of the DMN/WBNB pair from the liquidity
-      provider (the DMX owner, step 5b) to the Timelock, in a published
-      transaction (hash in the launch record).
+- [ ] The LiquiditySeeder mints ALL the LP tokens of the DMN/WBNB pair
+      directly to the Timelock inside the seed transaction (hash in the
+      launch record): no project wallet ever holds them. The seeder is
+      single-use (`used`), owner-only, keeps nothing (asserted in the call)
+      and refuses an opening price more than 0.10 % off the intended one.
+      Why a contract: 1 wei of WBNB + `sync()` on the empty pair makes the
+      router's `addLiquidityETH` revert, and a non-atomic direct add can be
+      `skim()`-ed (docs/MAINNET_FORK_RESULTS.md, F5b.P1 and runs H2/I).
 - [ ] Post-broadcast assert, from mined state: `pair.balanceOf(provider) ==
       0`, `pair.balanceOf(deployer) == 0` and `pair.balanceOf(timelock) ==
       pair.totalSupply() - MINIMUM_LIQUIDITY` (the 1000 wei PancakeSwap locks
       at pair creation). No project wallet holds LP; the Timelock holds all
-      of it (rehearsed: docs/CHAPEL_2B_RESULTS.md, H1.14).
+      of it (rehearsed: docs/CHAPEL_2B_RESULTS.md, H1.14, with the old
+      separate transfer; docs/MAINNET_FORK_RESULTS.md, runs H2 and I, F6.1,
+      through the seeder: exactly one LP mint to the Timelock in the seed
+      transaction, clean pair and griefed pair alike).
 - [ ] From here the pool can be withdrawn only by proposal -> vote -> queue
       -> 7-day timelock -> execute (docs/TREASURY_POLICY_v1.0.md, section 2).
 
@@ -277,13 +324,14 @@ liquidity)**
 
 - [x] Initial liquidity amount -- DECIDED, decision (c): the largest single
       addLiquidityETH under the DMN 5B maxTx cap (~4.8B net; at the
-      2026-09-10 DMX price of 4.69e-10 BNB/token, 2.2512 BNB -- re-priced
+      2026-09-10 DMX price of 4.69e-10 BNB/token, 2.2512 BNB; at the
+      2026-09-28 price of 4.71191826e-10, 2.261 BNB -- re-priced
       live on launch day). Thin liquidity makes each fee-swap conversion
       move the price (about -7.8% per 0.2B chunk at that pool, by
       arithmetic); further depth comes from the treasury by proposal.
 - [x] What happens to the LP tokens -- DECIDED: held by the Timelock,
-      withdrawable only by vote + 7 days. Transferred right after initial
-      liquidity in a published transaction (launch order step 6 above);
+      withdrawable only by vote + 7 days. Minted straight to the Timelock
+      by the LiquiditySeeder in the 5b transaction (launch order 5b/6);
       the Timelock's LP position grows with every swap's fee. The earlier
       options (third-party lock with a stated duration, or burn) are
       superseded: the Timelock IS the verifiable lock, with no platform

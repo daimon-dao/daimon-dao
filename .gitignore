@@ -20,3 +20,4 @@ script/chapel2b/state.json
 script/fork/holders.local.json
 script/fork/state.json
 script/fork/out/
+script/launch/out/

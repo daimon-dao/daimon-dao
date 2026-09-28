@@ -87,11 +87,11 @@ Log-Step "F0.6" "Local fork up" "Anvil on 127.0.0.1:$($script:PORT), chain 56, f
 
 # ---- Roles: impersonated, the deployer funded to exactly the plan -----------
 foreach ($r in @("deployer", "owner", "holderA", "holderB")) { Rpc "anvil_impersonateAccount" @($script:AddrBook[$r]) | Out-Null }
-$PLAN = BI "200000000000000000"   # 0.2 BNB -- the planned deployer funding
+$PLAN = BI "100000000000000000"   # 0.1 BNB -- the deployer funding decided after the 2026-09-28 runs
 Rpc "anvil_setBalance" @($script:DEPLOYER, (ToHex $PLAN)) | Out-Null
 $fDepNonce = Nonce $script:DEPLOYER; $fDepBal = Bal $script:DEPLOYER
 $fOwnBal = Bal $script:OWNER
-Log-Step "F0.7" "Roles on the fork: deployer and owner impersonated (no key anywhere); deployer set to exactly 0.2 BNB (anvil_setBalance, the only balance ever set); the owner left at its real balance" "deployer nonce 0, balance 0.200000 BNB; owner balance on the fork == the mainnet read" "deployer nonce=$fDepNonce, balance=$(FmtT $fDepBal) ($fDepBal wei); owner fork balance=$(FmtT $fOwnBal) vs mainnet $(FmtT $mOwnBal)" "-" $(V ($fDepNonce -eq 0 -and $fDepBal -eq $PLAN -and $fOwnBal -eq $mOwnBal))
+Log-Step "F0.7" "Roles on the fork: deployer and owner impersonated (no key anywhere); deployer set to exactly 0.1 BNB (anvil_setBalance, the only balance ever set); the owner left at its real balance" "deployer nonce 0, balance 0.100000 BNB; owner balance on the fork == the mainnet read" "deployer nonce=$fDepNonce, balance=$(FmtT $fDepBal) ($fDepBal wei); owner fork balance=$(FmtT $fOwnBal) vs mainnet $(FmtT $mOwnBal)" "-" $(V ($fDepNonce -eq 0 -and $fDepBal -eq $PLAN -and $fOwnBal -eq $mOwnBal))
 
 # The two real third-party holders: checked, never named.
 $hA = $script:AddrBook.holderA; $hB = $script:AddrBook.holderB

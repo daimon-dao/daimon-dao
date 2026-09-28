@@ -2,7 +2,7 @@
 # started by start-fork.ps1 -- then the post-11b claims by two real
 # third-party holders, then the totals.
 #
-#   powershell -File script/fork/launch-day.ps1 [-FundOwnerForLiquidity] [-GriefProbe]
+#   powershell -File script/fork/launch-day.ps1 [-FundOwnerForLiquidity] [-GriefFirst]
 #
 # Default: faithful. The DMX owner keeps its REAL BNB balance; if that
 # cannot fund step 5b the run STOPS there (a finding), finalizes the totals
@@ -12,11 +12,14 @@
 #   (anvil_setBalance, logged as a setup deviation) -- every gas cost after
 #   that is still paid from the owner's real balance -- and the day goes on
 #   to 11b. The STOP row is logged all the same.
-# -GriefProbe: before 5b, inside evm_snapshot/evm_revert, a stranger
-#   donates 1 wei of WBNB to the empty DMN pair and calls sync(); records
-#   whether the router's addLiquidityETH is then refused, and whether the
-#   direct path (transfer + mint) still opens the pool at the right price.
-param([switch]$FundOwnerForLiquidity, [switch]$GriefProbe)
+# -GriefFirst: before 5b, a stranger donates 1 wei of WBNB to the empty DMN
+#   pair and calls sync() -- MINED, kept: 5b must then open the pool through
+#   the LiquiditySeeder anyway (the router path is refused, row F5b.G).
+#
+# The launch configuration rehearsed (decided after the 2026-09-28 fork runs): MIGRATION_DURATION
+# = 90 days, step 5b through script/launch/LiquiditySeeder.sol with the LP
+# minted straight to the Timelock (step 6 merged), deployer funded 0.1 BNB.
+param([switch]$FundOwnerForLiquidity, [switch]$GriefFirst)
 . $PSScriptRoot\lib.ps1
 Load-Holders
 $st = S
@@ -53,14 +56,14 @@ function Finalize { param([string]$how)
   $gp = BI $st.gasPrice
   Log-Scenario "F14 (run $runLabel)" "Gas and BNB: what the day actually cost ($how)"
   $depSpent = $depStart - $depEnd
-  Log-Step "F14.1" "DEPLOYER: total spent, from its balance (start - end) and from the ledger" "the two phases only ($($sum.deployer.n) transactions); start 0.2 BNB exactly; spent == sum of gas x price" "start=$(FmtT $depStart), end=$(FmtT $depEnd), spent=$(FmtT $depSpent) BNB ($depSpent wei); ledger: $($sum.deployer.n) txs, gas $($sum.deployer.gas), cost $(FmtT $sum.deployer.cost); at 1 gwei the same gas would cost $(FmtT ($sum.deployer.gas * 1000000000)), at 3 gwei $(FmtT ($sum.deployer.gas * 3000000000)); headroom left of the 0.2 BNB plan: $(FmtT $depEnd)" "-" $(V ($depSpent -eq $sum.deployer.cost -and $depEnd -ge 0))
+  Log-Step "F14.1" "DEPLOYER: total spent, from its balance (start - end) and from the ledger" "the two phases only ($($sum.deployer.n) transactions); start 0.1 BNB exactly (the funding decided after the 2026-09-28 runs); spent == sum of gas x price" "start=$(FmtT $depStart), end=$(FmtT $depEnd), spent=$(FmtT $depSpent) BNB ($depSpent wei); ledger: $($sum.deployer.n) txs, gas $($sum.deployer.gas), cost $(FmtT $sum.deployer.cost); at 1 gwei the same gas would cost $(FmtT ($sum.deployer.gas * 1000000000)), at 3 gwei $(FmtT ($sum.deployer.gas * 3000000000)); headroom left of the 0.1 BNB plan: $(FmtT $depEnd)" "-" $(V ($depSpent -eq $sum.deployer.cost -and $depEnd -ge 0))
   $ownSpent = $ownStart + $ownerTopUp - $ownEnd
   $ownGas = $sum.owner.cost
   $liq = if ($st.liqBnbWei) { BI $st.liqBnbWei } else { [System.Numerics.BigInteger]::Zero }
   $buy = if ($st.testBuyWei) { BI $st.testBuyWei } else { [System.Numerics.BigInteger]::Zero }
   $sellBack = if ($st.testSellProceeds) { BI $st.testSellProceeds } else { [System.Numerics.BigInteger]::Zero }
   $ownOk = ($ownSpent -eq ($ownGas + $liq + $buy - $sellBack))
-  Log-Step "F14.2" "DMX OWNER: total spent" "spent == gas + BNB into the pool + test buy - test sell proceeds" "real start=$(FmtT $ownStart), fork top-up=$(FmtT $ownerTopUp), end=$(FmtT $ownEnd), spent=$(FmtT $ownSpent) BNB; of which gas=$(FmtT $ownGas) ($($sum.owner.n) txs, gas $($sum.owner.gas); at 1 gwei $(FmtT ($sum.owner.gas * 1000000000)), at 3 gwei $(FmtT ($sum.owner.gas * 3000000000))), liquidity=$(FmtT $liq), test buy=$(FmtT $buy), test sell back=$(FmtT $sellBack)" "-" $(V $ownOk)
+  Log-Step "F14.2" "DMX OWNER: total spent" "spent == gas (seeder deploy included) + BNB into the pool + test buy - test sell proceeds; the recorded owner funding is 2.35 BNB" "real start=$(FmtT $ownStart), fork top-up=$(FmtT $ownerTopUp), end=$(FmtT $ownEnd), spent=$(FmtT $ownSpent) BNB; of which gas=$(FmtT $ownGas) ($($sum.owner.n) txs, gas $($sum.owner.gas); at 1 gwei $(FmtT ($sum.owner.gas * 1000000000)), at 3 gwei $(FmtT ($sum.owner.gas * 3000000000))), liquidity=$(FmtT $liq), test buy=$(FmtT $buy), test sell back=$(FmtT $sellBack)" "-" $(V $ownOk)
   if ($sum.holderA.n + $sum.holderB.n -gt 0) {
     Log-Step "F14.3" "Third-party holders: gas paid from their own real balances" "their own claims only, never funded by the fork" "holder A: $($sum.holderA.n) txs, $(FmtT $sum.holderA.cost) BNB; holder B: $($sum.holderB.n) txs, $(FmtT $sum.holderB.cost) BNB" "-" "NOTE"
   }
@@ -96,15 +99,16 @@ if ("$prePair" -ne $script:ZERO) { throw "STOP: a pair pre-exists for the predic
 $env:ROUTER = $script:ROUTER
 $env:OLD_DAIMON = $script:DMX
 $env:GUARDIAN_ADDRESS = $script:GUARDIAN
-foreach ($v in @("MARKETING_WALLET", "TESTNET_TREASURY_OVERRIDE", "TREASURY_ADDRESS", "MIGRATION_DURATION", "OLD_SUPPLY")) { Remove-Item "env:$v" -ErrorAction SilentlyContinue }
+$MIGRATION_DURATION = 7776000   # 90 days: the launch configuration (decided after the 2026-09-28 fork runs)
+$env:MIGRATION_DURATION = "$MIGRATION_DURATION"
+foreach ($v in @("MARKETING_WALLET", "TESTNET_TREASURY_OVERRIDE", "TREASURY_ADDRESS", "OLD_SUPPLY")) { Remove-Item "env:$v" -ErrorAction SilentlyContinue }
 $sim = Run-Forge "script/DeployPhase1.s.sol"
 $derived = @(($sim[1] -split "`r?`n") | Where-Object { $_ -match "\(= predicted timelock\)" })
 $overr = @(($sim[1] -split "`r?`n") | Where-Object { $_ -match "override active|WARNING:" })
 $durLine = (($sim[1] -split "`r?`n") | Where-Object { $_ -match "Migration duration \(days\)" } | Select-Object -First 1)
-$simOk = ($sim[0] -eq 0 -and $derived.Count -eq 2 -and $overr.Count -eq 0)
-Log-Step "F2.1" "Phase 1 SIMULATED on chain 56 with the launch environment: ROUTER, OLD_DAIMON (real DMX), GUARDIAN_ADDRESS (real Safe); no MARKETING_WALLET, no TESTNET_TREASURY_OVERRIDE; MIGRATION_DURATION unset" "exit 0; treasury AND marketing wallet logged '(= predicted timelock)'; no override or warning line" "exit=$($sim[0]); derived lines=$($derived.Count); override/warning lines=$($overr.Count); '$(("$durLine").Trim())'" "-" $(V $simOk)
+$simOk = ($sim[0] -eq 0 -and $derived.Count -eq 2 -and $overr.Count -eq 0 -and "$durLine".Trim().EndsWith("Migration duration (days): 90"))
+Log-Step "F2.1" "Phase 1 SIMULATED on chain 56 with the launch environment: ROUTER, OLD_DAIMON (real DMX), GUARDIAN_ADDRESS (real Safe); no MARKETING_WALLET, no TESTNET_TREASURY_OVERRIDE; MIGRATION_DURATION=7776000 (90 days)" "exit 0; 'Migration duration (days): 90'; treasury AND marketing wallet logged '(= predicted timelock)'; no override or warning line" "exit=$($sim[0]); derived lines=$($derived.Count); override/warning lines=$($overr.Count); '$(("$durLine").Trim())'" "-" $(V $simOk)
 if (-not $simOk) { Log-Block "Simulation output, verbatim:" $sim[1]; throw "STOP: phase 1 simulation" }
-Log-Note "MIGRATION_DURATION was left unset, so phase 1 used its default: 30 days. No document in the repository fixes the mainnet value; the deadline is immutable from phase 1. It is a launch-day input to decide before phase 1 (LAUNCH_DAY.md, inputs)."
 
 $r1 = Run-Forge "script/DeployPhase1.s.sol" -Broadcast
 if ($r1[0] -ne 0) { Log-Block "Phase 1 output (FAILED), verbatim:" $r1[1]; throw "PHASE 1 FAILED" }
@@ -118,6 +122,15 @@ $pt = "$($dep.predictedTimelock)".ToLower()
 $p1ok = ("$($dep.token)".ToLower() -eq $pred[1].ToLower() -and "$($dep.migration)".ToLower() -eq $pred[2].ToLower() -and $pt -eq $pred[3].ToLower() -and "$mk".ToLower() -eq $pt -and "$mt".ToLower() -eq $pt -and "$mg".ToLower() -eq $pt -and "$mOld".ToLower() -eq $script:DMX.ToLower() -and "$tRouter".ToLower() -eq $script:ROUTER.ToLower() -and $nAfter1 -eq [int]$dep.expectedPhase2Nonce -and -not $dep.treasuryOverridden -and -not $dep.marketingWalletOverridden)
 Log-Step "F2.2" "Phase 1 BROADCAST (impersonated deployer, mainnet gas price)" "impl/proxy/migration on the predicted nonces 0/1/2; marketingWallet, migration.treasury, migration.governance == the predicted Timelock (nonce 3); migration.oldDaimon == the REAL DMX; token router == the real router; deployer nonce == expectedPhase2Nonce; no override" "$($l1.count) txs, gas $($l1.gas), cost $(FmtT $l1.cost) BNB; token=$($dep.token), migration=$($dep.migration), predictedTimelock=$($dep.predictedTimelock); marketingWallet=$mk, treasury=$mt, governance=$mg, oldDaimon=$mOld, router=$tRouter, pair created=$tPair; nonce=$nAfter1 (expected $($dep.expectedPhase2Nonce))" "journal broadcast/DeployPhase1.s.sol/56" $(V $p1ok)
 if (-not $p1ok) { throw "STOP: phase 1 checks" }
+# The immutable deadline, read back: the Migration's constructor sets it to
+# the timestamp of the block it is MINED in plus the duration.
+$bj1 = Get-Content (Join-Path $script:ROOT "broadcast\DeployPhase1.s.sol\56\run-latest.json") -Raw | ConvertFrom-Json
+$migRc = @($bj1.receipts) | Where-Object { "$($_.contractAddress)".ToLower() -eq "$($dep.migration)".ToLower() } | Select-Object -First 1
+$migBlock = HexBI "$($migRc.blockNumber)"
+$migTs = BI ((cast block "$migBlock" -f timestamp --rpc-url $script:RPC | Out-String).Trim())
+$dl = CQ $dep.migration "migrationDeadline()(uint256)"; $edl = CQ $dep.migration "effectiveMigrationDeadline()(uint256)"
+$dlUtc = [DateTimeOffset]::FromUnixTimeSeconds([long]"$dl").UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+Log-Step "F2.2b" "MIGRATION_DURATION = 90 days, read back from the mined Migration" "migrationDeadline == timestamp of the Migration's deploy block + 7776000 exactly; effectiveMigrationDeadline == the same (no pause yet)" "Migration mined in block $migBlock at $migTs; migrationDeadline=$dl ($dlUtc UTC on the fork's clock) = +$($dl - $migTs) s; effectiveMigrationDeadline=$edl" "-" $(V (($dl - $migTs) -eq $MIGRATION_DURATION -and $edl -eq $dl))
 Log-Block "Phase 1 console, completion block verbatim:" ((($r1[1] -split "`r?`n") | Where-Object { $_ -match "PHASE 1 complete|DaimonV2 \(proxy\)|DaimonMigration:|Timelock \(predicted\)|Migration treasury:|Marketing wallet:|Migration duration" }) -join "`n")
 
 # ---- Phase 2, immediately: the deployer signs nothing in between ------------
@@ -240,54 +253,70 @@ if ($ob -lt $need) {
 }
 
 $deadline = "$((Now-Ts) + 1200)"
-if ($GriefProbe) {
-  # ---- Probe, discarded afterwards: a 1-wei WBNB donation + sync() --------
-  $snap = Rpc "evm_snapshot"
-  $script:ProbeMode = $true
-  $PROBE = "0x00000000000000000000000000000000000Fa11E"
-  $script:AddrBook["probe"] = $PROBE
-  Rpc "anvil_impersonateAccount" @($PROBE) | Out-Null
-  Rpc "anvil_setBalance" @($PROBE, (ToHex (BI "10000000000000000"))) | Out-Null
-  Send "probe" $script:WBNB "deposit()" -value "1" -step "probe" | Out-Null
-  Send "probe" $script:WBNB "transfer(address,uint256)" @($st.pair, "1") -step "probe" | Out-Null
-  $hs = Send "probe" $st.pair "sync()" -step "probe"
+$griefWei = [System.Numerics.BigInteger]::Zero
+if ($GriefFirst) {
+  # ---- The grief, MINED: a stranger parks 1 wei of WBNB in the empty pair --
+  $STRANGER = "0x00000000000000000000000000000000000Fa11E"
+  $script:AddrBook["stranger"] = $STRANGER
+  Rpc "anvil_impersonateAccount" @($STRANGER) | Out-Null
+  Rpc "anvil_setBalance" @($STRANGER, (ToHex (BI "10000000000000000"))) | Out-Null
+  Send "stranger" $script:WBNB "deposit()" -value "1" -step "grief" | Out-Null
+  Send "stranger" $script:WBNB "transfer(address,uint256)" @($st.pair, "1") -step "grief" | Out-Null
+  $hs = Send "stranger" $st.pair "sync()" -step "grief"
   $rp = Pair-Reserves
-  Send "owner" $st.token "approve(address,uint256)" @($script:ROUTER, "$gross") -step "probe" | Out-Null
   $revL = Expect-Revert "owner" $script:ROUTER "addLiquidityETH(address,uint256,uint256,uint256,address,uint256)" @($st.token, "$gross", "$gross", "$bnbWei", $script:OWNER, $deadline) -match "INSUFFICIENT_LIQUIDITY" -value "$bnbWei"
-  Log-Step "F5b.P1" "PROBE (inside evm_snapshot, discarded): a stranger, funded 0.01 BNB by the fork for this probe only, wraps 1 wei, sends it to the EMPTY DMN pair and calls sync(); then the owner's planned addLiquidityETH is simulated" "recorded: does a 1-wei donation block the router path?" "reserves after sync: DMN=$($rp[0]) WBNB=$($rp[1]); addLiquidityETH: $revL" $hs.hash $(if ("$revL" -match "INSUFFICIENT_LIQUIDITY") { "FINDING" } else { "NOTE" })
-  $h1 = Send "owner" $st.token "transfer(address,uint256)" @($st.pair, "$gross") -step "probe"
-  Send "owner" $script:WBNB "deposit()" -value "$bnbWei" -step "probe" | Out-Null
-  Send "owner" $script:WBNB "transfer(address,uint256)" @($st.pair, "$bnbWei") -step "probe" | Out-Null
-  $hm = Send "owner" $st.pair "mint(address)" @($script:OWNER) -step "probe"
-  $rq = Pair-Reserves
-  $pq = Price-WeiPerToken $rq[0] $rq[1]
-  $lpq = CQ $st.pair "balanceOf(address)(uint256)" @($script:OWNER)
-  Log-Step "F5b.P2" "PROBE, recovery path on the same griefed pair: owner transfers the gross DMN to the pair (taxed, automation idle), wraps the BNB leg, sends WBNB, calls pair.mint(owner)" "the pool opens anyway: reserve DMN == net, WBNB == leg + the 1 donated wei, price within 1 ppm of the DMX price; LP minted to the owner" "reserves DMN=$($rq[0]) (net $net), WBNB=$($rq[1]) (leg+1 = $($bnbWei + 1)); price=$pq vs DMX $price; LP=$lpq" $hm.hash $(V ($rq[0] -eq $net -and $rq[1] -eq ($bnbWei + 1) -and ($price - $pq) * 1000000 -le $price))
-  Rpc "evm_revert" @($snap) | Out-Null
-  $script:ProbeMode = $false
-  $rb = Pair-Reserves
-  Log-Step "F5b.P3" "PROBE discarded: evm_revert to the snapshot" "pair back to (0,0); owner DMN back to the gross; the probe's transactions excluded from every total" "reserves=($($rb[0]),$($rb[1])), owner DMN=$(CQ $st.token 'balanceOf(address)(uint256)' @($script:OWNER))" "-" $(V ($rb[0] -eq 0 -and $rb[1] -eq 0))
+  Log-Step "F5b.G" "THE GRIEF, mined and kept (no snapshot): a stranger -- a fresh address the fork funds with 0.01 BNB, stated here -- wraps 1 wei, sends it to the EMPTY DMN pair and calls sync(); the old router path is simulated against it" "reserves (0, 1 wei); addLiquidityETH now refused (the reason the seeder exists)" "reserves DMN=$($rp[0]) WBNB=$($rp[1]); addLiquidityETH (eth_call): $revL" $hs.hash $(V ($rp[0] -eq 0 -and $rp[1] -eq 1 -and "$revL" -match "INSUFFICIENT_LIQUIDITY"))
+  $griefWei = [System.Numerics.BigInteger]::One
 }
 
-# ---- 5b: the liquidity --------------------------------------------------------
-$hA = Send "owner" $st.token "approve(address,uint256)" @($script:ROUTER, "$gross") -step "5b"
-$hL = Send "owner" $script:ROUTER "addLiquidityETH(address,uint256,uint256,uint256,address,uint256)" @($st.token, "$gross", "$gross", "$bnbWei", $script:OWNER, $deadline) -value "$bnbWei" -step "5b"
+# ---- 5b: the LiquiditySeeder (script/launch/), deployed and called by the owner
+Assert-LocalFork
+$gpS = "$((S).gasPrice)"
+$prevE = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+$fc = (forge create "script/launch/LiquiditySeeder.sol:LiquiditySeeder" --rpc-url $script:RPC --unlocked --from $script:OWNER --legacy --gas-price $gpS --broadcast --json --constructor-args $script:OWNER $st.token $st.pair $script:WBNB $st.timelock 2>&1 | Out-String)
+$fcCode = $LASTEXITCODE; $ErrorActionPreference = $prevE
+if ($fcCode -ne 0) { Log-Block "forge create output (FAILED), verbatim:" $fc; throw "SEEDER DEPLOY FAILED" }
+# forge prints the JSON object over several lines (run H); compiler warnings
+# may carry braces too, so match the object by its first key.
+$fcMatch = [regex]::Match($fc, '(?s)\{\s*"deployer".*?\}')
+if (-not $fcMatch.Success) { Log-Block "forge create output (no JSON found), verbatim:" $fc; throw "SEEDER DEPLOY: no JSON in the forge output" }
+$fcJson = $fcMatch.Value | ConvertFrom-Json
+$SEEDER = "$($fcJson.deployedTo)"
+$rcD = (cast receipt $fcJson.transactionHash --json --rpc-url $script:RPC | Out-String) | ConvertFrom-Json
+Add-Ledger "5b" "owner" "deploy LiquiditySeeder" (HexBI "$($rcD.gasUsed)") (HexBI "$($rcD.effectiveGasPrice)") "$($fcJson.transactionHash)"
+$sOwner = CQRaw $SEEDER "owner()(address)"; $sDmn = CQRaw $SEEDER "dmn()(address)"; $sPair = CQRaw $SEEDER "pair()(address)"
+$sWbnb = CQRaw $SEEDER "wbnb()(address)"; $sTl = CQRaw $SEEDER "timelock()(address)"; $sUsed = CQRaw $SEEDER "used()(bool)"; $sTol = CQ $SEEDER "PRICE_TOLERANCE_BPS()(uint256)"
+$cfgOk = ("$sOwner".ToLower() -eq $script:OWNER.ToLower() -and "$sDmn".ToLower() -eq "$($st.token)".ToLower() -and "$sPair".ToLower() -eq "$($st.pair)".ToLower() -and "$sWbnb".ToLower() -eq $script:WBNB.ToLower() -and "$sTl".ToLower() -eq "$($st.timelock)".ToLower() -and "$sUsed" -eq "false" -and $sTol -eq 10)
+Log-Step "F5b.S1" "The owner deploys the LiquiditySeeder (forge create, constructor: owner, DMN, pair, WBNB, Timelock) -- its constructor checks the pair IS the token's pair and holds exactly DMN and WBNB" "code at the address; immutables read back == the launch addresses; used == false; tolerance 10 bps" "seeder=$SEEDER; owner=$sOwner, dmn=$sDmn, pair=$sPair, wbnb=$sWbnb, timelock=$sTl, used=$sUsed, PRICE_TOLERANCE_BPS=$sTol; deploy gas=$(HexBI "$($rcD.gasUsed)")" "$($fcJson.transactionHash)" $(V $cfgOk)
+if (-not $cfgOk) { throw "STOP: seeder configuration" }
+$revN = Expect-Revert "holderA" $SEEDER "seed(uint256)" @("$gross") -match "NotOwner()" -value "1"
+$hA = Send "owner" $st.token "approve(address,uint256)" @($SEEDER, "$gross") -step "5b"
+$alw = CQ $st.token "allowance(address,address)(uint256)" @($script:OWNER, $SEEDER)
+$hL = Send "owner" $SEEDER "seed(uint256)" @("$gross") -value "$bnbWei" -step "5b"
 $res = Pair-Reserves
 $pairBal = CQ $st.token "balanceOf(address)(uint256)" @($st.pair)
 $oDmn2 = CQ $st.token "balanceOf(address)(uint256)" @($script:OWNER)
 $open = Price-WeiPerToken $res[0] $res[1]
-$lpMinted = CQ $st.pair "balanceOf(address)(uint256)" @($script:OWNER)
-$pd = $price - $open
-Log-Step "F5b.1" "Step 5b: approve + addLiquidityETH(token, gross, amountTokenMin = gross, amountETHMin = leg, owner) on the REAL router" "reserve DMN == net of gross (exact), reserve WBNB == the leg (no refund); owner DMN back to 0; opening price == the DMX price within 1 ppm (never above: the net is rounded up)" "BNB=$bnbWei wei ($(FmtT $bnbWei)); DMN gross=$gross ($(FmtB $gross)); DMN received by the pair: reserve=$($res[0]), balanceOf=$pairBal ($(FmtB $res[0])), expected $net; reserve WBNB=$($res[1]); OPENING PRICE=$open wei/token vs DMX $price (diff $pd wei, $(Pct $pd $price 6) %); owner DMN after=$oDmn2; LP minted=$lpMinted; gas approve=$($hA.gasUsed), add=$($hL.gasUsed)" "$($hA.hash) / $($hL.hash)" $(V ($res[0] -eq $net -and $res[1] -eq $bnbWei -and $oDmn2 -eq 0 -and $pd -ge 0 -and ($pd * 1000000) -le $price))
+$pd = $price - $open; if ($pd -lt 0) { $pd = -$pd }
+Log-Step "F5b.1" "Step 5b: the owner approves EXACTLY the gross to the seeder, then seed(gross) with the BNB leg -- one transaction: DMN owner -> pair, BNB wrapped and sent, pair.mint(TIMELOCK)$(if ($GriefFirst) { ', on the GRIEFED pair' })" "a non-owner is refused (eth_call); reserve DMN == net of gross (exact), reserve WBNB == the leg$(if ($GriefFirst) { ' + the 1 donated wei' }); owner DMN 0; opening price == the DMX price within 1 ppm" "non-owner: $revN; allowance set=$alw; BNB=$bnbWei wei ($(FmtT $bnbWei)); DMN gross=$gross ($(FmtB $gross)); pair DMN reserve=$($res[0]), balanceOf=$pairBal, expected net $net; reserve WBNB=$($res[1]) (expected $($bnbWei + $griefWei)); OPENING PRICE=$open wei/token vs DMX $price (|diff| $pd wei); owner DMN after=$oDmn2; gas approve=$($hA.gasUsed), seed=$($hL.gasUsed)" "$($hA.hash) / $($hL.hash)" $(V ("$revN" -match "reverted with NotOwner" -and $alw -eq $gross -and $res[0] -eq $net -and $res[1] -eq ($bnbWei + $griefWei) -and $oDmn2 -eq 0 -and ($pd * 1000000) -le $price))
 
-# =============================================================================
-# Steps 6-8
-# =============================================================================
-Log-Scenario "F6-F8 (run $runLabel)" "Step 6: every LP token to the Timelock; step 7: one pool; step 8: reserves non-zero"
-$hT = Send "owner" $st.pair "transfer(address,uint256)" @($st.timelock, "$lpMinted") -step "6"
+# ---- Step 6, merged: the LP was minted to the Timelock IN the seed transaction
+$rcS = (cast receipt $hL.hash --json --rpc-url $script:RPC | Out-String) | ConvertFrom-Json
+$TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+$pad = { param($a) "0x" + ("$a".Substring(2).ToLower()).PadLeft(64, "0") }
+$mintLog = @($rcS.logs | Where-Object { "$($_.address)".ToLower() -eq "$($st.pair)".ToLower() -and "$($_.topics[0])" -eq $TRANSFER -and "$($_.topics[1])" -eq (& $pad $script:ZERO) -and "$($_.topics[2])" -eq (& $pad $st.timelock) })
+$lpInTx = if ($mintLog.Count -eq 1) { HexBI "$($mintLog[0].data)" } else { [System.Numerics.BigInteger]::MinusOne }
 $lpO = CQ $st.pair "balanceOf(address)(uint256)" @($script:OWNER); $lpD = CQ $st.pair "balanceOf(address)(uint256)" @($script:DEPLOYER)
 $lpT = CQ $st.pair "balanceOf(address)(uint256)" @($st.timelock); $lpS = CQ $st.pair "totalSupply()(uint256)"; $minL = CQ $st.pair "MINIMUM_LIQUIDITY()(uint256)"
-Log-Step "F6.1" "Step 6: ALL the LP tokens, owner -> Timelock" "owner LP 0, deployer LP 0, Timelock LP == totalSupply - MINIMUM_LIQUIDITY (1000)" "moved=$lpMinted; owner=$lpO, deployer=$lpD, timelock=$lpT, totalSupply=$lpS, MINIMUM_LIQUIDITY=$minL; gas=$($hT.gasUsed)" $hT.hash $(V ($lpO -eq 0 -and $lpD -eq 0 -and $lpT -eq ($lpS - $minL) -and $minL -eq 1000))
+$lpMinted = $lpT
+Log-Scenario "F6-F8 (run $runLabel)" "Step 6 (merged into 5b): every LP token minted to the Timelock; step 7: one pool; step 8: reserves non-zero"
+Log-Step "F6.1" "Step 6, MERGED into 5b: where the LP went, read from the seed transaction's own receipt and from state" "exactly one LP Transfer(0x0 -> Timelock) in the SEED transaction, == the Timelock's LP balance == totalSupply - MINIMUM_LIQUIDITY; owner LP 0, deployer LP 0" "LP mint logs to the Timelock in tx $($hL.hash): $($mintLog.Count), value=$lpInTx; timelock=$lpT, totalSupply=$lpS, MINIMUM_LIQUIDITY=$minL; owner=$lpO, deployer=$lpD" $hL.hash $(V ($mintLog.Count -eq 1 -and $lpInTx -eq $lpT -and $lpT -eq ($lpS - $minL) -and $minL -eq 1000 -and $lpO -eq 0 -and $lpD -eq 0))
+$sUsed2 = CQRaw $SEEDER "used()(bool)"
+$sB = Bal $SEEDER; $sW = CQ $script:WBNB "balanceOf(address)(uint256)" @($SEEDER); $sD = CQ $st.token "balanceOf(address)(uint256)" @($SEEDER); $sL = CQ $st.pair "balanceOf(address)(uint256)" @($SEEDER)
+$alw2 = CQ $st.token "allowance(address,address)(uint256)" @($script:OWNER, $SEEDER)
+$revU = Expect-Revert "owner" $SEEDER "seed(uint256)" @("1") -match "AlreadyUsed()" -value "1"
+Log-Step "F6.2" "The seeder after its one call" "used == true forever; no BNB, WBNB, DMN or LP left in it; the owner's allowance to it consumed to 0; a second seed refused" "used=$sUsed2; BNB=$sB, WBNB=$sW, DMN=$sD, LP=$sL; allowance=$alw2; second seed (eth_call): $revU" "-" $(V ("$sUsed2" -eq "true" -and $sB -eq 0 -and $sW -eq 0 -and $sD -eq 0 -and $sL -eq 0 -and $alw2 -eq 0 -and "$revU" -match "reverted with AlreadyUsed"))
+$st = S; $st | Add-Member -NotePropertyName seeder -NotePropertyValue $SEEDER -Force; Save-State $st
 $fp = CQRaw $script:FACTORY "getPair(address,address)(address)" @($st.token, $script:WBNB)
 $fu = CQRaw $script:FACTORY "getPair(address,address)(address)" @($st.token, $USDT)
 $fb2 = CQRaw $script:FACTORY "getPair(address,address)(address)" @($st.token, $BUSD)
@@ -309,6 +338,7 @@ Save-State $st
 Log-Scenario "F9-F10 (run $runLabel)" "Step 9: the test swap pays exactly 4%; step 10: the first poke"
 $minSwap = CQ $st.token "minimumTokensBeforeSwap()(uint256)"
 $buyWei = $MILLE
+$deadline = "$((Now-Ts) + 1200)"
 $pb0 = CQ $st.token "balanceOf(address)(uint256)" @($st.pair); $ob0 = CQ $st.token "balanceOf(address)(uint256)" @($script:OWNER)
 $hBy = Send "owner" $script:ROUTER "swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)" @("0", "[$($script:WBNB),$($st.token)]", $script:OWNER, $deadline) -value "$buyWei" -step "9 buy"
 $pb1 = CQ $st.token "balanceOf(address)(uint256)" @($st.pair); $ob1 = CQ $st.token "balanceOf(address)(uint256)" @($script:OWNER)
@@ -339,8 +369,8 @@ $inv10b = Fee-Inventory; $stk1 = Bal $st.staking; $ct1 = Bal $st.token; $tl1 = B
 if ($inv10 -lt $minSwap) {
   $missing = $minSwap - $inv10
   $vol = CeilDiv ($missing * 1000) $liqF
-  Log-Step "F10.1" "Step 10: the first poke (1 wei DMN owner -> pair), share 1000" "zero BNB to the Timelock. Recorded: is the inventory above the threshold yet?" "inventory=$(FmtB $inv10) < threshold $(FmtB $minSwap): NOTHING converts (inventory after=$(FmtB $inv10b)); staking +$($stk1 - $stk0), contract +$($ct1 - $ct0), TIMELOCK +$($tl1 - $tl0) wei; the first conversion needs $(FmtB $missing) more inventory = about $(FmtB $vol) of further taxed volume; gas=$($hP.gasUsed)" $hP.hash $(if (($tl1 - $tl0) -eq 0 -and $inv10b -ge $inv10) { "FINDING" } else { "DEVIATION" })
-  Log-Note "On launch day the first poke is a no-op: the 5b liquidity transfer arms only 3% of ~5B = ~0.15B of inventory, under the 0.2B threshold. The Timelock-receives-nothing property is proven again at the first REAL conversion, which happens later (F10.2 below, after the window opens)."
+  Log-Step "F10.1" "Step 10: the first poke (1 wei DMN owner -> pair), share 1000" "the launch-day expectation (decided after the 2026-09-28 runs): the fee inventory (~0.15 B from the 5b transfer) is below the 0.2 B threshold, so the poke converts NOTHING; zero BNB anywhere, the Timelock included" "inventory=$(FmtB $inv10) < threshold $(FmtB $minSwap): NOTHING converts (inventory after=$(FmtB $inv10b)); staking +$($stk1 - $stk0), contract +$($ct1 - $ct0), TIMELOCK +$($tl1 - $tl0) wei; the first conversion needs $(FmtB $missing) more inventory = about $(FmtB $vol) of further taxed volume; gas=$($hP.gasUsed)" $hP.hash $(V (($tl1 - $tl0) -eq 0 -and ($stk1 - $stk0) -eq 0 -and ($ct1 - $ct0) -eq 0 -and $inv10b -ge $inv10))
+  Log-Note "As expected on launch day, the first poke is a no-op: the 5b liquidity transfer arms only 3% of ~5B = ~0.15B of inventory, under the 0.2B threshold. The Timelock-receives-nothing property is proven again at the first REAL conversion, which happens later (F10.2 below, after the window opens)."
 } else {
   $ethR = ($stk1 - $stk0) + ($ct1 - $ct0) + ($tl1 - $tl0)
   $mEth = [System.Numerics.BigInteger]::Divide($ethR * $mktF, $liqF)
