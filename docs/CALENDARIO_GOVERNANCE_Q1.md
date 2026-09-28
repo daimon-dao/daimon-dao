@@ -106,10 +106,12 @@ sé, governance-only) → G2 eseguita.
 ```
 G4a  target MIGRATION  sweepUnclaimed()            porta in treasury i DMN
                                                     non riscattati: i 427 mld
-                                                    del progetto (mai claimati,
-                                                    per scelta), l'equivalente
-                                                    del dead di DMX, e quelli
-                                                    dei non-migranti
+                                                    del progetto meno la sola
+                                                    quota della liquidità
+                                                    iniziale (vedi sotto),
+                                                    l'equivalente del dead di
+                                                    DMX, e quelli dei
+                                                    non-migranti
 G4b  target TOKEN      transfer(DEAD, X)           X = saldo del dead
                                                     address di DMX al
                                                     blocco N dichiarato
@@ -119,6 +121,12 @@ G4b  target TOKEN      transfer(DEAD, X)           X = saldo del dead
                                                     in 10 secondi)
 poi, permissionless, chiunque: burnDeadBalanceToFloor()
 ```
+
+I wallet del progetto riscattano SOLO la quota della liquidità
+iniziale, prima che si apra la finestra di migrazione (passo 5a del
+lancio, CHECKLIST_MAINNET), e i token LP di quella liquidità vanno al
+Timelock in una transazione pubblicata (passo 6). Tutto il resto
+arriva in treasury con lo sweep di G4a e non vota.
 
 **Esito atteso**: `balanceOf(DEAD)` +X, poi `totalSupply()` −X
 (fino al floor). La supply di DMN riparte da dove DMX si era fermato.
