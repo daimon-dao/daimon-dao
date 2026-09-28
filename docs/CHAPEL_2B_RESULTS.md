@@ -1,10 +1,8 @@
 # Chapel "2b" mini-campaign -- results (branch chapel/level-2b)
 
-**Status: IN PROGRESS.** Day 0 is local (Anvil forking BSC Chapel).
-Day 1 (2026-09-14) is on BSC Chapel: contracts, liquidity, first poke, 11a/11b
-and proposal 0 are live on a public chain; the governance cycle runs on
-the real clock from here. Resuming after a crash or a new session =
-start from the first scenario not yet committed in this file.
+**Status: CLOSED (2026-09-28)** -- see "Campaign closure" at the end.
+Day 0 is local (Anvil forking BSC Chapel); Days 1-9 (2026-09-14 to
+2026-09-28) are on BSC Chapel, the governance cycle on the real clock.
 
 ## What this mini-campaign is
 
@@ -1124,3 +1122,139 @@ H3 is complete on Chapel: propose (Day 1), vote (Day 2), queue (Day 6),
 execute and the first 60/40 poke (today). Proposal 0 is terminal
 (Executed). With 1 Defeated and 2 and 3 Canceled, no proposal of this
 campaign is alive. What remains is H5, the closing.
+
+---
+
+## Campaign closure (2026-09-28)
+
+One day on a fork (2026-09-12), then nine sittings on BSC Chapel from
+2026-09-14 to 2026-09-28: 14 real days, every state change a signed
+transaction from an encrypted keystore or a 2-of-3 Safe with Ledgers, every
+hash in this log, every value asserted read from mined state. Level 2 proved
+the audited contracts on a public chain with the launch scripts of
+2026-08-28. This mini-campaign proved the launch configuration those scripts
+now carry. `src/` was never touched: the contracts exercised here are the
+`audit-final` bytecode.
+
+### What 2b proved (H0-H4)
+
+| block | where | proven |
+|---|---|---|
+| H0 | fork, Day 0 | The six script changes, implemented and rehearsed: H0.1 `marketingWallet` defaults to the predicted Timelock (override loud, and refused on chain 56 since Day 1); H0.2 `setFees(10, 10, 20)` by the deployer's temporary GOVERNANCE_ROLE before the hand-over, asserted in phase 2 (20 -> 25 asserts); H0.3 two new post-broadcast checks (34 -> 36); H0.4 all LP to the Timelock as launch step 6, asserted from mined state; H0.5 the predecessor mock carries the real DMX 1.5B `_maxTxAmount`; H0.6 seven tests for it (180 -> 187), none of the 180 adapted. |
+| H1 | Chapel, Day 1 | The launch order 1-11b on a public chain with those scripts. **36/36 post-broadcast checks from mined state** (H1.7, output verbatim). **Fees 10/10/20 -- 4% -- from the first block** (H1.5; setFees before the grant before the revoke, H1.5b); the test sell paid exactly 96% to the pair (H1.19). **`marketingWallet` == the Timelock from deploy**, the same prediction as the migration's treasury and governance, fulfilled four times by one address (H1.3, H1.4, H1.6). **All LP to the Timelock** in one published transaction: owner 0, deployer 0, Timelock == totalSupply - 1000 (H1.14). One pool (H1.15). First poke at share 1000: zero BNB to the Timelock (H1.23). |
+| H1/H2 | Chapel, Day 1 | **The DMX maxTx finding, reproduced and resolved.** Reproduced: a 3B claim refused by the predecessor's own cap message before 11a (H2.2), nothing moved (H2.3); 11a raised the cap to the full supply, 11b opened the window LAST, and the same 3B cleared 1:1 to the wei (H2.6). Resolved at step 5: the launch-order gap of Day 0 (liquidity needs DMN before any claim is possible) is closed by giving the liquidity leg to the DMX owner, who is fee- and cap-exempt on DMX and claims ONLY the liquidity quota before the window opens (H1.10, H1.12: exact 1:1, 0.5530 B). The deployer and the DMX owner are two different wallets, as on mainnet. |
+| H1 | Chapel, Day 1 | **The DMN 5B-cap finding and decision (c).** The planned 3-BNB opening does not fit the token's own 5B maxTx (6.66B gross at the DMX price). Decision (c): the largest single addLiquidityETH the cap allows -- 5B gross, 4.8B net, 2.2512 BNB at 4.69e-10 -- no parameter change, no exemption to any person; further depth from the treasury by proposal. Run at Chapel scale with the ratio kept: the pair received the net target +1 wei, price 468999999 vs 469000000 (H1.11, H1.13). |
+| H3.1-H3.3 | Chapel, Days 1-9 | The first mainnet proposal on the real clock: propose (Day 1), vote with quorum from one staker (Day 2), queue with the 7-day floor exact (Day 6), **execute** after readyTimestamp, `stakingRewardShareBps` 1000 -> 600, a second execute refused with `AlreadyExecuted()` (Day 9, H3.3b). |
+| H3.4 | Chapel, Day 9 | **The first 40% leg reached the Timelock wei-exact**: one poke, one threshold chunk, ethReceived 33161075612616959 -> staking 13264430245046783 (60%), Timelock 8842953496697856 (40%, via `receive()`, the first BNB it ever received), token 11053691870872320 (buyback); the three deltas sum to ethReceived. The marketing branch's `call{value}` to the Timelock did not revert: H3.5 was not triggered. |
+| H4.1-H4.4 | Chapel, Days 3-4 | **The pause drill, with "Psy unreachable"**: two pauses and two unpauses through the Safe, each pause self-scheduled at +1209600 s to the second (#36); T3/T4 signed by F2 and F3 alone, F1's address in no field of either transaction (H4.4.5); the migration deadline credited the UNION of the windows, not their sum (+14 d 20 h 39 m 09 s for 4 h 14 m 24 s of pause). |
+| H4.5-H4.7 | Chapel, Day 8 | **Both cancellation paths, and Scenario W closed end to end.** P-B through `Governor.cancel(3)`: the Timelock's `Cancelled` and the Governor's `ProposalCanceled` in one transaction. P-A -- the hostile proposal that passed on its proposer's votes alone, without any team vote, and was queued by a third party -- through `Timelock.cancel(opId)` directly, 21 h 56 m into its 7 days: `Governor.state(2)` reads Canceled on its own, neither operation can execute, the Safe cannot execute either, the cap P-A targeted is still 5B. |
+
+The 2b invariant -- the Timelock receives no BNB and no DMN from the token
+while the share is 1000 -- was asserted programmatically after every signed
+harness transaction on Chapel: 27 checks at zero, then flipped in the same
+sitting as the first payment to "the Timelock's BNB EQUALS the verified 40%
+legs" and re-asserted: **33 checks** at close.
+
+Rows, from this journal: Day 0 on the fork, 36 (35 PASS, 1 NOTE). Chapel,
+Days 1-9: **123 rows -- 117 PASS, 3 NOTE, 3 DEVIATION**. The three
+DEVIATION rows are harness-side, each explained under its row: an
+expectation that ignored the inventory's reflection share (H1.16), a
+matcher that missed the chain's exact message across a console line-wrap
+(H2.2), a reserve-delta measurement taken where a balance delta was needed
+(H3.4.2). Zero protocol deviations.
+
+Closing gates, from this working tree at the commit that closes the
+campaign:
+
+| gate | result |
+|---|---|
+| src/ vs tag `audit-final` | `git diff audit-final -- src/` is empty: the bytecode deployed and exercised here is the audited source, untouched through the campaign |
+| forge test | 26 suites, **187 tests passed**, 0 failed, 0 skipped (the 180 of `audit-final` + the 7 of H0.6) |
+| post-broadcast verification on Chapel | 36/36, Day 1 (H1.7) |
+
+### Findings carried forward
+
+1. **The Safe web interface is not a source of truth; the chain is.** On
+   Chapel it reported HTTP 422 / "failed" for transactions mined with
+   status 0x1, and a queued transaction vanished from the other signers'
+   view after an execution attempt. What is read aloud before confirming
+   is the calldata; what settles "did it work" is the receipt (Days 3-4).
+   For the mainnet runbook.
+2. **MetaMask must have the connected Ledger's account selected.** With
+   another account selected, signing fails ("does not belong to the
+   connected device"); the fix is selecting the matching account, not
+   reconnecting the device (Days 3-4). For the mainnet runbook.
+3. **The Governor's struct flag `canceled` stays false after a direct
+   Timelock cancel.** `proposals(2).canceled` is false while `state(2)`
+   is Canceled, and stays so unless someone calls `Governor.cancel(2)`
+   only to converge the flag (Day 8, H4.7.6). Proposal status is read
+   from `Governor.state(id)`, never from the flag; a Timelock `Cancelled`
+   is the URGENT signal for a queued proposal even when no
+   `ProposalCanceled` follows. Contract behaviour as audited (#26). Now
+   in `docs/SPEC_MONITOR.md` and `DAPP_SPEC.md`.
+4. **Public RPC receipts and logs are pruned.** publicnode returned null
+   receipts for mined transactions on Days 3-4 and served them on Day 8
+   (the backend the load-balancer picks, not the chain); it caps
+   `eth_getLogs` at 50000 blocks and prunes older chunks, and the archival
+   endpoint refuses `eth_getLogs` (-32005). Every claim that mattered was
+   also made from storage (`state`, `proposals`, `operations`, balances at
+   fixed blocks), which no backend prunes.
+5. **The poke's chunk-to-pool ratio, input for G1b.** The fee-swap chunk
+   is fixed by the contract at 0.2B (0.02% of supply); the pool is not.
+   Observed on Chapel: 34.54% of the DMN reserve, price -44.73% (Day 1,
+   H1.24); 25.05%, price -36.03% (Day 9, H3.4.7). Arithmetic for mainnet
+   at the decision-(c) pool: 4.17%, about -7.8% per conversion. The
+   liquidity the treasury adds by proposal after launch is what brings
+   that number down; the chunk moves only by `setMinimumTokensBeforeSwap`.
+
+### Recorded honestly: what this campaign did not do as first written
+
+- **Two proposals where one was intended** (H3.1.4): a crashed runner was
+  resumed past a signed step and proposed again. Proposal 1 was never voted
+  and lapsed to Defeated; the runners now refuse to resume past a signature.
+- **The float claims were harness necessities** (H1.17, H3.4.3): 7B
+  claimed by the owner and 5.73B of holder-to-stranger transfers to arm the
+  inventory. On mainnet the owner claims only the liquidity quota (step 5a)
+  and the volume that arms conversions is organic.
+- **H1.6, the monitor in dry-run on the 2b addresses**, lives outside this
+  repository (daimon-monitor, set `chapel-2b`, switched to
+  `marketingBranch {600, NOTIFY}` after execute(0)); its alerts were not
+  asserted as rows here, and none of this journal's claims depend on it.
+  Its Timelock `Cancelled` is still sent as NOTIFY; finding 3 asks URGENT.
+
+### What was not tested, and why
+
+- **The 14-day pause lifting on the real clock (H4.3).** Not run, by the
+  2026-08-28 operator decision that stands since Level 2: `setPaused(true)`
+  always arms min(now + 14 days, guardianExpiry), so observing a lapse
+  with no transaction would have frozen the token for two weeks and stopped
+  the governance cycle. What Chapel did observe is the scheduling side of
+  #36 to the second (both pauses at +1209600 s) and the migration credit;
+  the self-termination is timestamp arithmetic, proven at Level 1 (E2) on
+  the warped clock.
+- **Mainnet-sized pool behaviour.** The Chapel pool opened at 0.249 tBNB,
+  so each threshold chunk was a quarter to a third of it and moved the
+  price by 36-45%. The mainnet columns (4.17%, about -7.8% per conversion
+  at the decision-(c) pool) are constant-product arithmetic, not
+  observation; slippage, arbitrage and the buyback on a pool of that depth
+  are seen first at launch, with the monitor watching.
+
+### Addresses at close (Chapel, chain 97, block 133698175, 2026-09-28 15:58:40 UTC)
+
+```
+DaimonV2 (token/proxy):  0x48BD45D02641e688f63bD5129272C30A8828ad0b   fees 10/10/20, share 600, maxTx 5 B, not paused
+DaimonStaking:           0xdB1C23eAAa306A7dbaD410E0aAa8eBDD249c62d1   0.0523 BNB
+DaimonGovernor:          0x41F55DAc95A028c58Dd51FD72eec9101ed2DEd05   0 Executed, 1 Defeated, 2 Canceled, 3 Canceled
+DaimonTimelock/treasury: 0xd8e86A7764247aA4Ecd751A4AFaB6e68a53f9736   = marketing wallet; 8842953496697856 wei BNB, 0 DMN, all LP, 12.1530 B mock DMX
+DaimonMigration:         0x9c54e19bad8AcA0b7910C0E88BfBcAAbB249B718   totalMigrated 12.1530 B; effective deadline 1793256289 (2026-10-29 06:44:49 UTC)
+Pair DMN/WBNB:           0x82E71914ED2Ef364C6C760e3D728e6DC610FD2b8   0.9981 B / 0.1326 tBNB; Timelock LP 11497751703836292291632 of 11497751703836292292632
+Mock predecessor (DMX):  0xb0aA935f46354501d622C4A11a554CE226ADAE28   owner = oldowner, cap 1000 B, Timelock exempt
+Guardian (test Safe):    0x4253f80666E48a04CAbE4966Aa63035Dbb4f104F   2 of 3, nonce 6, GUARDIAN_ROLE + CANCELLER_ROLE only
+```
+
+Keystores: the campaign wallets stay encrypted on the operator's machine;
+the shared password file is deleted as the last step of the closing
+session, after this journal, the merge and the tag are pushed. No key,
+password or password path ever entered the repository.
+
+**The 2b mini-campaign is closed.**
