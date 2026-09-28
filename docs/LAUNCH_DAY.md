@@ -28,7 +28,7 @@ balance).
 | DMX owner funding | **2.35 BNB** (2.261 BNB leg at the 2026-09-28 DMX price + gas + margin) | [C F5b.0, H2 F14.2] |
 | Step 10 | the first poke converts nothing; the first conversion comes later | [H2 F10.1] |
 | Verification | Sourcify via `script/launch/verify-sourcify.ps1` + BscScan manual web form, **before any owner step** (step 4c) | Chapel 2b: 7/7 exact_match |
-| Signers | **deployer**: Ledger, through forge (`--ledger`) -- phase 1, phase 2 and the LiquiditySeeder deploy (step 4b). **DMX owner**: MetaMask (software wallet), through bscscan.com "Write Contract" -- every owner step, no forge, no cast | decided 2026-09-29 |
+| Signers | **deployer**: Ledger at `$DPATH` = `m/44'/60'/9'/0/0`, through forge (`--ledger` + the path), P3 re-checked before every broadcast -- phase 1, phase 2 and the LiquiditySeeder deploy (step 4b). **DMX owner**: MetaMask (software wallet), through bscscan.com "Write Contract" -- every owner step, no forge, no cast | decided 2026-09-29 |
 
 **The owner's balance.** 2.35 BNB is the target; P4 below must print
 FUNDED (the faithful run stopped at 5b on a short owner [C F5b.0]). Read on
@@ -78,6 +78,7 @@ If anything lands elsewhere, stop and find out why before going on.
 $env:PATH = "$HOME\.foundry\bin;" + $env:PATH
 $RPC      = "<a BSC mainnet RPC you trust>"
 $DEPLOYER = "0x4D38C9FE5250235dc99D3e098cd515B008aCa26e"   # dedicated Ledger
+$DPATH    = "m/44'/60'/9'/0/0"   # the deployer on the Ledger: Ledger Live scheme, account index 9 (index 0 is ANOTHER account)
 $OWNER    = "0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae"   # DMX owner
 $SAFE     = "0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8"   # guardian, 2-of-3
 $DMX      = "0x36EbA94407B53c631eE822C219e94580fadd67c7"
@@ -86,10 +87,37 @@ $ROUTER   = "0x10ED43C718714eb63d5aA57B78B54704E256024E"   # PancakeSwap v2, ver
 $FACTORY  = "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73"
 $WBNB     = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
 $GP       = (cast gas-price --rpc-url $RPC).Trim()          # rehearsed at 50000000
+
+# P3 as a hard gate: the Ledger must return $DEPLOYER at $DPATH, or nothing is sent.
+function Assert-Deployer {
+  $a = ((cast wallet address --ledger --mnemonic-derivation-path $DPATH 2>&1 | Select-Object -Last 1) | Out-String).Trim()
+  if ($a -ne $DEPLOYER) { throw "STOP (P3): the Ledger returns '$a' at $DPATH, not $DEPLOYER -- nothing was sent" }
+  Write-Output "P3 OK: $a at $DPATH"
+}
 ```
 
+**The deployer's derivation path.** A plain `--ledger` uses
+`m/44'/60'/0'/0/0`, which on this device is ANOTHER, everyday account
+(`0x9Fc0...848d`, nonce 122 on 2026-09-29). The deployer is at
+`$DPATH` = `m/44'/60'/9'/0/0` (Ledger Live scheme, account index 9; the
+guardian signer F1 `0xD9dB...fc16` is on the same device at
+`m/44'/60'/3'/0/0`), found on 2026-09-29 by deriving indices 0-25 in the
+Ledger Live, legacy and BIP44 schemes. Every deployer command carries the
+path, and the flag differs by tool:
+
+| tool | path flag | signer guard |
+|---|---|---|
+| `forge script` (2.1, 2.2, 2.3, any `--resume`) | `--mnemonic-derivation-paths $DPATH` (plural) | `--sender $DEPLOYER`: forge will not broadcast for a sender none of its wallets controls |
+| `forge create` (4b) | `--mnemonic-derivation-path $DPATH` (singular) | `--from $DEPLOYER` (forge create has no `--sender`); the proof is the address: CREATE from `$DEPLOYER` at nonce 19 lands on `0x21ab...e062` |
+| `cast wallet address` (P3) | `--mnemonic-derivation-path $DPATH` (singular) | -- |
+
+Every deployer **broadcast** is written as ONE line that starts with
+`Assert-Deployer;`. Keep it one line: when a line is pasted into
+PowerShell and the gate throws, the rest of THAT line is skipped, but a
+separate line pasted with it would still run.
+
 The fork signed with `--unlocked` (impersonation). On the day the
-deployer's commands are the fork's with `--ledger`; the owner's
+deployer's commands are the fork's with `--ledger` and `$DPATH`; the owner's
 transactions are the same calls, with the same arguments, sent from
 MetaMask through BscScan (see "How the owner signs" below). Neither
 signing path ran on the fork.
@@ -105,7 +133,7 @@ must NOT set `MARKETING_WALLET`, `TREASURY_ADDRESS` or
 |---|---|---|---|
 | P1 | `cast nonce $DEPLOYER --rpc-url $RPC` | `0` | the expected addresses above no longer hold; recompute them, re-run step 1 against the new prediction |
 | P2 | `cast balance $DEPLOYER --rpc-url $RPC --ether` | >= 0.1 | fund it |
-| P3 | `cast wallet address --ledger` (deployer device, Ethereum app open, "Blind signing" enabled in its settings: every deploy carries contract data) and, in MetaMask, the selected account on network "BNB Smart Chain" (chain ID 56) | `$DEPLOYER` / `$OWNER` | fix the derivation path (deployer) or the MetaMask account/network (owner) before anything else |
+| P3 | `Assert-Deployer` (= `cast wallet address --ledger --mnemonic-derivation-path $DPATH`; deployer device unlocked, Ledger Live closed, Ethereum app open, "Blind signing" enabled in its settings: every deploy carries contract data) and, in MetaMask, the selected account on network "BNB Smart Chain" (chain ID 56) | `P3 OK: $DEPLOYER` / `$OWNER` | STOP. A plain `--ledger` without the path returns `0x9Fc0...848d`: that is the path missing, not the device. Otherwise: wrong device or wrong PIN (passphrase). Owner: fix the MetaMask account/network. **P3 is re-run as a hard gate immediately before every deployer broadcast (2.2, 2.3, 4b)** |
 | P4 | `powershell -File script/fork/size-liquidity.ps1 -Rpc $RPC` | last line `FUNDED` (owner >= leg + 0.002) | fund the owner (target 2.35 BNB); do NOT start |
 | P5 | `cast call $DMX "owner()(address)"`, `"getUnlockTime()(uint256)"`, `"isExcludedFromFee(address)(bool)" $OWNER`, `"_maxTxAmount()(uint256)"` (all `--rpc-url $RPC`) | `$OWNER`, `0`, `true`, `1500000000000000000000000000` | owner authority changed or a `lock()` is running: the migration could never open. Do NOT deploy |
 | P6 | `git describe --tags`; `git diff audit-final -- src/`; `forge test` | `launch-config-rc1` (or its successor); empty; 203 passed | wrong checkout |
@@ -142,9 +170,9 @@ $env:ROUTER = $ROUTER; $env:OLD_DAIMON = $DMX; $env:GUARDIAN_ADDRESS = $SAFE
 $env:MIGRATION_DURATION = "7776000"     # 90 days -- immutable from the Migration's block
 Remove-Item env:MARKETING_WALLET, env:TESTNET_TREASURY_OVERRIDE, env:TREASURY_ADDRESS -ErrorAction SilentlyContinue
 # 2.1 simulation (nothing sent)
-forge script script/DeployPhase1.s.sol:DeployPhase1 --rpc-url $RPC --ledger --sender $DEPLOYER --legacy --with-gas-price $GP
-# 2.2 broadcast
-forge script script/DeployPhase1.s.sol:DeployPhase1 --rpc-url $RPC --ledger --sender $DEPLOYER --legacy --with-gas-price $GP --broadcast --slow
+Assert-Deployer; forge script script/DeployPhase1.s.sol:DeployPhase1 --rpc-url $RPC --ledger --mnemonic-derivation-paths $DPATH --sender $DEPLOYER --legacy --with-gas-price $GP
+# 2.2 broadcast -- ONE line: the gate, then the broadcast
+Assert-Deployer; forge script script/DeployPhase1.s.sol:DeployPhase1 --rpc-url $RPC --ledger --mnemonic-derivation-paths $DPATH --sender $DEPLOYER --legacy --with-gas-price $GP --broadcast --slow
 ```
 Check after 2.1 `[H2 F2.1]`: `Migration duration (days): 90`;
 `Migration treasury` and `Marketing wallet` both `(= predicted timelock)`;
@@ -159,12 +187,13 @@ cast call $d.migration "migrationDeadline()(uint256)" --rpc-url $RPC
 ```
 == the timestamp of the Migration's deploy block + 7776000, exactly
 (rehearsed: block timestamp 1790619977 -> deadline 1798395977). If 2.2 is
-interrupted mid-broadcast: rerun with `--resume`. If it reverts: read the
+interrupted mid-broadcast: rerun the same 2.2 line (gate included) with
+`--resume` added. If it reverts: read the
 error; nothing is claimable yet (no 11b), the only cost is gas.
 
 ```powershell
-# 2.3 phase 2 -- IMMEDIATELY, no other transaction from the deployer
-forge script script/DeployPhase2.s.sol:DeployPhase2 --rpc-url $RPC --ledger --sender $DEPLOYER --legacy --with-gas-price $GP --broadcast --slow
+# 2.3 phase 2 -- IMMEDIATELY, no other transaction from the deployer; ONE line: the gate (read-only), then the broadcast
+Assert-Deployer; forge script script/DeployPhase2.s.sol:DeployPhase2 --rpc-url $RPC --ledger --mnemonic-derivation-paths $DPATH --sender $DEPLOYER --legacy --with-gas-price $GP --broadcast --slow
 ```
 Check `[H2 F2.3, H2 F2.4]`: sixteen transactions; `All decentralization
 asserts passed`; DaimonTimelock == `0xCdaa...0891`; fees 10/10/20; one
@@ -172,7 +201,8 @@ guardian expiry on three contracts; deployer nonce 19, about 0.00067 BNB
 spent at 0.05 gwei. From here the deployer signs exactly ONE more
 transaction: the LiquiditySeeder, step 4b. If the preflight
 refuses: do NOT work around it -- abandon the phase-1 contracts and rerun
-phase 1 fresh (new nonces, new addresses). If interrupted: `--resume`.
+phase 1 fresh (new nonces, new addresses). If interrupted: the same 2.3
+line (gate included) with `--resume` added.
 
 ```powershell
 $d = Get-Content deployments/two-phase-56.json -Raw | ConvertFrom-Json
@@ -210,7 +240,8 @@ deployer deploys it with `$OWNER` there, so the owner never needs forge.
 
 ```powershell
 cast nonce $DEPLOYER --rpc-url $RPC        # 19 -> the seeder lands at 0x21ab79825b86137CF1b04884FCFC4e4b717ce062
-forge create script/launch/LiquiditySeeder.sol:LiquiditySeeder --rpc-url $RPC --ledger --legacy --gas-price $GP --broadcast --constructor-args $OWNER $TOKEN $PAIR $WBNB $TL
+# ONE line: the gate, then the broadcast (--constructor-args must stay last)
+Assert-Deployer; forge create script/launch/LiquiditySeeder.sol:LiquiditySeeder --rpc-url $RPC --ledger --mnemonic-derivation-path $DPATH --from $DEPLOYER --legacy --gas-price $GP --broadcast --constructor-args $OWNER $TOKEN $PAIR $WBNB $TL
 $SEEDER    = "<Deployed to: from the output>"
 $SEEDER_TX = "<Transaction hash: from the output>"
 cast call $SEEDER "owner()(address)" --rpc-url $RPC        # $OWNER -- NOT $DEPLOYER
