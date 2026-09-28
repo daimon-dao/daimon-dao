@@ -5,7 +5,10 @@ what to check after it, and what to do when a check fails. Written from
 what ran on a local fork of BSC mainnet against the REAL DMX, the REAL DMX
 pool and the REAL PancakeSwap v2 router (docs/MAINNET_FORK_RESULTS.md,
 2026-09-28), not from memory. The launch order is the one in
-CHECKLIST_MAINNET.md; the protocol code is the tag `launch-config-rc1`
+CHECKLIST_MAINNET.md, with two changes decided on 2026-09-29 and in force
+here: the deployer (not the owner) deploys the LiquiditySeeder, and every
+contract is verified BEFORE the first owner step (steps 4b, 4c); the
+protocol code is the tag `launch-config-rc1`
 (`git diff audit-final -- src/` empty); the only new contract is the
 launch tool `script/launch/LiquiditySeeder.sol`, outside `src/`.
 
@@ -24,22 +27,27 @@ balance).
 | Deployer funding | **0.1 BNB** (ample) | [H2 F14.1] |
 | DMX owner funding | **2.35 BNB** (2.261 BNB leg at the 2026-09-28 DMX price + gas + margin) | [C F5b.0, H2 F14.2] |
 | Step 10 | the first poke converts nothing; the first conversion comes later | [H2 F10.1] |
-| Verification | Sourcify via `script/launch/verify-sourcify.ps1` + BscScan manual web form | Chapel 2b: 7/7 exact_match |
+| Verification | Sourcify via `script/launch/verify-sourcify.ps1` + BscScan manual web form, **before any owner step** (step 4c) | Chapel 2b: 7/7 exact_match |
+| Signers | **deployer**: Ledger, through forge (`--ledger`) -- phase 1, phase 2 and the LiquiditySeeder deploy (step 4b). **DMX owner**: MetaMask (software wallet), through bscscan.com "Write Contract" -- every owner step, no forge, no cast | decided 2026-09-29 |
 
-**Open: the owner's balance.** On 2026-09-28 the DMX owner held 0.096153
-BNB; 2.35 BNB is the target. The faithful run stopped at 5b on exactly this
-[C F5b.0]. Do not start the day unless P4 below prints FUNDED.
+**The owner's balance.** 2.35 BNB is the target; P4 below must print
+FUNDED (the faithful run stopped at 5b on a short owner [C F5b.0]). Read on
+2026-09-29 at block 124610450: 2.384999 BNB, leg 1.994 BNB, FUNDED.
 
 ## Funding -- measured at the mainnet gas price of the day (0.05 gwei)
 
 | signer | what | gas | BNB at 0.05 gwei | at 1 gwei | at 3 gwei |
 |---|---|---|---|---|---|
 | deployer | phase 1 (3 tx) + phase 2 (16 tx) | 13,432,620 | 0.000672 | 0.0134 | 0.0403 |
-| DMX owner | 5a (2), seeder deploy + approve + seed (3), test swap (3), poke, 11a, 11b | 2,213,827 | 0.000111 | 0.0022 | 0.0066 |
+| deployer | LiquiditySeeder deploy (step 4b, 1 tx) | 755,546 | 0.000038 | 0.0008 | 0.0023 |
+| DMX owner | 5a (2), approve + seed (2), test swap (3), poke, 11a, 11b | 1,458,281 | 0.000073 | 0.0015 | 0.0044 |
 | DMX owner | BNB leg of the liquidity (5b) | -- | 2.261000 | 2.261000 | 2.261000 |
 | DMX owner | test buy 0.001, half sold back 0.000458 | -- | 0.000542 net | | |
 
-`[H2 F14.1, H2 F14.2]`. The deployer's 0.1 BNB leaves 0.099 at the day's gas
+`[H2 F14.1, H2 F14.2]`; the seeder deploy's 755,546 gas moved from the
+owner's row to the deployer's (the fork deployed it from the owner
+`[H2 F5b.S1]`). MetaMask may price the owner's gas above the day's 0.05
+gwei; the rows at 1 and 3 gwei show that it does not matter. The deployer's 0.1 BNB leaves 0.099 at the day's gas
 price and 0.06 even at 3 gwei. The owner's 2.35 BNB covers the leg and all
 its gas even at 3 gwei; the morning's re-sizing (P4: owner >= leg + 0.002)
 says SHORT only if the DMX price has risen more than about 3.8 % (a leg
@@ -60,9 +68,8 @@ CREATE2 on the factory -- the fork produced exactly what mainnet will
 | 4 | DaimonStaking | `0xBb596e7308D6C5AED55cEC597D372840Cbe575b1` |
 | 5 | DaimonGovernor | `0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De` |
 | -- | DMN/WBNB pair (created by `initialize`) | `0x40A97Ae210a44057603186B4BE92BAe719342AFA` |
+| 19 | LiquiditySeeder (step 4b, the deployer's first transaction after phase 2) | `0x21ab79825b86137CF1b04884FCFC4e4b717ce062` |
 
-The LiquiditySeeder is deployed by the DMX owner: its address follows from
-the owner's nonce at that moment (`cast compute-address $OWNER --nonce <n>`).
 If anything lands elsewhere, stop and find out why before going on.
 
 ## Session setup (PowerShell)
@@ -79,12 +86,18 @@ $ROUTER   = "0x10ED43C718714eb63d5aA57B78B54704E256024E"   # PancakeSwap v2, ver
 $FACTORY  = "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73"
 $WBNB     = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
 $GP       = (cast gas-price --rpc-url $RPC).Trim()          # rehearsed at 50000000
-$OWNER_SIGN = @("--ledger")    # or @("--account", "<keystore>") -- however the owner signs
-$TX = @("--rpc-url", $RPC, "--legacy", "--gas-price", $GP) + $OWNER_SIGN
 ```
 
-The fork signed with `--unlocked` (impersonation); on the day the only
-difference is the signer flag. Everything else below ran as written.
+The fork signed with `--unlocked` (impersonation). On the day the
+deployer's commands are the fork's with `--ledger`; the owner's
+transactions are the same calls, with the same arguments, sent from
+MetaMask through BscScan (see "How the owner signs" below). Neither
+signing path ran on the fork.
+
+`MIGRATION_DURATION=7776000` is also set in the local `.env` (forge loads
+it), so phase 1 does not depend on the shell variable of step 2. `.env`
+must NOT set `MARKETING_WALLET`, `TREASURY_ADDRESS` or
+`TESTNET_TREASURY_OVERRIDE` to a value (empty is fine).
 
 ## Preflight (the hour before)
 
@@ -92,18 +105,23 @@ difference is the signer flag. Everything else below ran as written.
 |---|---|---|---|
 | P1 | `cast nonce $DEPLOYER --rpc-url $RPC` | `0` | the expected addresses above no longer hold; recompute them, re-run step 1 against the new prediction |
 | P2 | `cast balance $DEPLOYER --rpc-url $RPC --ether` | >= 0.1 | fund it |
-| P3 | `cast wallet address --ledger` (deployer device) and the owner's signer | `$DEPLOYER` / `$OWNER` | fix the derivation path before anything else |
+| P3 | `cast wallet address --ledger` (deployer device, Ethereum app open, "Blind signing" enabled in its settings: every deploy carries contract data) and, in MetaMask, the selected account on network "BNB Smart Chain" (chain ID 56) | `$DEPLOYER` / `$OWNER` | fix the derivation path (deployer) or the MetaMask account/network (owner) before anything else |
 | P4 | `powershell -File script/fork/size-liquidity.ps1 -Rpc $RPC` | last line `FUNDED` (owner >= leg + 0.002) | fund the owner (target 2.35 BNB); do NOT start |
 | P5 | `cast call $DMX "owner()(address)"`, `"getUnlockTime()(uint256)"`, `"isExcludedFromFee(address)(bool)" $OWNER`, `"_maxTxAmount()(uint256)"` (all `--rpc-url $RPC`) | `$OWNER`, `0`, `true`, `1500000000000000000000000000` | owner authority changed or a `lock()` is running: the migration could never open. Do NOT deploy |
 | P6 | `git describe --tags`; `git diff audit-final -- src/`; `forge test` | `launch-config-rc1` (or its successor); empty; 203 passed | wrong checkout |
-| P7 | `Test-Path deployments/two-phase-56.json`; `Test-Path broadcast/DeployPhase1.s.sol/56` | both `False` | move the old files away: phase 2 and `--resume` would read them |
+| P7 | `Test-Path` on `deployments/two-phase-56.json`, `broadcast/DeployPhase1.s.sol/56`, `broadcast/DeployPhase2.s.sol/56`, `cache/DeployPhase1.s.sol/56`, `cache/DeployPhase2.s.sol/56` | all `False` | move the old files away: phase 2 and `--resume` would read them. A phase-1 **simulation** (2.1, or any dry run) WRITES `deployments/two-phase-56.json` and `broadcast/.../56/dry-run`: a dry run done before the day must be cleaned up again; the one in 2.1 is overwritten by 2.2 |
+| P8 | on bscscan.com, `$DMX` -> Contract: the green "verified" tick and a **Write Contract** tab listing `approve`, `setMaxTxAmount`, `excludeFromFee`; same for `$ROUTER` (`swapExactETHForTokensSupportingFeeOnTransferTokens`) | present (both are exact matches on Sourcify: DMX since 2025-07-09) | the owner cannot sign 5a/9/11 through BscScan: stop and decide the signing path before phase 1 |
+| P9 | MetaMask: Settings -> Advanced -> **Show hex data** ON; no pending transaction on `$OWNER`; the DMX token (`$DMX`) imported for display | done | turn it on: the hex data is how every owner confirmation is checked |
 
 **The DMX owner must NEVER call `lock()` on DMX** -- nor
 `renounceOwnership` or `transferOwnership` -- until 11b is done. The real
 DMX is a SafeMoon-style `Ownable`: `lock(time)` sets `owner()` to zero until
 `unlock()` after the lock time, and while it runs nobody can call
 `setMaxTxAmount` or `excludeFromFee`: the window could not open while the
-immutable 90-day deadline keeps running.
+immutable 90-day deadline keeps running. On BscScan's Write Contract tab of
+DMX, `lock`, `renounceOwnership`, `transferOwnership` and `presale` sit in
+the same list as the three functions the owner uses: open only the
+function each step names.
 
 ## Step 1 -- the pair does not exist (#25) -- read-only
 
@@ -151,7 +169,8 @@ forge script script/DeployPhase2.s.sol:DeployPhase2 --rpc-url $RPC --ledger --se
 Check `[H2 F2.3, H2 F2.4]`: sixteen transactions; `All decentralization
 asserts passed`; DaimonTimelock == `0xCdaa...0891`; fees 10/10/20; one
 guardian expiry on three contracts; deployer nonce 19, about 0.00067 BNB
-spent at 0.05 gwei. From here the deployer signs NOTHING. If the preflight
+spent at 0.05 gwei. From here the deployer signs exactly ONE more
+transaction: the LiquiditySeeder, step 4b. If the preflight
 refuses: do NOT work around it -- abandon the phase-1 contracts and rerun
 phase 1 fresh (new nonces, new addresses). If interrupted: `--resume`.
 
@@ -183,6 +202,115 @@ cast balance $TOKEN --rpc-url $RPC                                          # 0
 affected -- go on. A material WBNB amount would be refused by the seeder's
 price check; see 5b.
 
+## Step 4b -- the LiquiditySeeder -- DEPLOYER signs (Ledger, forge)
+
+The seeder is launch tooling with an immutable caller: the constructor's
+first argument, not the deployer, is the only address `seed` accepts. The
+deployer deploys it with `$OWNER` there, so the owner never needs forge.
+
+```powershell
+cast nonce $DEPLOYER --rpc-url $RPC        # 19 -> the seeder lands at 0x21ab79825b86137CF1b04884FCFC4e4b717ce062
+forge create script/launch/LiquiditySeeder.sol:LiquiditySeeder --rpc-url $RPC --ledger --legacy --gas-price $GP --broadcast --constructor-args $OWNER $TOKEN $PAIR $WBNB $TL
+$SEEDER    = "<Deployed to: from the output>"
+$SEEDER_TX = "<Transaction hash: from the output>"
+cast call $SEEDER "owner()(address)" --rpc-url $RPC        # $OWNER -- NOT $DEPLOYER
+cast call $SEEDER "dmn()(address)" --rpc-url $RPC          # $TOKEN
+cast call $SEEDER "pair()(address)" --rpc-url $RPC         # $PAIR
+cast call $SEEDER "wbnb()(address)" --rpc-url $RPC         # $WBNB
+cast call $SEEDER "timelock()(address)" --rpc-url $RPC     # $TL
+cast call $SEEDER "used()(bool)" --rpc-url $RPC            # false
+```
+The constructor refuses a pair that is not the token's own DMN/WBNB pair
+and a codeless Timelock `[H2 F5b.S1]`. If `owner()` is not `$OWNER`: the
+seeder is useless (every `seed` reverts `NotOwner`) but harmless -- deploy
+another one with the right argument; nothing else changes. A different
+nonce only changes the seeder's address: use the one printed. After this
+the deployer signs NOTHING.
+
+## Step 4c -- verification, BEFORE any owner step
+
+The owner signs through BscScan's Write Contract tab, which exists only
+for a contract verified on BscScan. Every contract is verified now, before
+the first owner click; the pair stays empty meanwhile (a 1-wei grief is
+absorbed by the seeder, a material donation is refused by it, see 5b).
+
+```powershell
+powershell -File script/launch/verify-sourcify.ps1 -Chain 56 -Rpc $RPC -Seeder $SEEDER -SeederTx $SEEDER_TX
+```
+It reads every address, constructor argument and creation transaction from
+the phase journals (the seeder's from its own getters), submits each
+contract to **Sourcify**'s v2 API, polls the job, reads the verdict back,
+and exits with the number of contracts not verified: expected exit 0, 7
+contracts (implementation, proxy, Migration, Timelock, Staking, Governor,
+LiquiditySeeder). Rehearsed on the Chapel 2b deployment: **7/7
+exact_match**. Do NOT use `forge verify-contract --verifier sourcify`: with
+forge 1.5.1 it printed "already verified" and verified nothing.
+
+**BscScan** has no free API for BNB Chain, so the explorer's own form is
+the path. The script also writes, per contract, into
+`script/launch/out/verify-56/`:
+`<Name>.standard-input.json` and `<Name>.constructor-args.txt`. On
+bscscan.com, for each address: Contract -> Verify and Publish -> Compiler
+Type **Solidity (Standard-Json-Input)**, compiler **v0.8.26+commit.8a97fa7a**,
+license MIT -> upload the `.standard-input.json` -> paste the
+`.constructor-args.txt` content (no `0x`; empty for the implementation) ->
+pick the contract name -> complete the human check -> submit. For the proxy
+afterwards: More Options -> "Is this a proxy?" -> Verify, to link the
+implementation's ABI. (Sourcify may forward a submission to Etherscan's
+API on its own: look at the explorer page first, the form may already be
+unnecessary.)
+
+**Gate -- no owner step until all of these hold on bscscan.com:**
+
+| address | page must show |
+|---|---|
+| `$MIG` (DaimonMigration) | verified; Write Contract lists `claim` |
+| `$TOKEN` (DMN proxy) | verified; **Write as Proxy** lists `approve`, `transfer`; "Read as Proxy" `name()` answers |
+| `$SEEDER` | verified; Write Contract lists `seed`; Read Contract `owner` == `$OWNER`, `used` == false |
+| `$DMX`, `$ROUTER` | already verified (P8) |
+| implementation, Timelock, Staking, Governor | verified (not written to on the day, verified anyway) |
+
+## How the owner signs -- every owner step
+
+The DMX owner `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae` signs in
+**MetaMask**, through bscscan.com. For each step below the table gives the
+contract, the function, the exact values to paste and what MetaMask must
+show. The routine, every time:
+
+1. Open the contract's page by pasting the address from this document into
+   bscscan.com's search box -- never from a link in a chat, a mail or a
+   search engine. Check the address in the page header, all of it.
+2. Contract -> **Write Contract** (DMN: **Write as Proxy**) -> "Connect to
+   Web3" -> MetaMask -> account `0xF8EC...B0Ae`. BscScan shows
+   "Connected - Web3 [0xf8ec...]".
+3. Expand ONLY the function the step names; paste the values in field
+   order, digits only, no spaces, no thousands separators (uint256 fields
+   take wei: the integer as printed, no decimal point). Click **Write**.
+4. In MetaMask, before Confirm, check in this order:
+   - network **BNB Smart Chain** (chain ID 56); account `0xF8EC...B0Ae`;
+   - the contract it interacts with == the step's address (first and last
+     characters at least, then all of it in the hex data);
+   - the amount of BNB sent == the step's value (0 everywhere except `seed`
+     and the test buy);
+   - the **hex data** (P9: Show hex data) == the `expected data` the step
+     prints with `cast calldata` -- the whole string; this is the check
+     that matters, the decoded view can round a token amount;
+   - no "this transaction is likely to fail" warning: a failing gas
+     estimate means an on-chain check would revert -- **Reject** and read
+     the step's failure notes;
+   - network fee: a small fraction of 0.01 BNB. Anything near or above
+     0.01: Reject and look again.
+   - For an approval MetaMask shows a **spending cap request**: never
+     click Edit / "use default" / "max" -- any change changes the hex and
+     `ApprovalNotExact` / `AmountMismatch` follow.
+5. Confirm; wait for "Success" on the BscScan transaction page; paste the
+   hash into the launch record; run the step's read-only checks BEFORE the
+   next step. "Speed up" in MetaMask is fine (same data); never "Cancel"
+   and resend with edited values.
+
+The expected data of every owner transaction is printed from the shell
+where the variables live (`cast calldata` only encodes; it sends nothing).
+
 ## Step 5a -- a non-owner is still refused; the owner claims ONLY the gross -- DMX OWNER signs
 
 Non-owner check, launch-day form (no holder signs anything): a pure
@@ -203,37 +331,47 @@ division by zero` before reaching the check (journal, run F).
 
 ```powershell
 powershell -File script/fork/size-liquidity.ps1 -Rpc $RPC -Token $TOKEN
-$GROSS  = "<GROSS from the output>"      # rehearsed 4998406600825315109208480483
-$BNB    = "<BNB_LEG from the output>"    # rehearsed 2261000000000000000
-cast send $DMX "approve(address,uint256)" $MIG $GROSS @TX
-cast send $MIG "claim(uint256)" $GROSS @TX
+$GROSS  = "<GROSS from the output>"      # rehearsed 4998406600825315109208480483; 2026-09-29 preflight 4999548574361503910682398180
+$BNB    = "<BNB_LEG from the output>"    # rehearsed 2261000000000000000; 2026-09-29 preflight 1994000000000000000
+cast --to-unit $BNB ether                # the leg in BNB, for the seed form (a multiple of 0.001: three decimals)
+cast calldata "approve(address,uint256)" $MIG $GROSS     # expected data, 5a.1
+cast calldata "claim(uint256)" $GROSS                    # expected data, 5a.2
 ```
-Check `[H2 F5a.5]`: `migratedAmount($OWNER)` == GROSS; the owner's DMN ==
-GROSS; `DMX.balanceOf($TL)` == GROSS -- 1:1 on every leg. The owner can
-claim before 11b only because it is fee- and cap-exempt on DMX
-`[H2 F5a.2]`. If the helper does not print FUNDED: STOP before the claim.
-If the claim reverts with `AmountMismatch`: the owner lost its DMX
-exemption -- STOP.
+If the helper does not print FUNDED: STOP before the claim. `$GROSS` and
+`$BNB` are fixed here and used unchanged through 5b.
+
+| # | contract (bscscan.com) | tab / function | paste, in field order | MetaMask must show |
+|---|---|---|---|---|
+| 5a.1 | DMX `0x36EbA94407B53c631eE822C219e94580fadd67c7` | Write Contract -> `approve` | spender: `$MIG` (`0x76368b60514b145617385847aCFF7b7EA9764725`); amount: `$GROSS` (wei) | spending cap request on DMX, spender `0x7636...4725`, cap `$GROSS` / 1e18 DMX (about 5.0 B); 0 BNB; hex data starts `0x095ea7b3` and == expected 5a.1 |
+| 5a.2 | Migration `0x76368b60514b145617385847aCFF7b7EA9764725` | Write Contract -> `claim` | amount: `$GROSS` (wei) | interacting with `0x7636...4725`; 0 BNB; hex data starts `0x379607f5` and == expected 5a.2 |
+
+Check after 5a.1: `cast call $DMX "allowance(address,address)(uint256)" $OWNER $MIG --rpc-url $RPC` == `$GROSS`.
+Check after 5a.2 `[H2 F5a.5]`: `migratedAmount($OWNER)` == GROSS; the
+owner's DMN == GROSS; `DMX.balanceOf($TL)` == GROSS -- 1:1 on every leg.
+The owner can claim before 11b only because it is fee- and cap-exempt on
+DMX `[H2 F5a.2]`. If the claim reverts with `AmountMismatch`: the owner
+lost its DMX exemption -- STOP.
 
 ## Step 5b (with step 6 merged) -- the LiquiditySeeder -- DMX OWNER signs
 
 ```powershell
-# 5b.1 deploy the seeder (constructor: owner, DMN, pair, WBNB, Timelock)
-forge create script/launch/LiquiditySeeder.sol:LiquiditySeeder @TX --broadcast --constructor-args $OWNER $TOKEN $PAIR $WBNB $TL
-$SEEDER = "<Deployed to: from the output>"
-cast call $SEEDER "owner()(address)" --rpc-url $RPC        # $OWNER   (and dmn, pair, wbnb, timelock: the launch addresses)
-cast call $SEEDER "used()(bool)" --rpc-url $RPC            # false
-# 5b.2 approve EXACTLY the gross, then seed with the BNB leg
-cast send $TOKEN "approve(address,uint256)" $SEEDER $GROSS @TX
-cast send $SEEDER "seed(uint256)" $GROSS --value $BNB @TX
+cast calldata "approve(address,uint256)" $SEEDER $GROSS  # expected data, 5b.1
+cast calldata "seed(uint256)" $GROSS                     # expected data, 5b.2
 ```
-The constructor refuses a pair that is not the token's own DMN/WBNB pair
-and a codeless Timelock `[H2 F5b.S1]`. `seed` is owner-only and single-use;
-in ONE transaction it moves the gross DMN owner -> pair, wraps the BNB and
-sends it, calls `pair.mint(TIMELOCK)`, and then refuses to finish unless:
-the pool price is within 0.10 % of msg.value / DMN-received; every LP token
-is the Timelock's (`totalSupply - 1000`); nothing -- BNB, WBNB, DMN, LP --
-is left in the seeder; the owner's approval was exact (0 left).
+
+| # | contract (bscscan.com) | tab / function | paste, in field order | MetaMask must show |
+|---|---|---|---|---|
+| 5b.1 | DMN proxy `0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a` | **Write as Proxy** -> `approve` | spender: `$SEEDER` (predicted `0x21ab79825b86137CF1b04884FCFC4e4b717ce062`); amount: `$GROSS` (wei) -- EXACTLY | spending cap request on DMN, spender == `$SEEDER`, cap `$GROSS` / 1e18; 0 BNB; hex data starts `0x095ea7b3` and == expected 5b.1 |
+| 5b.2 | LiquiditySeeder `$SEEDER` | Write Contract -> `seed` | **payableAmount (BNB)**: the leg IN BNB, from `cast --to-unit $BNB ether` (e.g. `1.994` -- this field is in BNB, NOT wei); dmnGross: `$GROSS` (wei) | interacting with `$SEEDER`; amount **exactly the leg in BNB** (e.g. 1.994 BNB); hex data starts `0x95564837` and == expected 5b.2 |
+
+`seed` is owner-only and single-use; in ONE transaction it moves the gross
+DMN owner -> pair, wraps the BNB and sends it, calls `pair.mint(TIMELOCK)`,
+and then refuses to finish unless: the pool price is within 0.10 % of
+msg.value / DMN-received; every LP token is the Timelock's (`totalSupply -
+1000`); nothing -- BNB, WBNB, DMN, LP -- is left in the seeder; the owner's
+approval was exact (0 left). A wrong BNB amount typed in the payable field
+is therefore caught on chain (`PriceOutOfTolerance`), but check it in
+MetaMask anyway: 1.994 and 19.94 are one keystroke apart.
 
 Check `[H2 F5b.1, H2 F6.1, H2 F6.2]`:
 - `getReserves` of `$PAIR`: DMN == NET from the helper (exact), WBNB == `$BNB`
@@ -247,12 +385,14 @@ Check `[H2 F5b.1, H2 F6.1, H2 F6.2]`:
 - `used()` == true; the seeder holds 0 BNB, 0 WBNB, 0 DMN, 0 LP;
   `allowance($OWNER, $SEEDER)` == 0; the owner's DMN == 0.
 
-If `seed` reverts with `PriceOutOfTolerance`: someone parked a material
-amount in the pair -- STOP and decide (a donation of that size moves the
-opening price; the seeder refuses it on purpose; unit test
+If MetaMask warns that `seed` is likely to fail, or it reverts:
+`PriceOutOfTolerance`: someone parked a material amount in the pair (or
+the BNB typed was wrong) -- STOP and decide (a donation of that size moves
+the opening price; the seeder refuses it on purpose; unit test
 `test_SkewingWbnbDonationBeyondToleranceReverts`). `ApprovalNotExact`:
-re-approve exactly `$GROSS`. `NotOwner` / `AlreadyUsed`: wrong signer / the
-pool is already open -- read the pair before anything else.
+re-approve exactly `$GROSS` (5b.1 again). `NotOwner` / `AlreadyUsed`:
+wrong MetaMask account / the pool is already open -- read the pair before
+anything else.
 
 ## Step 7 -- one pool only -- read-only
 
@@ -271,17 +411,34 @@ threshold, see step 10.
 
 ## Step 9 -- the test swap, fee exactly 4 % -- DMX OWNER signs
 
-The owner holds no DMN after 5b, so the test sell needs a small buy first:
+The owner holds no DMN after 5b, so the test sell needs a small buy first.
+Three owner transactions, through the PancakeSwap v2 router's own verified
+page (not the PancakeSwap app: the app picks its own route and slippage).
 
 ```powershell
-$DEADLINE = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 1200
-cast send $ROUTER "swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)" 0 "[$WBNB,$TOKEN]" $OWNER $DEADLINE --value 1000000000000000 @TX
+$DEADLINE = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 1800; $DEADLINE    # paste this number; 30 minutes to do 9.1-9.3
+cast calldata "swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)" 0 "[$WBNB,$TOKEN]" $OWNER $DEADLINE   # expected data, 9.1
+# after 9.1 is mined:
 $GOT = (cast call $TOKEN "balanceOf(address)(uint256)" $OWNER --rpc-url $RPC).Split(" ")[0]
-$SELL = ([System.Numerics.BigInteger]::Parse($GOT) / 2).ToString()
+$SELL = ([System.Numerics.BigInteger]::Parse($GOT) / 2).ToString(); $SELL
 $P0 = (cast call $TOKEN "balanceOf(address)(uint256)" $PAIR --rpc-url $RPC).Split(" ")[0]
-cast send $TOKEN "approve(address,uint256)" $ROUTER $SELL @TX
-cast send $ROUTER "swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)" $SELL 0 "[$TOKEN,$WBNB]" $OWNER $DEADLINE @TX
+cast calldata "approve(address,uint256)" $ROUTER $SELL   # expected data, 9.2
+cast calldata "swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)" $SELL 0 "[$TOKEN,$WBNB]" $OWNER $DEADLINE   # expected data, 9.3
 ```
+
+| # | contract (bscscan.com) | tab / function | paste, in field order | MetaMask must show |
+|---|---|---|---|---|
+| 9.1 | Router `0x10ED43C718714eb63d5aA57B78B54704E256024E` | Write Contract -> `swapExactETHForTokensSupportingFeeOnTransferTokens` | payableAmount (BNB): `0.001`; amountOutMin: `0`; path: `[0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c,0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a]`; to: `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae`; deadline: `$DEADLINE` | interacting with `0x10ED...024E`; amount 0.001 BNB; hex data starts `0xb6f9de95` and == expected 9.1 |
+| 9.2 | DMN proxy `0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a` | Write as Proxy -> `approve` | spender: `0x10ED43C718714eb63d5aA57B78B54704E256024E`; amount: `$SELL` (wei) | spending cap request on DMN, spender `0x10ED...024E`, cap `$SELL` / 1e18; 0 BNB; hex data starts `0x095ea7b3` and == expected 9.2 |
+| 9.3 | Router `0x10ED43C718714eb63d5aA57B78B54704E256024E` | Write Contract -> `swapExactTokensForETHSupportingFeeOnTransferTokens` | amountIn: `$SELL`; amountOutMin: `0`; path: `[0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a,0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c]`; to: `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae`; deadline: the same `$DEADLINE` | interacting with `0x10ED...024E`; 0 BNB; hex data starts `0x791ac947` and == expected 9.3 |
+
+The path fields: brackets, comma, no spaces; if BscScan refuses the
+format, the same with each address in double quotes. The two paths are
+opposite: 9.1 is WBNB then DMN, 9.3 is DMN then WBNB. If `$DEADLINE`
+passes before 9.3 (`PancakeRouter: EXPIRED`): take a new one and re-print
+the expected data. amountOutMin 0 is acceptable for a 0.001 BNB test; do
+not reuse it for a real trade.
+
 Check `[H2 F9.2]`: the pair's DMN `balanceOf` rose by EXACTLY
 `SELL - floor(SELL x 10 / 1000) - floor(SELL x 30 / 1000)` (96 %, up to the
 two floors: it can be 1-2 wei above `floor(SELL x 96 / 100)`); 95 % would
@@ -292,8 +449,13 @@ $TL` == 0 (a router sell converts nothing, #1). Measure the pair by
 ## Step 10 -- the first poke -- DMX OWNER signs
 
 ```powershell
-cast send $TOKEN "transfer(address,uint256)" $PAIR 1 @TX
+cast calldata "transfer(address,uint256)" $PAIR 1        # expected data, 10
 ```
+
+| # | contract (bscscan.com) | tab / function | paste, in field order | MetaMask must show |
+|---|---|---|---|---|
+| 10 | DMN proxy `0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a` | Write as Proxy -> `transfer` | to: `$PAIR` (`0x40A97Ae210a44057603186B4BE92BAe719342AFA`); amount: `1` (wei) | interacting with `0x1608...be6a` (MetaMask may display it as a token send of 0.000000000000000001 DMN to `0x40A9...2AFA`); 0 BNB; hex data starts `0xa9059cbb` and == expected 10 |
+
 **Expected: the poke converts NOTHING.** The fee inventory is ~0.15 B (3 %
 of the 5b transfer), below the 0.2 B threshold `[H2 F10.1]`: `cast balance
 $TL` == 0, `cast balance $STAKING` unchanged, the inventory unchanged. That
@@ -305,10 +467,26 @@ A Timelock BNB balance above 0 at share 1000 is a stop-everything signal.
 
 ## Step 11a, then 11b -- the window opens -- DMX OWNER signs, back to back
 
+The expected data of both is fixed (they depend only on the cap and the
+Timelock address of the table above):
+
 ```powershell
-cast send $DMX "setMaxTxAmount(uint256)" 1000000000000000000000000000000 @TX   # 11a
-cast send $DMX "excludeFromFee(address)" $TL @TX                               # 11b, LAST
+cast calldata "setMaxTxAmount(uint256)" 1000000000000000000000000000000   # 11a: 0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000
+cast calldata "excludeFromFee(address)" $TL                              # 11b: 0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891
 ```
+
+| # | contract (bscscan.com) | tab / function | paste, in field order | MetaMask must show |
+|---|---|---|---|---|
+| 11a | DMX `0x36EbA94407B53c631eE822C219e94580fadd67c7` | Write Contract -> `setMaxTxAmount` | maxTxAmount: `1000000000000000000000000000000` (1 followed by 30 zeros = 1e12 tokens) | interacting with `0x36Eb...67c7`; 0 BNB; hex data == `0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000` |
+| 11b, LAST | DMX `0x36EbA94407B53c631eE822C219e94580fadd67c7` | Write Contract -> `excludeFromFee` | account: `$TL` (`0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891`) | interacting with `0x36Eb...67c7`; 0 BNB; hex data == `0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891` |
+
+On this tab, `excludeFromFee` sits next to `includeInFee`, `excludeFromReward`
+and `includeInReward`; `setMaxTxAmount` next to `setTaxFee`,
+`setMarketingFee`, `setBuybackFee` and the other setters (the real DMX's
+write tab, from its Sourcify ABI); `approve` (5a.1) next to
+`increaseAllowance` and `deliver`: the hex data is what tells them apart. And `lock` is on the
+same tab: see the rule under the preflight.
+
 Check `[H2 F11a, H2 F11b]`:
 - `cast call $DMX "_maxTxAmount()(uint256)"` == `1000000000000000000000000000000`;
 - `cast call $DMX "isExcludedFromFee(address)(bool)" $TL` == true, and `$MIG` == false.
@@ -334,35 +512,6 @@ DMX transfer anywhere credits it a share (+6,399 DMX from one 0.01 B
 transfer between two other holders) `[H2 F12.4]`. Never expect
 `DMX.balanceOf(TL) == totalMigrated`; expect `>=`. The custody rule
 (CHECKLIST_MAINNET.md, Zenith #6) covers those DMX too.
-
-## Verification -- after the day
-
-```powershell
-powershell -File script/launch/verify-sourcify.ps1 -Chain 56 -Rpc $RPC -Seeder $SEEDER -SeederTx <the seeder's deploy tx>
-```
-It reads every address, constructor argument and creation transaction from
-the phase journals (the seeder's from its own getters), submits each
-contract to **Sourcify**'s v2 API, polls the job, reads the verdict back,
-and exits with the number of contracts not verified. Rehearsed on the
-Chapel 2b deployment: **7/7 exact_match** (implementation, proxy,
-Migration, Timelock, Staking, Governor, the mock DMX). Do NOT use `forge
-verify-contract --verifier sourcify`: with forge 1.5.1 it printed "already
-verified" and verified nothing.
-
-**BscScan** has no free API for BNB Chain, so the explorer's own form is
-the path. The script also writes, per contract, into
-`script/launch/out/verify-56/`:
-`<Name>.standard-input.json` and `<Name>.constructor-args.txt`. On
-bscscan.com, for each address: Contract -> Verify and Publish -> Compiler
-Type **Solidity (Standard-Json-Input)**, compiler **v0.8.26+commit.8a97fa7a**,
-license MIT -> upload the `.standard-input.json` -> paste the
-`.constructor-args.txt` content (no `0x`; empty for the implementation) ->
-pick the contract name -> complete the human check -> submit. For the proxy
-afterwards: More Options -> "Is this a proxy?" -> Verify, to link the
-implementation's ABI. (Sourcify also forwarded each Chapel submission to
-Etherscan's API on its own; whether that landed on BscScan could not be
-checked from here -- look at the explorer page first, the form may already
-be unnecessary.)
 
 ## The real DMX vs the mock -- every difference observed
 
@@ -392,7 +541,10 @@ be unnecessary.)
 ## What the fork could not rehearse
 
 Signing devices (impersonation stood in for the Ledger and the owner's
-signer); BscScan's web form (Sourcify was rehearsed on Chapel instead); the
+signer); the owner's whole signing path -- MetaMask through BscScan's Write
+Contract tab -- and the seeder deployed by the deployer instead of the owner
+(same contract, same constructor arguments, a different sender and
+address); BscScan's web form (Sourcify was rehearsed on Chapel instead); the
 public mempool against a real adversary (the grief was rehearsed, mined, by
 an impersonated stranger); real time between steps (the fork mined each
 transaction instantly: 11a and 11b one block apart); the monitor watching;
