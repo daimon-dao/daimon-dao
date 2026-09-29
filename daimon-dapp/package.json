@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "abis": "node scripts/generate-abis.mjs"
+    "abis": "node scripts/generate-abis.mjs",
+    "terms": "node scripts/generate-terms.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",

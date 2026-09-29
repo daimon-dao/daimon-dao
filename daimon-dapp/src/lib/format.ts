@@ -85,6 +85,8 @@ export function formatDate(unixSeconds: number | bigint, locale: Locale = "en"):
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      // Deadlines are absolute instants: say which clock the time is on.
+      timeZoneName: "short",
     }
   );
 }

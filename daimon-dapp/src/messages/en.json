@@ -40,7 +40,11 @@
     "switchAccount": "Switch account",
     "disconnect": "Disconnect",
     "injectedName": "Browser wallet (MetaMask / Trust)",
-    "injectedHint": "MetaMask and Trust Wallet use the browser wallet."
+    "injectedHint": "MetaMask and Trust Wallet use the browser wallet.",
+    "errorNoWallet": "No wallet found in this browser. Open this page in your wallet's own browser, or connect with WalletConnect.",
+    "errorPending": "A connection request is already open in your wallet: check the wallet and approve or cancel it.",
+    "errorGeneric": "The wallet did not connect. Please try again.",
+    "mobileHint": "Using MetaMask, Trust Wallet or Binance Wallet? Open this page in the wallet's own browser to connect in one tap."
   },
   "footer": {
     "verified": "Contracts verified on BscScan",
@@ -100,7 +104,6 @@
     "priceTitle": "DMN price",
     "priceNa": "n/a",
     "priceNaTestnet": "n/a (testnet)",
-    "marketCap": "Market cap ≈ {value}",
     "priceSource": "price from the PancakeSwap pool",
     "verifyContract": "Verify the contract on BscScan",
     "deflationTitle": "Deflation towards the floor",
@@ -132,6 +135,7 @@
     "proposedBy": "proposed by {proposer} · target {target}",
     "noDescription": "(no description)",
     "phase": {
+      "loading": "Loading…",
       "pending": "Pending",
       "active": "Voting open",
       "defeated": "Defeated",
@@ -199,7 +203,11 @@
     "successPrefix": "You received ",
     "successSuffix": " (exact 1:1 ratio).",
     "viewTx": "View the transaction on BscScan ↗",
-    "migrateMore": "Migrate more tokens"
+    "migrateMore": "Migrate more tokens",
+    "opensShortlyTitle": "The migration opens shortly.",
+    "opensShortly": "The contracts are live; one last launch step, which lets old Daimon reach the DAO treasury without fees, is still to come. Until then every migration would fail, so this page will not send one. There is nothing to do: your old Daimon stay in your wallet, and this page unlocks by itself when the window opens.",
+    "checkingOpen": "Checking on chain whether the migration is open…",
+    "capExceeded": "The old token allows at most {cap} Daimon per transaction: migrate in several steps of {cap} at most."
   },
   "staking": {
     "title": "Staking",
@@ -274,5 +282,22 @@
     "contractRefusedReason": "Operation rejected by the contract ({reason}).",
     "contractRefused": "The transaction was rejected by the contract. No funds were moved. If you just confirmed another transaction, your wallet's node may be a few seconds behind: wait a moment and try again.",
     "unexpected": "Unexpected error while sending the transaction."
+  },
+  "terms": {
+    "title": "Before you continue",
+    "intro": "This dApp is an interface to smart contracts on BNB Smart Chain. Here is what you are agreeing to, in plain words.",
+    "p1Title": "Experimental software.",
+    "p1": "Daimon is open-source software provided \"as is\", without warranties. Smart contracts can contain defects: an audit reduces the risk, it does not eliminate it.",
+    "p2Title": "No offer, no advice.",
+    "p2": "Nothing here is an offer, a solicitation, or financial, legal or tax advice. No one sells DMN, and no company operates the protocol.",
+    "p3Title": "No one can reverse a transaction.",
+    "p3": "You interact directly with a public blockchain, and every transaction is final: not the contributors, not the DAO, no one can undo or refund it. Digital assets can lose all their value.",
+    "p4Title": "Lawful use where you are.",
+    "p4": "The interface does not restrict access by location. By accepting, you confirm that using it is lawful where you are, and that you are not subject to sanctions (UN, EU, US OFAC, UK or equivalent).",
+    "fullTerms": "Read the full terms (v{version}):",
+    "authoritative": "The English text is the only authoritative version.",
+    "accept": "I understand and accept",
+    "storage": "Your acceptance is saved only in this browser, with the terms version: no cookie, no tracking, nothing sent anywhere. You will be asked again if the terms change.",
+    "footerLink": "Terms of use"
   }
 }

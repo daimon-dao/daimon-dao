@@ -1,9 +1,9 @@
 # Daimon — Legal Disclaimer & Terms of Use
-*v0.2 — 31 August 2026. Placement: website (footer link + dedicated
-page); dApp entry (acknowledgment required before first interaction;
-interface access restricted per §4); repository README (short form
-linking to the full text). The English text is the only authoritative
-version (§8).*
+*v0.3 — 29 September 2026. Placement: website (footer link + dedicated
+page); dApp entry (acknowledgment required before first interaction,
+including the user's responsibility for lawful use per §5); repository
+README (short form linking to the full text). The English text is the
+only authoritative version (§8).*
 
 ---
 
@@ -67,7 +67,7 @@ By interacting with the contracts you acknowledge that:
   and can change; you are solely responsible for determining whether
   your use of the software is lawful where you live.
 
-## 5. Restricted use
+## 5. Lawful use
 
 The software and any related interface are not directed at, and must
 not be used by: persons in jurisdictions where such use is
@@ -77,10 +77,11 @@ access would impose licensing, registration, or prospectus
 obligations on any party. If you fall into any of these categories,
 do not interact with the contracts or interfaces.
 
-The smart contracts themselves are permissionless by design and
-cannot enforce this restriction; any interface published by the
-contributors may restrict access from sanctioned jurisdictions.
-Circumventing such a restriction is a breach of these terms.
+The smart contracts are permissionless by design, and the interfaces
+published by the contributors do not restrict access by location.
+Each user is solely responsible for complying with the laws and
+regulations that apply to them, and must not use the software or any
+interface where doing so is prohibited.
 
 ## 6. Limitation of liability
 
@@ -118,3 +119,10 @@ prevails.
 > jurisdiction — you are solely responsible for compliance with your
 > local laws. Where this text and the deployed code disagree, the
 > code is the only authority.
+
+---
+
+*Changelog — v0.3 (29 September 2026): §5 now states that the
+interfaces do not restrict access by location and that each user is
+responsible for lawful use where they are; the header now refers to
+§5 (it cited §4 by mistake).*

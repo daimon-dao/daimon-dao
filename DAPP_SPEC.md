@@ -72,7 +72,8 @@ Works EVEN without a connected wallet (all public on-chain reads).
 2. Tokens burned (INITIAL_SUPPLY - totalSupply) with the subtitle "towards the
    21B floor"
 3. Total staked (totalStakedAmount from staking) with % of supply
-4. DMN price + market cap — SOBER NUMBER:
+4. DMN price (pool price only, no market cap: removed 2026-09-29, the
+   figure counted the ~995B DMN still held by the Migration) — SOBER NUMBER:
    - only the current value, NO 24h % change, NO green/red arrows, NO charts
      (explicit owner decision)
    - primary source: on-chain read of the PancakeSwap pair reserves
@@ -215,10 +216,13 @@ Executed/Defeated/Canceled → status badge
 9. First-visit acknowledgment: the dApp must show the full legal terms on
    first interaction and require explicit acceptance before enabling any
    contract interaction.
-10. Jurisdiction restriction: the dApp frontend must restrict access from
-    comprehensively sanctioned jurisdictions (UN/EU/OFAC/UK lists). The
-    smart contracts remain permissionless; the restriction applies to the
-    interface only.
+10. Jurisdiction restriction — DECISION 2026-09-29: the frontend does NOT
+    restrict access by location (DISCLAIMER_TERMS v0.3 §5: each user is
+    responsible for lawful use where they are). The edge mechanism exists
+    but is dormant: RESTRICTED_COUNTRIES in daimon-dapp/src/config/
+    restricted.ts is empty; filling it switches the restriction on, and
+    requires amending §5 in the same release. The smart contracts remain
+    permissionless either way.
 
 ### 8.x Liquidity operations: disclose the real cost (Zenith #16, #17)
 
