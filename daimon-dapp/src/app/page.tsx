@@ -6,7 +6,8 @@ import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
-import { formatCompact, formatExact, formatUsd, formatCountdown, truncFixed } from "@/lib/format";
+import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
+import { formatCompact, formatCompactTrim, formatExact, formatUsdPlain, formatCountdown, truncFixed } from "@/lib/format";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { DataOwner } from "@/components/DataOwner";
 import { Skeleton } from "@/components/Skeleton";
@@ -18,6 +19,7 @@ import { PROPOSAL_PHASE, phaseOf, type ProposalTuple } from "@/lib/governance";
 const token = { address: ADDRESSES.daimonV2, abi: daimonV2Abi } as const;
 const staking = { address: ADDRESSES.daimonStaking, abi: daimonStakingAbi } as const;
 const governor = { address: ADDRESSES.daimonGovernor, abi: daimonGovernorAbi } as const;
+const migration = { address: ADDRESSES.daimonMigration, abi: daimonMigrationAbi } as const;
 
 function MetricCard({
   title,
@@ -29,8 +31,8 @@ function MetricCard({
   children,
 }: {
   title: string;
-  value?: string;
-  sub?: string;
+  value?: React.ReactNode;
+  sub?: React.ReactNode;
   exact?: string;
   contract: string;
   linkTitle: string;
@@ -70,6 +72,9 @@ export default function Dashboard() {
       { ...token, functionName: "MIN_SUPPLY" },
       { ...staking, functionName: "totalStakedAmount" },
       { ...governor, functionName: "proposalCount" },
+      // DMN handed to holders so far: of the 1,000B supply, the rest still
+      // waits in the Migration contract.
+      { ...migration, functionName: "totalMigrated" },
     ],
     query: { refetchInterval: 30_000 },
   });
@@ -79,6 +84,7 @@ export default function Dashboard() {
   const minSupply = data?.[2]?.result as bigint | undefined;
   const totalStaked = data?.[3]?.result as bigint | undefined;
   const proposalCount = data?.[4]?.result as bigint | undefined;
+  const totalMigrated = data?.[5]?.result as bigint | undefined;
 
   const burned =
     totalSupply !== undefined && initialSupply !== undefined
@@ -142,7 +148,21 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title={t("dashboard.supplyTitle")}
-          value={totalSupply !== undefined ? `${formatCompact(totalSupply, 18, 3)} DMN` : undefined}
+          value={
+            totalSupply !== undefined ? (
+              <>
+                {formatCompactTrim(totalSupply)} DMN{" "}
+                <span className="whitespace-nowrap text-sm font-normal text-secondario">
+                  — {t("dashboard.totalSupply")}
+                </span>
+              </>
+            ) : undefined
+          }
+          sub={
+            totalMigrated !== undefined
+              ? t("dashboard.migratedOf", { amount: `${formatCompactTrim(totalMigrated)} DMN` })
+              : undefined
+          }
           exact={totalSupply !== undefined ? `${formatExact(totalSupply)} DMN` : undefined}
           contract={ADDRESSES.daimonV2}
           linkTitle={t("dashboard.verifyContract")}
@@ -171,14 +191,36 @@ export default function Dashboard() {
         />
         <MetricCard
           title={t("dashboard.priceTitle")}
+          // Per MILLION as the headline: a per-token price has six zeros after
+          // the point and reads as noise. The exact per-token price follows,
+          // in plain decimals (never exponent notation).
           value={
-            price.usd !== null
-              ? formatUsd(price.usd)
-              : IS_TESTNET
-                ? t("dashboard.priceNaTestnet")
-                : t("dashboard.priceNa")
+            price.usd !== null ? (
+              <>
+                {formatUsdPlain(price.usd * 1e6)}{" "}
+                <span className="whitespace-nowrap text-sm font-normal text-secondario">
+                  {t("dashboard.perMillion")}
+                </span>
+              </>
+            ) : IS_TESTNET ? (
+              t("dashboard.priceNaTestnet")
+            ) : (
+              t("dashboard.priceNa")
+            )
           }
-          sub={t("dashboard.priceSource")}
+          exact={price.usd !== null ? `${formatUsdPlain(price.usd, 6)} ${t("dashboard.perToken")}` : undefined}
+          sub={
+            price.usd !== null ? (
+              <>
+                <span className="block">
+                  {formatUsdPlain(price.usd)} {t("dashboard.perToken")}
+                </span>
+                <span className="block">{t("dashboard.priceSource")}</span>
+              </>
+            ) : (
+              t("dashboard.priceSource")
+            )
+          }
           contract={ADDRESSES.pancakePair}
           linkTitle={t("dashboard.verifyContract")}
         >
