@@ -326,7 +326,7 @@ function LatestProposal({
         >
           {t(info.labelKey)}
         </span>
-        {phase.countdownTo && (
+        {phase.countdownTo && phase.countdownTo > now && (
           <span className="ml-2 text-secondario">
             {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
             {formatCountdown(phase.countdownTo - now, locale)}

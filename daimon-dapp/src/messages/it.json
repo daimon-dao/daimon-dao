@@ -132,6 +132,7 @@
     "proposedBy": "proposta da {proposer} · target {target}",
     "noDescription": "(senza descrizione)",
     "phase": {
+      "loading": "Caricamento…",
       "pending": "In attesa",
       "active": "In votazione",
       "defeated": "Bocciata",
@@ -199,7 +200,11 @@
     "successPrefix": "Hai ricevuto ",
     "successSuffix": " (rapporto 1:1 esatto).",
     "viewTx": "Vedi la transazione su BscScan ↗",
-    "migrateMore": "Migra altri token"
+    "migrateMore": "Migra altri token",
+    "opensShortlyTitle": "La migrazione apre a breve.",
+    "opensShortly": "I contratti sono attivi; manca un ultimo passo del lancio, che permette ai vecchi Daimon di arrivare alla treasury della DAO senza commissioni. Fino ad allora ogni migrazione fallirebbe, quindi questa pagina non ne invia. Non devi fare nulla: i tuoi vecchi Daimon restano nel tuo wallet, e questa pagina si sblocca da sola quando la finestra apre.",
+    "checkingOpen": "Verifica on-chain dell'apertura della migrazione…",
+    "capExceeded": "Il vecchio token consente al massimo {cap} Daimon per transazione: migra in più passaggi da {cap} al massimo."
   },
   "staking": {
     "title": "Staking",
@@ -274,5 +279,22 @@
     "contractRefusedReason": "Operazione rifiutata dal contratto ({reason}).",
     "contractRefused": "La transazione è stata rifiutata dal contratto. Nessun fondo è stato spostato. Se hai appena confermato un'altra transazione, il nodo del tuo wallet può essere indietro di qualche secondo: attendi un attimo e riprova.",
     "unexpected": "Errore imprevisto durante l'invio della transazione."
+  },
+  "terms": {
+    "title": "Prima di continuare",
+    "intro": "Questa dApp è un'interfaccia verso smart contract su BNB Smart Chain. Ecco, in parole semplici, cosa stai accettando.",
+    "p1Title": "Software sperimentale.",
+    "p1": "Daimon è software open source fornito \"così com'è\", senza garanzie. Gli smart contract possono contenere difetti: un audit riduce il rischio, non lo elimina.",
+    "p2Title": "Nessuna offerta, nessuna consulenza.",
+    "p2": "Nulla qui è un'offerta, una sollecitazione o una consulenza finanziaria, legale o fiscale. Nessuno vende DMN e nessuna società gestisce il protocollo.",
+    "p3Title": "Nessuno può annullare una transazione.",
+    "p3": "Interagisci direttamente con una blockchain pubblica e ogni transazione è definitiva: né i contributori, né la DAO, né nessun altro può annullarla o rimborsarla. Gli asset digitali possono perdere tutto il loro valore.",
+    "p4Title": "Giurisdizioni soggette a restrizioni.",
+    "p4": "Accettando confermi di non trovarti e di non risiedere in una giurisdizione in cui l'uso di questo software è vietato, e di non essere soggetto a sanzioni (ONU, UE, USA OFAC, Regno Unito o equivalenti).",
+    "fullTerms": "Leggi le condizioni complete (v{version}):",
+    "authoritative": "Fa fede esclusivamente il testo inglese.",
+    "accept": "Ho capito e accetto",
+    "storage": "L'accettazione viene salvata solo in questo browser, con la versione delle condizioni: nessun cookie, nessun tracciamento, nulla viene inviato. Ti verrà richiesta di nuovo se le condizioni cambiano.",
+    "footerLink": "Condizioni d'uso"
   }
 }

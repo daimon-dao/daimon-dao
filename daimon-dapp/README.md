@@ -25,8 +25,31 @@ Copy `.env.example` to `.env.local`:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `NEXT_PUBLIC_CHAIN_ID` | `97` | `97` = BSC testnet, `56` = BSC mainnet |
+| `NEXT_PUBLIC_CHAIN_ID` | `97` | `97` = BSC testnet, `56` = BSC mainnet. Build-time: a change needs a redeploy. |
 | `NEXT_PUBLIC_WC_PROJECT_ID` | empty | WalletConnect Cloud project id. Optional: without it, only MetaMask/Trust (injected) remain. |
+
+There are no other variables and there must never be a secret here: every
+`NEXT_PUBLIC_*` value ships to the browser. The RPCs are public endpoints
+(list in `RPC_URLS`, [src/config/contracts.ts](src/config/contracts.ts),
+walked in order by viem's fallback transport); the WalletConnect metadata
+always advertises `https://app.daimon.money` (`APP_URL`).
+
+## Terms of use (acknowledgment)
+
+Before any wallet interaction the dApp shows a plain summary of
+DISCLAIMER_TERMS and requires an explicit "I understand and accept"
+([src/components/TermsGate.tsx](src/components/TermsGate.tsx)). The
+acceptance is stored only in the browser's localStorage (`daimon-terms`,
+with the terms version): no cookie, nothing sent anywhere. The full text is
+served at `/terms` (EN, authoritative) and `/terms/it`, generated from the
+repository's `docs/DISCLAIMER_TERMS_v<version>_{EN,IT}.md`:
+
+```sh
+npm run terms       # regenerates src/content/terms.ts
+```
+
+A new terms version: bump `TERMS_VERSION` in `scripts/generate-terms.mjs`
+and rerun — every visitor is asked to accept again.
 
 ## Languages (EN/IT)
 
@@ -43,16 +66,23 @@ missing key shows up literally, so it is noticed immediately). On-chain data
 and proposal descriptions are not translated; number formatting is identical
 in both languages, dates and countdowns are localized.
 
-## Switching chain (testnet → mainnet)
+## Chains (testnet / mainnet)
 
 Everything in **one file**: [src/config/contracts.ts](src/config/contracts.ts).
+Both address sets are filled in: `BSC_TESTNET` (97) and `BSC_MAINNET` (56,
+the 2026-09-29 launch deploy, each address checked on chain against
+`deployments/two-phase-56.json`). `NEXT_PUBLIC_CHAIN_ID` picks one at build
+time; RPC, explorer and the wagmi chain follow in cascade.
 
-1. Fill in `BSC_MAINNET` with the mainnet deploy addresses (including the
-   PancakeSwap pair, read it from `daimonV2.uniswapV2Pair()`).
-2. Set `NEXT_PUBLIC_CHAIN_ID=56`.
+The migration page opens by itself: it polls the old token for the fee
+exemption of the Migration's treasury (on mainnet the Timelock, launch step
+11b) and refuses to send a claim until it reads `true`, showing "the
+migration opens shortly" instead. The deadline shown is the Migration's
+`effectiveMigrationDeadline()`, read live.
 
-No other file needs touching: RPC, explorer and the wagmi chain follow in
-cascade.
+Proposal status is always `Governor.state(id)` — never the struct's
+`canceled` / `executed` / `queued` flags (see `phaseOf` in
+[src/lib/governance.ts](src/lib/governance.ts)).
 
 ## Logo
 
@@ -91,8 +121,9 @@ server-side), fully supported by Vercel — no extra configuration, no
    allowlist (WC project Settings), otherwise the relay may reject sessions
    from that domain.
 
-For the mainnet launch: same procedure + `NEXT_PUBLIC_CHAIN_ID=56` and mainnet
-addresses in contracts.ts (see above).
+For mainnet: same procedure + `NEXT_PUBLIC_CHAIN_ID=56` in the environment
+(Production and/or Preview) that must run on chain 56. The variable is read at
+build time: after changing it, redeploy.
 
 ## Operational notes
 
@@ -101,4 +132,4 @@ addresses in contracts.ts (see above).
 - Countdowns use the browser clock; the "real" state is always re-checked
   on-chain by the contracts at transaction time.
 - No tracker/analytics. No sensitive data in localStorage (only the theme
-  preference).
+  preference and the terms acceptance with its version).

@@ -16,6 +16,7 @@ import { usePaused } from "@/components/PausedBanner";
 import { formatCompact, formatCountdown, formatDate, formatExact, shortAddress } from "@/lib/format";
 import {
   PROPOSAL_PHASE,
+  ProposalState,
   phaseOf,
   timelockOperationId,
   type ProposalTuple,
@@ -148,8 +149,10 @@ function ProposalCard({
 
   const p = proposal as unknown as ProposalTuple | undefined;
 
-  // timelock eta (only if the proposal has been queued)
-  const opId = p && p[14] ? timelockOperationId(p) : undefined;
+  // Timelock eta, only for a proposal state() reports as Queued (never from
+  // the struct's queued flag).
+  const opId =
+    p && stateData === ProposalState.Queued ? timelockOperationId(p) : undefined;
   const { data: operation } = useReadContract({
     ...timelock,
     functionName: "operations",

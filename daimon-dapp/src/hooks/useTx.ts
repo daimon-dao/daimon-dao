@@ -7,6 +7,7 @@ import { getAccount, switchChain, waitForTransactionReceipt } from "wagmi/action
 import { ACTIVE_CHAIN } from "@/config/contracts";
 import { mapTxError, isUserRejection, isChainMismatch } from "@/lib/errors";
 import { useI18n } from "@/components/LocaleProvider";
+import { useTerms } from "@/components/TermsGate";
 
 export type TxPhase = "idle" | "signing" | "pending" | "success" | "error";
 
@@ -38,6 +39,7 @@ export function useTx() {
   const queryClient = useQueryClient();
   const config = useConfig();
   const { t, locale } = useI18n();
+  const { accepted: termsAccepted, requestTerms } = useTerms();
   const [notice, setNotice] = useState<string | null>(null);
 
   // Neutral notices auto-dismiss (or disappear on the next action).
@@ -70,6 +72,13 @@ export function useTx() {
   ): Promise<`0x${string}` | null> {
     window.clearTimeout(noticeTimer.current);
     setNotice(null);
+
+    // Terms belt: the gate already covers the app until the terms are
+    // accepted; this closes any path around it (e.g. from the /terms page).
+    if (!termsAccepted) {
+      requestTerms();
+      return null;
+    }
 
     // Network guard: the wallet might be on another chain (e.g. BSC mainnet).
     // The switch is requested BEFORE the signature; if the user rejects it, no

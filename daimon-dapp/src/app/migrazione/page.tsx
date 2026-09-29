@@ -2,8 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { parseUnits } from "viem";
-import { ADDRESSES, explorerTx } from "@/config/contracts";
+import { parseUnits, type Abi } from "viem";
+import {
+  ADDRESSES,
+  OLD_DAIMON_FEE_EXEMPT,
+  OLD_DAIMON_HAS_MAX_TX,
+  OLD_DAIMON_MAX_TX_ABI,
+  explorerTx,
+} from "@/config/contracts";
 import { mockOldDaimonAbi } from "@/config/abis/mockOldDaimon";
 import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
 import { ConnectButton } from "@/components/ConnectButton";
@@ -60,15 +66,48 @@ export default function Migrazione() {
   const approveTx = useTx();
   const claimTx = useTx();
 
-  const { data: deadline } = useReadContract({
-    ...migration,
-    functionName: "migrationDeadline",
+  // The deadline claim() actually enforces: the immutable base plus any pause
+  // credit (#36). Read live, never hard-coded. The base getter is only the
+  // fallback for the older testnet Migration, which predates the credit.
+  const { data: deadlines } = useReadContracts({
+    contracts: [
+      { ...migration, functionName: "effectiveMigrationDeadline" },
+      { ...migration, functionName: "migrationDeadline" },
+    ],
+    query: { refetchInterval: 60_000 },
   });
+  const deadline = (deadlines?.[0]?.result ?? deadlines?.[1]?.result) as bigint | undefined;
 
   const { data: treasuryAddr } = useReadContract({
     ...migration,
     functionName: "treasury",
   });
+
+  // OPEN = the Migration's treasury, where the old tokens land, is fee-exempt
+  // on the old token. On mainnet the treasury IS the Timelock (checked on
+  // chain) and the exemption is launch step 11b: DMX
+  // isExcludedFromFee(Timelock). Before it every claim reverts with
+  // AmountMismatch (the fee shrinks what the treasury receives), so the page
+  // refuses to send one. Polled: the page opens by itself. (The testnet
+  // deploy has a separate treasury, hence treasury() and not the Timelock.)
+  const { data: feeExempt } = useReadContract({
+    address: ADDRESSES.oldDaimon,
+    abi: OLD_DAIMON_FEE_EXEMPT.abi as Abi,
+    functionName: OLD_DAIMON_FEE_EXEMPT.functionName,
+    args: treasuryAddr ? [treasuryAddr] : undefined,
+    query: { enabled: Boolean(treasuryAddr), refetchInterval: 15_000 },
+  });
+  const migrationOpen = feeExempt === true;
+
+  // The real DMX caps every transfer (mainnet only): a claim above the cap
+  // would revert inside transferFrom.
+  const { data: maxTx } = useReadContract({
+    address: ADDRESSES.oldDaimon,
+    abi: OLD_DAIMON_MAX_TX_ABI,
+    functionName: "_maxTxAmount",
+    query: { enabled: OLD_DAIMON_HAS_MAX_TX, refetchInterval: 60_000 },
+  });
+
   // The treasury is the DESTINATION of the old tokens: if it migrated itself
   // its balance would not change and the contract would revert with
   // AmountMismatch. Better to explain it before the user signs.
@@ -105,7 +144,9 @@ export default function Migrazione() {
   // The contract would reject a migration beyond the balance: block it first.
   const insufficientBalance =
     isConnected && oldBalance !== undefined && amount > oldBalance;
-  const disabled = paused || deadlineExpired || isTreasury || insufficientBalance;
+  const capExceeded = maxTx !== undefined && amount > maxTx;
+  const disabled =
+    !migrationOpen || paused || deadlineExpired || isTreasury || insufficientBalance || capExceeded;
 
   // The post-confirmation refetch (balance, allowance) is automatic: useTx
   // invalidates the wagmi queries when the transaction is confirmed.
@@ -148,6 +189,21 @@ export default function Migrazione() {
                 date: formatDate(deadline, locale),
                 countdown: formatCountdown(Number(deadline) - now, locale),
               })}
+        </div>
+      )}
+
+      {!deadlineExpired && !migrationOpen && (
+        <div
+          className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro"
+          role="status"
+        >
+          {feeExempt === false ? (
+            <>
+              <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
+            </>
+          ) : (
+            t("migration.checkingOpen")
+          )}
         </div>
       )}
 
@@ -224,6 +280,11 @@ export default function Migrazione() {
                 {t("migration.insufficient", {
                   balance: oldBalance !== undefined ? ` (${formatCompact(oldBalance)})` : "",
                 })}
+              </p>
+            )}
+            {capExceeded && maxTx !== undefined && (
+              <p className="mt-1 text-xs text-rosso">
+                {t("migration.capExceeded", { cap: formatCompact(maxTx) })}
               </p>
             )}
             <button

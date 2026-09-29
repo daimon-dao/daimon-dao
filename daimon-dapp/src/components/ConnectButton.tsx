@@ -6,9 +6,11 @@ import { ACTIVE_CHAIN, explorerAddress } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
 import { useI18n } from "@/components/LocaleProvider";
 import { BottomSheet, useIsMobile } from "@/components/BottomSheet";
+import { useTerms } from "@/components/TermsGate";
 
 export function ConnectButton() {
   const { t } = useI18n();
+  const { accepted: termsAccepted, requestTerms } = useTerms();
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -203,7 +205,8 @@ export function ConnectButton() {
     <div className="relative" ref={menuRef}>
       <button
         className="btn-oro whitespace-nowrap"
-        onClick={() => setMenuOpen((v) => !v)}
+        // No wallet connection before the terms are accepted (TermsGate).
+        onClick={() => (termsAccepted ? setMenuOpen((v) => !v) : requestTerms())}
         disabled={isPending}
         aria-expanded={menuOpen}
       >
