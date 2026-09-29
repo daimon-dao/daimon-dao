@@ -74,6 +74,27 @@ npm run terms       # regenerates src/content/terms.ts
 A new terms version: bump `TERMS_VERSION` in `scripts/generate-terms.mjs`
 and rerun — every visitor is asked to accept again.
 
+## Wallet connection (three paths)
+
+"Connect" always shows the terms first if they are not accepted. Then:
+
+- **Inside a wallet's in-app browser** (MetaMask, Trust Wallet, Binance Web3
+  wallet — a mobile device with an injected wallet): one tap goes straight to
+  the wallet's own prompt. No menu, no WalletConnect. The wallet is found by
+  its EIP-6963 announcement, with `window.ethereum` as the fallback, and a
+  wallet that injects after load is waited for briefly. The connection asks
+  for accounts with `eth_requestAccounts` only: wagmi's stock injected
+  connector sends `wallet_requestPermissions` first, which mobile wallets
+  handle inconsistently (one that never answers left "Connect" hanging, with
+  no prompt). See [src/lib/injectedWallet.ts](src/lib/injectedWallet.ts).
+- **A normal mobile browser**: the sheet offers WalletConnect (QR / deep
+  link), plus a hint to open the page in the wallet's own browser.
+- **Desktop**: the menu as always — the browser extension (injected, plus the
+  EIP-6963 wallets wagmi discovers) and WalletConnect.
+
+A failed connection is always said (no wallet found, a request already open
+in the wallet, generic failure); only the user's own rejection stays silent.
+
 ## Languages (EN/IT)
 
 The dApp is bilingual: **English (default) + Italian**. EN|IT selector in the

@@ -2,10 +2,13 @@ import { cookieStorage, createConfig, createStorage, fallback, http } from "wagm
 import { bsc, bscTestnet } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { ACTIVE_CHAIN, APP_URL, RPC_URLS } from "@/config/contracts";
+import { inAppWallet } from "@/lib/injectedWallet";
 
 /*
- * Connectors: injected covers MetaMask and Trust Wallet (in-app browser and
- * extension). WalletConnect requires a WalletConnect Cloud projectId: it is
+ * Connectors: inAppWallet for a wallet's own in-app browser on mobile
+ * (MetaMask, Trust, Binance: one tap, no menu); injected (plus the EIP-6963
+ * wallets wagmi discovers) for desktop extensions; WalletConnect for every
+ * other mobile browser. WalletConnect requires a WalletConnect Cloud projectId: it is
  * added only if NEXT_PUBLIC_WC_PROJECT_ID is set. The projectId is a PUBLIC
  * identifier (it ships in the bundle by design), not a secret.
  */
@@ -35,6 +38,9 @@ export const wagmiConfig = createConfig({
   ssr: true,
   storage: createStorage({ storage: cookieStorage }),
   connectors: [
+    // Inside a wallet's in-app browser (mobile): one-tap connect to the
+    // injected wallet, see src/lib/injectedWallet.ts.
+    inAppWallet(),
     injected(),
     ...(wcProjectId
       ? [walletConnect({ projectId: wcProjectId, showQrModal: true, metadata: wcMetadata })]

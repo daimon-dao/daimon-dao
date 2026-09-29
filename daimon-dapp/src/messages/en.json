@@ -40,7 +40,11 @@
     "switchAccount": "Switch account",
     "disconnect": "Disconnect",
     "injectedName": "Browser wallet (MetaMask / Trust)",
-    "injectedHint": "MetaMask and Trust Wallet use the browser wallet."
+    "injectedHint": "MetaMask and Trust Wallet use the browser wallet.",
+    "errorNoWallet": "No wallet found in this browser. Open this page in your wallet's own browser, or connect with WalletConnect.",
+    "errorPending": "A connection request is already open in your wallet: check the wallet and approve or cancel it.",
+    "errorGeneric": "The wallet did not connect. Please try again.",
+    "mobileHint": "Using MetaMask, Trust Wallet or Binance Wallet? Open this page in the wallet's own browser to connect in one tap."
   },
   "footer": {
     "verified": "Contracts verified on BscScan",
