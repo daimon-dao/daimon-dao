@@ -1,8 +1,7 @@
 # Resume the BSC mainnet launch (docs/LAUNCH_DAY.md, master 9c4af2a) -- dot-source it:
 #   . .\script\launch\resume-56.ps1
-# State at the pause (2026-09-29 17:32 UTC, block 124757113): steps 1-8 DONE, 9 and 10 SKIPPED (see the journal's Incident).
-# NEXT: the operator publishes the dApp, then 11a + 11b (owner, back to back).
-# The deployer signs NOTHING more. Every remaining transaction is the DMX owner's, in MetaMask via BscScan.
+# State: the launch sequence is COMPLETE; the migration window opened at 11b, 2026-09-29 20:06:24 UTC (block 124777699).
+# Steps 1-8 and 11a/11b done, 9 and 10 SKIPPED (see the journal). The deployer signs NOTHING more.
 # The journal is docs/MAINNET_LAUNCH_RECORD.md. No secrets in this file.
 
 Set-Location "C:\Users\Utente\Desktop\Daimon dao"
@@ -37,16 +36,12 @@ $GROSS = "4999548574361503910682398180"
 $BNB   = "1994000000000000000"
 $NET   = "4799566631387043754255102254"
 
-# --- expected at resume -- baseline of step 8 (block 124757113, 17:31:57 UTC), AFTER the 05:04 bot incident ---
-#   (the 04:48 pause baseline -- reserves NET | BNB, inventory ~0.15 B -- was superseded by tx 0xa1238092...d048)
-#   getReserves(PAIR) == 4948969529051442709553456167 | 1934053593848810506 until someone trades
-#   fee inventory DMN.balanceOf(TOKEN) == 51553630463798540020259; staking totalVotingPower == 1, 0 BNB
-#   DMX: owner() == OWNER, getUnlockTime() == 0, _maxTxAmount() == 1.5e27, isExcludedFromFee(TL) == false (11a/11b NOT done)
-#   owner: nonce 1011, 0.390959 BNB, 0 DMN; deployer: nonce 20
-#   steps 9 and 10 SKIPPED by decision; next: dApp publication, then 11a + 11b
-#   11a expected data 0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000
-#   11b expected data 0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891
-#   The DMX owner must NEVER call lock(), renounceOwnership or transferOwnership until 11b is done.
+# --- expected now -- the migration window is OPEN (post-11b checks, block 124778183) ---
+#   DMX: owner() == OWNER, getUnlockTime() == 0, _maxTxAmount() == 1e30, isExcludedFromFee(TL) == true, isExcludedFromFee(MIG) == false
+#   migrationDeadline() == 1798420124 (2026-12-28 01:08:44 UTC); DMX.balanceOf(TL) >= totalMigrated (reflection), never ==
+#   deployer: nonce 20 forever. Pool, inventory and staking move with trading: no fixed baseline any more.
+#   THE OWNER-KEY RULE, until the window closes: on DMX the owner must NOT call lock(), renounceOwnership(),
+#   transferOwnership(), includeInFee(TL), or setMaxTxAmount below 1e30 (nor ever presale(true)).
 
 # P3 gate (not needed any more: no deployer step is left), kept for completeness.
 function Assert-Deployer {

@@ -4,25 +4,39 @@ The launch journal of Daimon DAO, run step by step from `docs/LAUNCH_DAY.md`
 (master `9c4af2a`, code at tag `launch-config-rc2`). Every value below was
 read back from mined state after the step, before the next one.
 
-## Status -- PAUSED before 11a/11b
+## Status -- MIGRATION WINDOW OPEN
 
 | | |
 |---|---|
-| paused at | 2026-09-29 17:32 UTC, block 124757113 |
-| **last step done** | **8** (7 and 8 read-only on the re-baselined state; **9 and 10 SKIPPED** by decision, see below) |
-| **next step** | the operator publishes the dApp, then **11a + 11b** (owner, back to back) |
-| pending transactions | **none** -- deployer nonce 20 latest = pending; owner nonce 1011 latest = pending |
-| migration window | **CLOSED** (11a/11b not done): `_maxTxAmount` 1.5e27, `isExcludedFromFee(TL)` false -- every claim reverts `AmountMismatch` |
+| **window opened** | **2026-09-29 20:06:24 UTC**, block 124777699 (11b) |
+| **window closes** | `migrationDeadline` **1798420124** = 2026-12-28 01:08:44 UTC |
+| launch sequence | **complete**: steps 1-8 and 11a/11b done; 9 and 10 SKIPPED by decision (see below) |
+| pending transactions | **none** -- deployer nonce 20; owner nonce 1013 latest = pending (block 124778497) |
 | deployer | done: nonce 20, 0.099291 BNB, signs nothing more |
-| DMX owner | nonce 1011, 0.390959 BNB, 0 DMN; `owner()` = itself, `getUnlockTime()` 0 |
-| dApp | branch `dapp/mainnet`, published by the operator before 11a/11b |
+| DMX owner | nonce 1013, 0.390956 BNB, 0 DMN; `owner()` = itself, `getUnlockTime()` 0 -- bound by the owner-key rule below |
+| dApp | live on mainnet at app.daimon.money (production, chain 56) |
 | monitor | live on mainnet; it reported the incident below |
+| repository | the journal commits are LOCAL only; the push is held until the public announcement |
 
-**To resume:** `. .\script\launch\resume-56.ps1` (every address and fixed
-value, no secrets). Its "expected at resume" block describes the state of
-the 04:48 pause, before the incident: the current baseline is step 8 below.
-The DMX owner must NEVER call `lock()`, `renounceOwnership` or
-`transferOwnership` on DMX until 11b is done.
+### The owner-key rule -- for the WHOLE migration window
+
+Until the window closes (`migrationDeadline` 1798420124, 2026-12-28 01:08:44
+UTC), the DMX owner `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae` must NOT call,
+on DMX `0x36EbA94407B53c631eE822C219e94580fadd67c7`:
+
+- `lock(...)` -- it sets `owner()` to zero until `unlock()`: nobody could
+  restore the two settings below while the immutable deadline keeps running;
+- `renounceOwnership()`;
+- `transferOwnership(...)`;
+- `includeInFee(0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891)` -- removing the
+  Timelock's exemption closes the window: every claim reverts `AmountMismatch`;
+- `setMaxTxAmount(x)` with `x` below `1000000000000000000000000000000` (1e30)
+  -- a lower cap makes claims above it revert.
+
+(And never `presale(true)`: it lifts DMX's fee and cap for everyone.)
+
+**To resume a session:** `. .\script\launch\resume-56.ps1` (every address and
+fixed value, no secrets).
 
 Evidence copied out of the session into `docs/launch-56/`: the step-3 output,
 the phase journals (`broadcast-phase1/`, `broadcast-phase2/`), the state file
@@ -295,6 +309,45 @@ own buy and sell in tx `0xa1238092...d048`, to the wei:
 The inventory is 51,554 DMN, far below the 0.2 B threshold: a poke converts
 nothing. The first conversion has already happened (the incident).
 
+## Before 11a -- state against the step-8 baseline (block 124764744, 18:29:11 UTC)
+
+After the operator published the dApp: reserves, last pair change (05:04:08),
+fee inventory, staking (`totalVotingPower` 1), `proposalCount` 0, DMX owner /
+unlock / cap / exemptions (owner yes, Timelock no, Migration no), owner nonce
+1011, deployer nonce 20, Timelock LP and DMX, `migrationDeadline`, token not
+paused -- all identical to the baseline.
+
+## Step 11a, then 11b -- the window opens (DMX owner, MetaMask via BscScan)
+
+| # | call on DMX | block (UTC) | tx | check |
+|---|---|---|---|---|
+| 11a | `setMaxTxAmount(1000000000000000000000000000000)` | 124767991 (18:53:34) | `0xfaef2123e54dd4d5054b9195284d43576e35c5161e178ae5e8b810f9b620b47b` | status 1, gas 28,742, 0 logs (no event on the real DMX); owner nonce 1011, 0 BNB; mined input **byte-identical** to `0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000`; `_maxTxAmount()` == `1000000000000000000000000000000` exactly; `isExcludedFromFee(TL)` still false (window still closed) |
+| 11b | `excludeFromFee(0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891)` | **124777699 (20:06:24)** | `0x8aaac289174a13a61040a68503550d79b31cdc25e1884686e8a42632f04cd54d` | status 1, gas 46,232, 0 logs; owner nonce 1012, 0 BNB; mined input **byte-identical** to `0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891` |
+
+## After 11b -- the post-11b checks (block 124778183)
+
+| check | read |
+|---|---|
+| `isExcludedFromFee(TL)` | `true` |
+| `isExcludedFromFee(MIG)` | `false` |
+| `_maxTxAmount()` | `1000000000000000000000000000000` (1e30) |
+| claim of 2e27 (above the old 1.5e27 cap), eth_call from a real community holder with the allowance by state override | **succeeds** (before 11b: `AmountMismatch`) |
+| claim of 1e27 (below the cap), same method | **succeeds** |
+| DMX `owner()` / `getUnlockTime()` | the owner / `0` |
+| owner nonce | 1013, latest = pending |
+| `migrationDeadline` | `1798420124` (2026-12-28 01:08:44 UTC) |
+| `totalMigrated` | GROSS (only the owner's 5a claim so far) |
+| Timelock DMX | `5000411500717746005615697643` >= `totalMigrated` (reflection, as expected) |
+
+A successful claim simulation means the Migration's own 1:1 check (the
+Timelock's DMX delta == the amount) passes for a real holder with both the
+exemption and the raised cap in effect. The holder is a community member:
+its address is not recorded here.
+
+From here, per LAUNCH_DAY.md "After 11b": for each `Claimed` event, the
+Timelock's DMX delta in that transaction == the amount; the Timelock's DMX
+is `>=` `totalMigrated`, never `==`.
+
 ## Deviations from LAUNCH_DAY.md
 
 1. P3 failed once (Ledger not connected), passed after connecting.
@@ -323,5 +376,7 @@ nothing. The first conversion has already happened (the incident).
 | 8 reserves / automation | read-only | done (re-baselined) |
 | 9 test swap | owner | SKIPPED -- fee verified on the bot's trades |
 | 10 first poke | owner | SKIPPED -- inventory 51.5 K |
-| dApp publication | operator | NEXT, before 11a/11b |
-| 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | expected data 11a `0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000`, 11b `0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891` (re-printed from the session, == LAUNCH_DAY.md); the window opens at 11b |
+| dApp publication | operator | done: app.daimon.money, production on chain 56 |
+| 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | done -- **the window opened at 11b, 2026-09-29 20:06:24 UTC** |
+| the owner-key rule | owner | in force until 2026-12-28 01:08:44 UTC (see Status) |
+| push of the journal commits | operator | held until the public announcement |
