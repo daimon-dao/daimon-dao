@@ -120,7 +120,11 @@
     "governanceTitle": "Governance",
     "noProposals": "Nessuna proposta ancora creata.",
     "goGovernance": "Vai alla governance →",
-    "noDescription": "(senza descrizione)"
+    "noDescription": "(senza descrizione)",
+    "totalSupply": "supply totale",
+    "migratedOf": "di cui migrati: {amount}",
+    "perMillion": "per 1M di DMN",
+    "perToken": "per DMN"
   },
   "governance": {
     "title": "Governance",
@@ -197,7 +201,7 @@
     "approveBtn": "Approva la migrazione",
     "step3": "Ricevi DMN",
     "receivePrefix": "Riceverai ",
-    "receiveSuffix": " — esattamente 1:1, senza fee.",
+    "receiveSuffix": " — 1 DMX → 1 DMN, token per token, senza commissioni (solo il gas di rete). 1:1 è un rapporto tra quantità, non tra prezzi.",
     "migrateBtn": "Migra ora",
     "success": "Migrazione completata",
     "successPrefix": "Hai ricevuto ",

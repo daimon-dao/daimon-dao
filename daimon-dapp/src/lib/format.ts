@@ -51,12 +51,43 @@ export function formatExact(value: bigint, decimals = 18): string {
   return frac ? `${intFmt},${frac.slice(0, 6)}` : intFmt;
 }
 
+/*
+ * Compact amount without padding zeros and with thousands separators:
+ * "1,000B", "4.999B", "12.5M". Same downward truncation as formatCompact (a
+ * burned 999.9559B shows "999.955B", never "1,000B"); only the zeros that
+ * carry nothing are dropped. en-US grouping in both languages, like every
+ * number in the UI (the decimal point is "." everywhere).
+ */
+export function formatCompactTrim(value: bigint, decimals = 18, digits = 3): string {
+  const n = Number(formatUnits(value, decimals));
+  if (!isFinite(n)) return "-";
+  const abs = Math.abs(n);
+  const [scaled, unit] =
+    abs >= 1e9 ? [n / 1e9, "B"] : abs >= 1e6 ? [n / 1e6, "M"] : abs >= 1e3 ? [n / 1e3, "K"] : [n, ""];
+  const [int, frac = ""] = truncFixed(scaled, digits).split(".");
+  const intGrouped = BigInt(int).toLocaleString("en-US");
+  const fracTrim = frac.replace(/0+$/, "");
+  return `${intGrouped}${fracTrim ? `.${fracTrim}` : ""}${unit}`;
+}
+
+/*
+ * A dollar amount in plain decimals: NEVER exponent notation (toPrecision
+ * and String() switch to "2.97e-7" below 1e-6). Below $1, three significant
+ * digits ("$0.297", "$0.000000297"); from $1 up, cents ("$12.34", "$1,234.56").
+ */
+export function formatUsdPlain(n: number, significant = 3): string {
+  if (!isFinite(n)) return "-";
+  if (Math.abs(n) >= 1)
+    return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${n.toLocaleString("en-US", { maximumSignificantDigits: significant })}`;
+}
+
 export function formatUsd(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
   if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
   if (n >= 0.01) return `$${n.toFixed(2)}`;
-  return `$${n.toPrecision(3)}`;
+  return formatUsdPlain(n);
 }
 
 export function shortAddress(addr: string): string {
