@@ -1,7 +1,11 @@
 out/
 cache/
 broadcast/
-.env
+.env*
+!.env.example
+*.key
+*.pem
+ks*.txt
 .claude/settings.local.json
 .password
 .testwallets/

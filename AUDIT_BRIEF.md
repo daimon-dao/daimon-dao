@@ -104,9 +104,12 @@ static analysis performed — notes on findings in THREAT_MODEL §4.
 
 ## Status
 
-Deployed and verified on **BSC testnet**; **not yet** on mainnet — the
-mainnet deploy will happen only after this audit (checklist in
-[CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md)).
+The audit is complete (Zenith, 2026-08; the audited code is frozen at tag
+`audit-final`). **Live on BNB Smart Chain mainnet since 2026-09-29**: the
+audited code deployed unchanged (`git diff audit-final -- src/` empty),
+following [CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md); every launch
+transaction is in
+[docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md).
 
 ## Reporting
 

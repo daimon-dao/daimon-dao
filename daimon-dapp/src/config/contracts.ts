@@ -30,7 +30,7 @@ const BSC_TESTNET: ContractAddresses = {
 };
 
 // BSC mainnet (chainId 56), deployed and verified on 2026-09-29. Each address
-// was checked read-only on chain against deployments/two-phase-56.json before
+// was checked read-only on chain against docs/launch-56/two-phase-56.json before
 // being written here: the cross-links (Staking.daimonToken, Governor.staking /
 // .timelock, Migration.oldDaimon / .newDaimon / .treasury / .governance) and
 // the pair (DaimonV2.uniswapV2Pair(), token0 = DMN, token1 = WBNB).

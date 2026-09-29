@@ -115,8 +115,9 @@ in both languages, dates and countdowns are localized.
 Everything in **one file**: [src/config/contracts.ts](src/config/contracts.ts).
 Both address sets are filled in: `BSC_TESTNET` (97) and `BSC_MAINNET` (56,
 the 2026-09-29 launch deploy, each address checked on chain against
-`deployments/two-phase-56.json`). `NEXT_PUBLIC_CHAIN_ID` picks one at build
-time; RPC, explorer and the wagmi chain follow in cascade.
+[`docs/launch-56/two-phase-56.json`](../docs/launch-56/two-phase-56.json)).
+`NEXT_PUBLIC_CHAIN_ID` picks one at build time; RPC, explorer and the wagmi
+chain follow in cascade.
 
 The migration page opens by itself: it polls the old token for the fee
 exemption of the Migration's treasury (on mainnet the Timelock, launch step

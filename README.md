@@ -46,16 +46,46 @@ forever at tag `audit-final`.
 
 ## Status
 
-Contracts deployed and verified on **BSC testnet**; test suite (unit + fuzz +
-invariant + adversarial, **180 tests green**) and Slither static analysis
+**Live on BNB Smart Chain mainnet since 2026-09-29.** The audited code was
+deployed unchanged (`git diff audit-final -- src/` empty) and verified on
+BscScan and Sourcify (exact match); the deployer renounced every role in the
+same run, and the pool's LP tokens belong to the Timelock. Test suite (unit +
+fuzz + invariant + adversarial) **203 tests green** — the 180 of
+`audit-final` plus 23 for the launch tooling — and Slither static analysis
 performed. **External audit by Zenith complete** — the [full report](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
 is published and the audited code range is frozen at tag
 [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
-**Level-2 rehearsal completed on a public chain** (BSC testnet, 2026-08-28 to
-2026-09-10): the audited code deployed with the mainnet scripts and a full
-governance cycle run in real time — propose, vote, queue, seven real days
-of timelock, execute — every transaction recorded and monitored, see
-[CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md).
+
+**The migration window is open until 2026-12-28 01:08:44 UTC**
+(`migrationDeadline` 1798420124): DMX holders swap 1:1 for DMN on
+[app.daimon.money](https://app.daimon.money). Every launch step — each
+transaction, each read-back, the deviations and the incident during the
+pause — is recorded in the
+**[mainnet launch record](docs/MAINNET_LAUNCH_RECORD.md)**.
+
+Before mainnet the launch was rehearsed on BSC testnet — a full governance
+cycle in real time, seven real days of timelock included
+([CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md), 2026-08-28 to 2026-09-10),
+then the launch configuration ([docs/CHAPEL_2B_RESULTS.md](docs/CHAPEL_2B_RESULTS.md))
+— and on a local fork of BSC mainnet against the real DMX
+([docs/MAINNET_FORK_RESULTS.md](docs/MAINNET_FORK_RESULTS.md)).
+
+## Mainnet addresses
+
+BNB Smart Chain, chainId 56. Always verify an address on chain before
+interacting; the deploy transactions and the implementation behind the DMN
+proxy are in the [launch record](docs/MAINNET_LAUNCH_RECORD.md).
+
+| Contract | Address |
+|---|---|
+| **DMN** — the token (`DaimonV2`, UUPS proxy) | [`0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a`](https://bscscan.com/address/0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a) |
+| Migration (`DaimonMigration`) — DMX → DMN, 1:1 | [`0x76368b60514b145617385847aCFF7b7EA9764725`](https://bscscan.com/address/0x76368b60514b145617385847aCFF7b7EA9764725) |
+| Staking (`DaimonStaking`) | [`0xBb596e7308D6C5AED55cEC597D372840Cbe575b1`](https://bscscan.com/address/0xBb596e7308D6C5AED55cEC597D372840Cbe575b1) |
+| Governor (`DaimonGovernor`) | [`0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De`](https://bscscan.com/address/0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De) |
+| Timelock (`DaimonTimelock`) — the treasury, holds the LP | [`0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891`](https://bscscan.com/address/0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891) |
+| PancakeSwap v2 pair DMN/WBNB — the launch pool | [`0x40A97Ae210a44057603186B4BE92BAe719342AFA`](https://bscscan.com/address/0x40A97Ae210a44057603186B4BE92BAe719342AFA) |
+| Guardian — Safe multisig, 2-of-3: cancel and 14-day pauses only, until 2029-09-28 | [`0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8`](https://bscscan.com/address/0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8) |
+| DMX — the old token, migrating to DMN | [`0x36EbA94407B53c631eE822C219e94580fadd67c7`](https://bscscan.com/address/0x36EbA94407B53c631eE822C219e94580fadd67c7) |
 
 ## Status of decisions
 
@@ -84,6 +114,9 @@ precedence, and the deployed code takes precedence over all of them:
 
 ## Documentation
 
+- [docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md) — the
+  mainnet launch journal: every step, every transaction, the deviations and
+  the incident, the migration window
 - [docs/protocol-paper/](docs/protocol-paper/) — the protocol paper (EN
   primary, IT translation), with versioning policy, changelog and the PDF
   build script
@@ -103,6 +136,8 @@ precedence, and the deployed code takes precedence over all of them:
 
 | Channel | Link |
 |---|---|
+| Website | https://daimon.money |
+| dApp | https://app.daimon.money |
 | Telegram — announcements | https://t.me/Daimon_one |
 | Telegram — community group (EN) | https://t.me/Daimon_Official_Group |
 | Telegram — community group (IT) | https://t.me/Daimon_Official_Italian_Group |

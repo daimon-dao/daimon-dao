@@ -1,5 +1,10 @@
 # Launch day -- the script
 
+Status: RUN on 2026-09-29 -- steps 1-8 and 11a/11b done, 9 and 10 skipped
+by decision; the migration window opened at 11b (2026-09-29 20:06:24 UTC)
+and closes 2026-12-28 01:08:44 UTC. What actually ran, with every hash and
+every deviation from this script, is docs/MAINNET_LAUNCH_RECORD.md.
+
 Every command of the Daimon DAO mainnet launch, in order: who signs it,
 what to check after it, and what to do when a check fails. Written from
 what ran on a local fork of BSC mainnet against the REAL DMX, the REAL DMX
@@ -8,7 +13,7 @@ pool and the REAL PancakeSwap v2 router (docs/MAINNET_FORK_RESULTS.md,
 CHECKLIST_MAINNET.md, with two changes decided on 2026-09-29 and in force
 here: the deployer (not the owner) deploys the LiquiditySeeder, and every
 contract is verified BEFORE the first owner step (steps 4b, 4c); the
-protocol code is the tag `launch-config-rc1`
+protocol code is the tag `launch-config-rc2`
 (`git diff audit-final -- src/` empty); the only new contract is the
 launch tool `script/launch/LiquiditySeeder.sol`, outside `src/`.
 
@@ -136,7 +141,7 @@ must NOT set `MARKETING_WALLET`, `TREASURY_ADDRESS` or
 | P3 | `Assert-Deployer` (= `cast wallet address --ledger --mnemonic-derivation-path $DPATH`; deployer device unlocked, Ledger Live closed, Ethereum app open, "Blind signing" enabled in its settings: every deploy carries contract data) and, in MetaMask, the selected account on network "BNB Smart Chain" (chain ID 56) | `P3 OK: $DEPLOYER` / `$OWNER` | STOP. A plain `--ledger` without the path returns `0x9Fc0...848d`: that is the path missing, not the device. Otherwise: wrong device or wrong PIN (passphrase). Owner: fix the MetaMask account/network. **P3 is re-run as a hard gate immediately before every deployer broadcast (2.2, 2.3, 4b)** |
 | P4 | `powershell -File script/fork/size-liquidity.ps1 -Rpc $RPC` | last line `FUNDED` (owner >= leg + 0.002) | fund the owner (target 2.35 BNB); do NOT start |
 | P5 | `cast call $DMX "owner()(address)"`, `"getUnlockTime()(uint256)"`, `"isExcludedFromFee(address)(bool)" $OWNER`, `"_maxTxAmount()(uint256)"` (all `--rpc-url $RPC`) | `$OWNER`, `0`, `true`, `1500000000000000000000000000` | owner authority changed or a `lock()` is running: the migration could never open. Do NOT deploy |
-| P6 | `git describe --tags`; `git diff audit-final -- src/`; `forge test` | `launch-config-rc1` (or its successor); empty; 203 passed | wrong checkout |
+| P6 | `git describe --tags`; `git diff audit-final -- src/`; `forge test` | `launch-config-rc2` (or docs-only commits on top of it: `launch-config-rc2-N-g<commit>`); empty; 203 passed | wrong checkout |
 | P7 | `Test-Path` on `deployments/two-phase-56.json`, `broadcast/DeployPhase1.s.sol/56`, `broadcast/DeployPhase2.s.sol/56`, `cache/DeployPhase1.s.sol/56`, `cache/DeployPhase2.s.sol/56` | all `False` | move the old files away: phase 2 and `--resume` would read them. A phase-1 **simulation** (2.1, or any dry run) WRITES `deployments/two-phase-56.json` and `broadcast/.../56/dry-run`: a dry run done before the day must be cleaned up again; the one in 2.1 is overwritten by 2.2 |
 | P8 | on bscscan.com, `$DMX` -> Contract: the green "verified" tick and a **Write Contract** tab listing `approve`, `setMaxTxAmount`, `excludeFromFee`; same for `$ROUTER` (`swapExactETHForTokensSupportingFeeOnTransferTokens`) | present (both are exact matches on Sourcify: DMX since 2025-07-09) | the owner cannot sign 5a/9/11 through BscScan: stop and decide the signing path before phase 1 |
 | P9 | MetaMask: Settings -> Advanced -> **Show hex data** ON; no pending transaction on `$OWNER`; the DMX token (`$DMX`) imported for display | done | turn it on: the hex data is how every owner confirmation is checked |

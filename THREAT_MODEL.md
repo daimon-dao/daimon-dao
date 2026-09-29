@@ -4,10 +4,13 @@ Document for the professional auditor and for the community. It describes
 what each actor can and cannot do, the defenses in place, the known and
 accepted limits, and the trust assumptions the system rests on.
 
-Status: contracts deployed and verified on BSC testnet; test suite (unit +
-fuzz + invariant + adversarial, 180 tests) green; Slither static analysis
-performed. **External audit by Zenith complete** — full report published,
-audited code range frozen at tag `audit-final`.
+Status: live on BNB Smart Chain mainnet since 2026-09-29 — the audited code,
+deployed unchanged and verified; every launch transaction, and the one
+incident of the launch day, in
+[docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md). Test suite
+(unit + fuzz + invariant + adversarial, 203 tests) green; Slither static
+analysis performed. **External audit by Zenith complete** — full report
+published, audited code range frozen at tag `audit-final`.
 
 Contracts in scope: `DaimonV2` (token), `DaimonStaking`, `DaimonGovernor`,
 `DaimonTimelock`, `DaimonMigration`.
@@ -277,10 +280,12 @@ and partly already addressed; none is blocking.
 
 ## 6. Test coverage (summary)
 
-- 180 tests: unit, governance sequences, fuzz (512 runs each), handler-based
-  invariants (256 runs × 64 depth), UUPS-upgrade coverage paths, and the
-  targeted adversarial suite (snapshot/whale, boundary values, perverse
-  incentives, reflection edge — 14 tests).
+- 203 tests (the 180 of `audit-final`, plus 7 on the old token's transaction
+  cap and 16 on the launch's `LiquiditySeeder`): unit, governance sequences,
+  fuzz (512 runs each), handler-based invariants (256 runs × 64 depth),
+  UUPS-upgrade coverage paths, and the targeted adversarial suite
+  (snapshot/whale, boundary values, perverse incentives, reflection edge —
+  14 tests).
 - Verified invariants: supply within bounds, `totalVotingPower` = sum of
   active locks and per-user vp, migration conservation, reward balance =
   funded − claimed, no unauthorized admin role.

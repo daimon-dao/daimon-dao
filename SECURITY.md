@@ -119,15 +119,17 @@ single entry.
 
 ## Bug bounty
 
-There is currently **no formal bug bounty program**: it will arrive with the
-mainnet launch. Responsible reports received before launch will still be
-publicly acknowledged in the advisory and — at the project's discretion — may
-be rewarded retroactively when the program starts.
+A bug bounty funded by the treasury will be proposed to governance. Until
+then, responsible disclosure is welcome and will be credited publicly.
 
 ## Project status
 
-Contracts deployed and verified on BSC **testnet**; test suite (unit + fuzz +
-invariant, **180 tests green**) and Slither static analysis performed.
+Live on BNB Smart Chain **mainnet** since 2026-09-29: the audited code,
+deployed unchanged and verified; addresses in the [README](README.md#mainnet-addresses),
+every launch transaction in the
+[mainnet launch record](docs/MAINNET_LAUNCH_RECORD.md). Test suite (unit +
+fuzz + invariant + adversarial, **203 tests green**) and Slither static
+analysis performed.
 **External audit by Zenith complete** — the [full report](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
 is published and the audited code range is frozen at tag
 [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).

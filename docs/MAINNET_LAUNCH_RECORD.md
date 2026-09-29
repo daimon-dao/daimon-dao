@@ -16,7 +16,7 @@ read back from mined state after the step, before the next one.
 | DMX owner | nonce 1013, 0.390956 BNB, 0 DMN; `owner()` = itself, `getUnlockTime()` 0 -- bound by the owner-key rule below |
 | dApp | live on mainnet at app.daimon.money (production, chain 56) |
 | monitor | live on mainnet; it reported the incident below |
-| repository | the journal commits are LOCAL only; the push is held until the public announcement |
+| repository | pushed: the journal commits (`ce218b1`, `483c83b`, `90d79cf`) merged with origin as `fae8be6`, pushed to `origin/master` (`0a65087..fae8be6`) on 2026-09-29 21:35:47 UTC |
 
 ### The owner-key rule -- for the WHOLE migration window
 
@@ -379,4 +379,4 @@ is `>=` `totalMigrated`, never `==`.
 | dApp publication | operator | done: app.daimon.money, production on chain 56 |
 | 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | done -- **the window opened at 11b, 2026-09-29 20:06:24 UTC** |
 | the owner-key rule | owner | in force until 2026-12-28 01:08:44 UTC (see Status) |
-| push of the journal commits | operator | held until the public announcement |
+| push of the journal commits | operator | done -- merged as `fae8be6`, pushed `0a65087..fae8be6` on 2026-09-29 21:35:47 UTC |

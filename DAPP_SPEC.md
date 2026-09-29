@@ -1,8 +1,14 @@
 # DAPP_SPEC.md — Daimon (DMN) dApp specification
 
 Complete specification for building the dApp. To be read together with the
-contracts repository (already deployed and verified on BSC testnet) and
-TESTNET_RESULTS.md for the addresses.
+contracts repository and TESTNET_RESULTS.md for the testnet addresses.
+
+Status: the dApp is built and live on BNB Smart Chain mainnet at
+https://app.daimon.money since the 2026-09-29 launch; both address sets
+(testnet 97, mainnet 56) are in `daimon-dapp/src/config/contracts.ts`, and
+the launch is recorded in
+[docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md). This
+document is kept as the original build specification.
 
 ---
 
@@ -13,7 +19,7 @@ Framework:         Next.js 14+ (App Router) + TypeScript
 Styling:           TailwindCSS
 Wallet/chain:      wagmi v2 + viem (NO web3.js, NO ethers)
 Supported wallets: MetaMask, WalletConnect, Trust Wallet (via wagmi connectors)
-Chain:             BSC testnet (97) now, BSC mainnet (56) prepared
+Chain:             BSC mainnet (56) live since 2026-09-29, BSC testnet (97)
                    → chain config and contract addresses in a single file
                      src/config/contracts.ts with a chainId switch
 Frontend deploy:   static build compatible with Vercel
