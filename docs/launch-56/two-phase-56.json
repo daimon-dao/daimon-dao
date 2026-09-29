@@ -1,0 +1,18 @@
+{
+  "chainId": 56,
+  "deployer": "0x4D38C9FE5250235dc99D3e098cd515B008aCa26e",
+  "governor": "0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De",
+  "guardian": "0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8",
+  "guardianAuthorityExpiry": 1885252112,
+  "marketingWallet": "0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891",
+  "marketingWalletOverridden": false,
+  "migration": "0x76368b60514b145617385847aCFF7b7EA9764725",
+  "oldDaimon": "0x36EbA94407B53c631eE822C219e94580fadd67c7",
+  "router": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+  "staking": "0xBb596e7308D6C5AED55cEC597D372840Cbe575b1",
+  "timelock": "0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891",
+  "token": "0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a",
+  "tokenImplementation": "0xA7bC2D4D35e49bdfC8329e3673d7De520832941c",
+  "treasury": "0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891",
+  "treasuryOverridden": false
+}

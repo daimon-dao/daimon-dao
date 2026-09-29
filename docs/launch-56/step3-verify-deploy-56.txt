@@ -1,0 +1,49 @@
+﻿# Step 3 -- verify-deploy.ps1, chain 56, block 124627735, 2026-09-29 01:20:57 UTC
+Post-broadcast verification -- chain 56
+State file: C:\Users\Utente\Desktop\Daimon dao\deployments\two-phase-56.json
+
+
+check                                                  expected                                   observed                                   verdict
+-----                                                  --------                                   --------                                   -------
+code at token                                          present                                    present                                    PASS   
+code at timelock                                       present                                    present                                    PASS   
+code at governor                                       present                                    present                                    PASS   
+code at staking                                        present                                    present                                    PASS   
+code at migration                                      present                                    present                                    PASS   
+token: timelock holds GOVERNANCE_ROLE                  true                                       true                                       PASS   
+token: deployer lacks GOVERNANCE_ROLE                  false                                      false                                      PASS   
+token: deployer lacks DEFAULT_ADMIN                    false                                      false                                      PASS   
+token: guardian holds GUARDIAN_ROLE                    true                                       true                                       PASS   
+token: stakingRewardShareBps == 1000                   1000                                       1000                                       PASS   
+token: stakingContract is the staking                  0xBb596e7308D6C5AED55cEC597D372840Cbe575b1 0xBb596e7308D6C5AED55cEC597D372840Cbe575b1 PASS   
+token: marketingWallet as configured                   0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 PASS   
+token: migration is fee-exempt                         true                                       true                                       PASS   
+token: fees == (10,10,20)                              10,10,20                                   10,10,20                                   PASS   
+timelock: self-administers                             true                                       true                                       PASS   
+timelock: deployer lacks ADMIN_ROLE                    false                                      false                                      PASS   
+timelock: deployer lacks PROPOSER_ROLE                 false                                      false                                      PASS   
+timelock: deployer lacks EXECUTOR_ROLE                 false                                      false                                      PASS   
+timelock: governor is proposer                         true                                       true                                       PASS   
+timelock: governor is executor                         true                                       true                                       PASS   
+timelock: guardian is canceller                        true                                       true                                       PASS   
+timelock: governor is canceller                        true                                       true                                       PASS   
+timelock: self-cancel role present                     true                                       true                                       PASS   
+expiry: timelock == token (exact)                      1885252112                                 1885252112                                 PASS   
+expiry: governor == token (exact)                      1885252112                                 1885252112                                 PASS   
+staking: timelock is governance                        true                                       true                                       PASS   
+staking: deployer is not governance                    false                                      false                                      PASS   
+supply: totalSupply == INITIAL_SUPPLY                  1000000000000000000000000000000            1000000000000000000000000000000            PASS   
+supply: all of it in the migration                     1000000000000000000000000000000            1000000000000000000000000000000            PASS   
+migration: governance is the timelock                  0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 PASS   
+migration: newDaimon is the token                      0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a 0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a PASS   
+migration: oldDaimon as configured                     0x36EbA94407B53c631eE822C219e94580fadd67c7 0x36EbA94407B53c631eE822C219e94580fadd67c7 PASS   
+migration: treasury as configured                      0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 PASS   
+migration: treasury is the timelock                    0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 PASS   
+token: marketingWallet is the deployed timelock (live) 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891 PASS   
+token: pancake pair created                            present                                    present                                    PASS   
+
+
+
+Guardian expiry raw values: token=1885252112 timelock=1885252112 governor=1885252112
+VERIFICATION PASSED: 36/36 checks green against live chain state.
+exit: 0
