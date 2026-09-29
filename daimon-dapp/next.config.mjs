@@ -1,6 +1,23 @@
+/*
+ * Security headers on every response. A wallet dApp must never be framed:
+ * inside another site's frame, a visitor could be tricked into clicking
+ * "Approve" or "Migrate" on a page they cannot see (clickjacking).
+ * frame-ancestors 'none' is the modern control, X-Frame-Options DENY the same
+ * for older browsers; nosniff stops a response from being run as a type it
+ * was not served as.
+ */
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   webpack: (config) => {
     // The wagmi/connectors barrel pulls in the MetaMask SDK, which references
     // React Native's AsyncStorage. This dApp never uses that connector (only
