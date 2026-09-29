@@ -34,6 +34,22 @@ There are no other variables and there must never be a secret here: every
 walked in order by viem's fallback transport); the WalletConnect metadata
 always advertises `https://app.daimon.money` (`APP_URL`).
 
+## Country restriction
+
+[src/middleware.ts](src/middleware.ts) runs at the Vercel edge on every
+request. When `x-vercel-ip-country` (set by Vercel) is in
+`RESTRICTED_COUNTRIES` ([src/config/restricted.ts](src/config/restricted.ts)
+— the one list, change it only there), the visitor gets a plain EN/IT notice
+with HTTP 451 instead of the app: no app code, no wallet, no RPC. `/terms`
+and `/terms/it` stay readable from everywhere. Without the header (local dev,
+`next start`) nothing is restricted; to test, force it:
+
+```sh
+curl -i -H "x-vercel-ip-country: IR" http://localhost:3000/
+```
+
+The contracts stay permissionless: this restricts the interface only.
+
 ## Terms of use (acknowledgment)
 
 Before any wallet interaction the dApp shows a plain summary of

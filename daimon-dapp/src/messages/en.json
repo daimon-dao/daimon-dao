@@ -100,7 +100,6 @@
     "priceTitle": "DMN price",
     "priceNa": "n/a",
     "priceNaTestnet": "n/a (testnet)",
-    "marketCap": "Market cap ≈ {value}",
     "priceSource": "price from the PancakeSwap pool",
     "verifyContract": "Verify the contract on BscScan",
     "deflationTitle": "Deflation towards the floor",

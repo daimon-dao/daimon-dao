@@ -72,7 +72,8 @@ Works EVEN without a connected wallet (all public on-chain reads).
 2. Tokens burned (INITIAL_SUPPLY - totalSupply) with the subtitle "towards the
    21B floor"
 3. Total staked (totalStakedAmount from staking) with % of supply
-4. DMN price + market cap — SOBER NUMBER:
+4. DMN price (pool price only, no market cap: removed 2026-09-29, the
+   figure counted the ~995B DMN still held by the Migration) — SOBER NUMBER:
    - only the current value, NO 24h % change, NO green/red arrows, NO charts
      (explicit owner decision)
    - primary source: on-chain read of the PancakeSwap pair reserves
