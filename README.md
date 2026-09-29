@@ -68,9 +68,9 @@ precedence, and the deployed code takes precedence over all of them:
 - [docs/TREASURY_POLICY_v1.0.md](docs/TREASURY_POLICY_v1.0.md) — the
   treasury: one governed contract, no operational wallet, what it holds
   and what it will never do
-- [docs/DISCLAIMER_TERMS_v0.2_EN.md](docs/DISCLAIMER_TERMS_v0.2_EN.md) —
+- [docs/DISCLAIMER_TERMS_v0.3_EN.md](docs/DISCLAIMER_TERMS_v0.3_EN.md) —
   legal disclaimer and terms of use (authoritative English text; an
-  [Italian courtesy translation](docs/DISCLAIMER_TERMS_v0.2_IT.md) sits
+  [Italian courtesy translation](docs/DISCLAIMER_TERMS_v0.3_IT.md) sits
   alongside)
 - [docs/CALENDARIO_GOVERNANCE_Q1.md](docs/CALENDARIO_GOVERNANCE_Q1.md) —
   the first quarter of mainnet governance, proposal by proposal, each

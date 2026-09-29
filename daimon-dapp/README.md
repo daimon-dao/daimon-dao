@@ -34,21 +34,28 @@ There are no other variables and there must never be a secret here: every
 walked in order by viem's fallback transport); the WalletConnect metadata
 always advertises `https://app.daimon.money` (`APP_URL`).
 
-## Country restriction
+## Country restriction (dormant)
 
-[src/middleware.ts](src/middleware.ts) runs at the Vercel edge on every
-request. When `x-vercel-ip-country` (set by Vercel) is in
-`RESTRICTED_COUNTRIES` ([src/config/restricted.ts](src/config/restricted.ts)
-— the one list, change it only there), the visitor gets a plain EN/IT notice
-with HTTP 451 instead of the app: no app code, no wallet, no RPC. `/terms`
-and `/terms/it` stay readable from everywhere. Without the header (local dev,
-`next start`) nothing is restricted; to test, force it:
+**The interface blocks no one**: `RESTRICTED_COUNTRIES`
+([src/config/restricted.ts](src/config/restricted.ts)) is empty by decision
+(2026-09-29), and DISCLAIMER_TERMS v0.3 §5 states that access is not
+restricted by location. With the list empty,
+[src/middleware.ts](src/middleware.ts) returns at its first line and no
+request is affected, whatever headers it carries.
+
+The mechanism stays so it can be switched on by editing that one constant:
+a visitor whose `x-vercel-ip-country` (set by Vercel at its edge) is listed
+then gets a plain EN/IT notice with HTTP 451 instead of the app — no app
+code, no wallet, no RPC — while `/terms` and `/terms/it` stay readable.
+Switching it on requires amending the terms' §5 in the same release. To test
+locally, force the header:
 
 ```sh
 curl -i -H "x-vercel-ip-country: IR" http://localhost:3000/
 ```
 
-The contracts stay permissionless: this restricts the interface only.
+The contracts stay permissionless either way: any restriction would apply
+to the interface only.
 
 ## Terms of use (acknowledgment)
 

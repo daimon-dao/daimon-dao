@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const TERMS_VERSION = "0.2";
+const TERMS_VERSION = "0.3";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const docsDir = join(root, "..", "..", "docs");

@@ -17,7 +17,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { Logo } from "@/components/Logo";
 
 /*
- * Terms acknowledgment (DISCLAIMER_TERMS v0.2, DAPP_SPEC.md §8 point 9): no
+ * Terms acknowledgment (DISCLAIMER_TERMS, DAPP_SPEC.md §8 point 9): no
  * wallet interaction before the visitor has read a plain summary and
  * explicitly accepted. The acceptance lives ONLY in this browser's
  * localStorage, with the terms version -- no cookie, nothing sent anywhere. A

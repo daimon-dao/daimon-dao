@@ -2,18 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { RESTRICTED_COUNTRIES } from "@/config/restricted";
 
 /*
- * Country restriction at the edge (DISCLAIMER_TERMS v0.2 §5, DAPP_SPEC.md §8
- * point 10). A visitor whose connection Vercel locates in a restricted
- * jurisdiction gets a plain notice (HTTP 451) INSTEAD of the app: no app code,
- * no wallet connector, no RPC call reaches their browser. The full terms at
- * /terms and /terms/it stay readable from everywhere.
+ * Country restriction at the edge -- DORMANT: RESTRICTED_COUNTRIES is empty by
+ * decision (src/config/restricted.ts, DAPP_SPEC.md §8 point 10), so every
+ * request passes untouched. Kept so that it can be switched on by editing that
+ * one constant.
+ *
+ * When the list is not empty, a visitor whose connection Vercel locates in a
+ * listed jurisdiction gets a plain notice (HTTP 451) INSTEAD of the app: no app
+ * code, no wallet connector, no RPC call reaches their browser. The full terms
+ * at /terms and /terms/it stay readable from everywhere.
  *
  * The country comes from the x-vercel-ip-country header, which Vercel sets on
  * every request at its edge. Without it (local dev, `next start`) nothing is
  * restricted. The smart contracts are permissionless and untouched by this:
- * the restriction applies to this interface only.
+ * any restriction applies to this interface only.
  */
 export function middleware(req: NextRequest) {
+  // Empty list: nothing is restricted, whatever the request carries.
+  if (RESTRICTED_COUNTRIES.length === 0) return NextResponse.next();
+
   const { pathname } = req.nextUrl;
   if (pathname === "/terms" || pathname.startsWith("/terms/")) return NextResponse.next();
 
@@ -45,24 +52,19 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.svg).*)"],
 };
 
+// Deliberately neutral: it quotes no terms clause. Whoever switches the
+// restriction on amends the terms' §5 in the same release and can extend this.
 const EN = `
 <section lang="en">
   <h1>Not available in your region</h1>
-  <p>This interface is not available from your location. Daimon's terms of use
-  do not allow its use by persons in jurisdictions subject to comprehensive
-  sanctions (UN, EU, US OFAC, UK or equivalent). Circumventing this
-  restriction is a breach of the terms.</p>
+  <p>This interface is not available from your location.</p>
   <p><a href="/terms">Read the terms of use</a></p>
 </section>`;
 
 const IT = `
 <section lang="it">
   <h1>Non disponibile nella tua area</h1>
-  <p>Questa interfaccia non è disponibile dalla tua posizione. Le condizioni
-  d'uso di Daimon non ne consentono l'uso a persone che si trovano in
-  giurisdizioni soggette a sanzioni complete (ONU, UE, USA OFAC, Regno Unito o
-  equivalenti). Aggirare questa limitazione costituisce violazione delle
-  condizioni.</p>
+  <p>Questa interfaccia non è disponibile dalla tua posizione.</p>
   <p><a href="/terms/it">Leggi le condizioni d'uso</a></p>
 </section>`;
 
