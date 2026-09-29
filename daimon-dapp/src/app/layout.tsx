@@ -12,6 +12,7 @@ import { PausedBanner } from "@/components/PausedBanner";
 import { RpcHealthBanner } from "@/components/RpcHealthBanner";
 import { TestnetBanner } from "@/components/TestnetBanner";
 import { GlobalErrorGuard } from "@/components/GlobalErrorGuard";
+import { TermsProvider, TERMS_ACCEPTED_SCRIPT } from "@/components/TermsGate";
 import { IS_TESTNET } from "@/config/contracts";
 import {
   LOCALE_COOKIE,
@@ -65,17 +66,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: TERMS_ACCEPTED_SCRIPT }} />
       </head>
       <body className={`${inter.className} min-h-screen bg-bg text-testo antialiased`}>
         <LocaleProvider initialLocale={locale}>
           <Providers initialState={initialState}>
             <GlobalErrorGuard />
-            <TestnetBanner />
-            <PausedBanner />
-            <RpcHealthBanner />
-            <Header />
-            <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-            <Footer />
+            <TermsProvider>
+              <TestnetBanner />
+              <PausedBanner />
+              <RpcHealthBanner />
+              <Header />
+              <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+              <Footer />
+            </TermsProvider>
           </Providers>
         </LocaleProvider>
       </body>

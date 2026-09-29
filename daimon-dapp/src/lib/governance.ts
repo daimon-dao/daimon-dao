@@ -32,6 +32,7 @@ export type ProposalTuple = readonly [
 ];
 
 export type PhaseKey =
+  | "loading"
   | "pending"
   | "active"
   | "defeated"
@@ -49,6 +50,7 @@ export const PROPOSAL_PHASE: Record<
   PhaseKey,
   { labelKey: string; badgeClass: string }
 > = {
+  loading: { labelKey: "governance.phase.loading", badgeClass: "bg-secondario/10 text-secondario" },
   pending: { labelKey: "governance.phase.pending", badgeClass: "bg-secondario/20 text-secondario" },
   active: { labelKey: "governance.phase.active", badgeClass: "bg-oro/20 text-oro" },
   defeated: { labelKey: "governance.phase.defeated", badgeClass: "bg-rosso/20 text-rosso" },
@@ -59,6 +61,26 @@ export const PROPOSAL_PHASE: Record<
   canceled: { labelKey: "governance.phase.canceled", badgeClass: "bg-secondario/20 text-secondario" },
 };
 
+/** DaimonGovernor.ProposalState, in declaration order. */
+export const ProposalState = {
+  Pending: 0,
+  Active: 1,
+  Defeated: 2,
+  Succeeded: 3,
+  Queued: 4,
+  Executed: 5,
+  Canceled: 6,
+} as const;
+
+/*
+ * The status comes ONLY from Governor.state(id), never from the struct's
+ * canceled/executed/queued flags: state() is the one place that also folds in
+ * a cancellation made directly on the Timelock (it reports Canceled while the
+ * struct still says queued). The struct supplies timing only (voteStart,
+ * voteEnd for the countdowns); the Timelock's readyTimestamp splits Queued
+ * into "in timelock" and "ready". state() not read yet -> "loading", never a
+ * guessed phase.
+ */
 export function phaseOf(
   state: number | undefined,
   p: ProposalTuple,
@@ -66,26 +88,27 @@ export function phaseOf(
   timelockReadyTs?: bigint
 ): { key: PhaseKey; countdownTo?: number; countdownLabelKey?: string } {
   switch (state) {
-    case 6:
+    case ProposalState.Canceled:
       return { key: "canceled" };
-    case 5:
+    case ProposalState.Executed:
       return { key: "executed" };
-    case 0:
+    case ProposalState.Pending:
       return {
         key: "pending",
         countdownTo: Number(p[7]),
         countdownLabelKey: "governance.countdown.opensIn",
       };
-    case 1:
+    case ProposalState.Active:
       return {
         key: "active",
         countdownTo: Number(p[8]),
         countdownLabelKey: "governance.countdown.endsIn",
       };
-    case 2:
+    case ProposalState.Defeated:
       return { key: "defeated" };
-    case 3: {
-      if (!p[14]) return { key: "succeeded" };
+    case ProposalState.Succeeded:
+      return { key: "succeeded" };
+    case ProposalState.Queued: {
       const ready = timelockReadyTs !== undefined ? Number(timelockReadyTs) : undefined;
       if (ready !== undefined && ready > 0 && now < ready) {
         return {
@@ -98,7 +121,7 @@ export function phaseOf(
       return { key: "timelock" };
     }
     default:
-      return { key: "pending" };
+      return { key: "loading" };
   }
 }
 

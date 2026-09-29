@@ -6,7 +6,7 @@ import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
-import { formatCompact, formatExact, formatUsd, formatUnitsNumber, formatCountdown, truncFixed } from "@/lib/format";
+import { formatCompact, formatExact, formatUsd, formatCountdown, truncFixed } from "@/lib/format";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { DataOwner } from "@/components/DataOwner";
 import { Skeleton } from "@/components/Skeleton";
@@ -100,11 +100,6 @@ export default function Dashboard() {
       ? Number((burned * 100000n) / burnTarget) / 1000
       : 0;
 
-  const marketCap =
-    price.usd !== null && totalSupply !== undefined
-      ? price.usd * formatUnitsNumber(totalSupply)
-      : null;
-
   // Latest governance proposal
   const lastId =
     proposalCount !== undefined && proposalCount > 0n ? proposalCount - 1n : undefined;
@@ -183,11 +178,7 @@ export default function Dashboard() {
                 ? t("dashboard.priceNaTestnet")
                 : t("dashboard.priceNa")
           }
-          sub={
-            marketCap !== null
-              ? t("dashboard.marketCap", { value: formatUsd(marketCap) })
-              : t("dashboard.priceSource")
-          }
+          sub={t("dashboard.priceSource")}
           contract={ADDRESSES.pancakePair}
           linkTitle={t("dashboard.verifyContract")}
         >
@@ -326,7 +317,7 @@ function LatestProposal({
         >
           {t(info.labelKey)}
         </span>
-        {phase.countdownTo && (
+        {phase.countdownTo && phase.countdownTo > now && (
           <span className="ml-2 text-secondario">
             {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
             {formatCountdown(phase.countdownTo - now, locale)}

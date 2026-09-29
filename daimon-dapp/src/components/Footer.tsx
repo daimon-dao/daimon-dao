@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { useI18n } from "@/components/LocaleProvider";
 
@@ -12,7 +13,7 @@ const LINKS: Array<[string, string]> = [
 ];
 
 export function Footer() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
     <footer className="mt-16 border-t border-bordi py-8">
       <div className="mx-auto max-w-6xl px-4">
@@ -44,7 +45,15 @@ export function Footer() {
             </a>
           )}
         </div>
-        <p className="mt-6 text-xs text-secondario">{t("footer.tagline")}</p>
+        <p className="mt-6 text-xs text-secondario">
+          {t("footer.tagline")}{" "}
+          <Link
+            href={locale === "it" ? "/terms/it" : "/terms"}
+            className="underline underline-offset-2 hover:text-oro"
+          >
+            {t("terms.footerLink")}
+          </Link>
+        </p>
       </div>
     </footer>
   );

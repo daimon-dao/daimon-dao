@@ -73,3 +73,9 @@ html {
     opacity: 1;
   }
 }
+
+/* Terms gate hidden before hydration when this browser already accepted the
+   current terms version (TERMS_ACCEPTED_SCRIPT in the root layout). */
+html[data-terms-accepted] .terms-gate {
+  display: none;
+}

@@ -1,25 +1,99 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import { useAccount, useConfig, useConnect, useDisconnect, useSwitchChain, type Connector } from "wagmi";
 import { ACTIVE_CHAIN, explorerAddress } from "@/config/contracts";
 import { shortAddress } from "@/lib/format";
+import { isUserRejection } from "@/lib/errors";
+import {
+  IN_APP_CONNECTOR_ID,
+  isInAppWallet,
+  isMobileDevice,
+  rememberInAppDisconnect,
+  subscribeInjectedWallet,
+  waitForInjectedWallet,
+} from "@/lib/injectedWallet";
 import { useI18n } from "@/components/LocaleProvider";
 import { BottomSheet, useIsMobile } from "@/components/BottomSheet";
+import { useTerms } from "@/components/TermsGate";
 
 export function ConnectButton() {
   const { t } = useI18n();
+  const { accepted: termsAccepted, requestTerms } = useTerms();
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const errorTimer = useRef<number | undefined>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { address, isConnected, chainId, connector } = useAccount();
   const { connectors, connectAsync, isPending } = useConnect();
-  const { disconnect } = useDisconnect();
+  const { disconnectAsync } = useDisconnect();
+  const config = useConfig();
   const { switchChain } = useSwitchChain();
 
+  // Wallet in-app browser (mobile + injected wallet): known only in the
+  // browser, and it can change after load (late injection) -> state, updated
+  // on every detection event.
+  const [inApp, setInApp] = useState(false);
+  const [mobileDevice, setMobileDevice] = useState(false);
+  useEffect(() => {
+    setMobileDevice(isMobileDevice());
+    setInApp(isInAppWallet());
+    return subscribeInjectedWallet(() => setInApp(isInAppWallet()));
+  }, []);
+
   useEffect(() => setMounted(true), []);
+  useEffect(() => () => window.clearTimeout(errorTimer.current), []);
+
+  function showConnectError(msg: string) {
+    setConnectError(msg);
+    window.clearTimeout(errorTimer.current);
+    errorTimer.current = window.setTimeout(() => setConnectError(null), 8000);
+  }
+
+  // Every connection attempt goes through here: a rejection in the wallet is
+  // the user's choice (silent); anything else is SAID, never swallowed.
+  async function connectWith(c: Connector) {
+    setConnectError(null);
+    try {
+      await connectAsync({ connector: c });
+    } catch (err) {
+      if (isUserRejection(err)) return;
+      const e = err as { name?: string; code?: number };
+      if (e?.name === "ConnectorAlreadyConnectedError") return;
+      console.error("[connect] wallet connection failed:", err);
+      if (e?.name === "ProviderNotFoundError") showConnectError(t("connect.errorNoWallet"));
+      else if (e?.code === -32002 || e?.name === "ResourceUnavailableRpcError")
+        showConnectError(t("connect.errorPending"));
+      else showConnectError(t("connect.errorGeneric"));
+    }
+  }
+
+  /*
+   * The Connect tap. Terms first, always. Then, inside a wallet's in-app
+   * browser, straight to that wallet: one tap, no menu, no WalletConnect.
+   * Everywhere else, the connector menu (desktop dropdown / mobile sheet).
+   */
+  async function onConnectTap() {
+    setConnectError(null);
+    if (!termsAccepted) {
+      requestTerms();
+      return;
+    }
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    const inAppConnector = connectors.find((c) => c.id === IN_APP_CONNECTOR_ID);
+    // On a phone, a wallet that injects late is waited for briefly.
+    if (inAppConnector && isMobileDevice() && (inApp || (await waitForInjectedWallet()))) {
+      await connectWith(inAppConnector);
+      return;
+    }
+    setMenuOpen(true);
+  }
   // Close on outside click: ONLY for the desktop dropdown — the bottom sheet
   // lives in a portal outside menuRef (it closes with its own backdrop).
   useEffect(() => {
@@ -115,9 +189,12 @@ export function ConnectButton() {
         </button>
         <div className="my-1 border-t border-bordi" />
         <button
-          onClick={() => {
+          onClick={async () => {
             setMenuOpen(false);
-            disconnect();
+            await disconnectAsync().catch(() => {});
+            // In-app, the same wallet sits behind several connectors: the
+            // disconnect must hold for all of them (src/lib/injectedWallet.ts).
+            if (inApp) await rememberInAppDisconnect(config.storage);
           }}
           className={`${item} text-rosso/80 hover:bg-rosso/10`}
         >
@@ -131,26 +208,28 @@ export function ConnectButton() {
     const item = sheet
       ? "block w-full rounded-lg px-4 py-3 text-left text-base text-testo hover:bg-oro/10"
       : "block w-full rounded-lg px-3 py-2 text-left text-sm text-testo hover:bg-oro/10";
+    // The in-app connector never appears in the menu (it has its own one-tap
+    // path). On a phone the menu only opens when no wallet is injected, so the
+    // browser-wallet entries could not work there: WalletConnect only.
+    const shown = connectors.filter(
+      (c) => c.id !== IN_APP_CONNECTOR_ID && !(mobileDevice && c.type === "injected")
+    );
     return (
       <>
-        {connectors.map((c) => (
+        {shown.map((c) => (
           <button
             key={c.uid}
             className={item}
-            onClick={async () => {
+            onClick={() => {
               setMenuOpen(false);
-              try {
-                await connectAsync({ connector: c });
-              } catch {
-                /* user rejection: no error to show */
-              }
+              void connectWith(c);
             }}
           >
             {c.name === "Injected" ? t("connect.injectedName") : c.name}
           </button>
         ))}
         <p className={`px-3 pt-1 text-xs text-secondario ${sheet ? "px-4 pb-1" : ""}`}>
-          {t("connect.injectedHint")}
+          {mobileDevice ? t("connect.mobileHint") : t("connect.injectedHint")}
         </p>
       </>
     );
@@ -203,12 +282,24 @@ export function ConnectButton() {
     <div className="relative" ref={menuRef}>
       <button
         className="btn-oro whitespace-nowrap"
-        onClick={() => setMenuOpen((v) => !v)}
-        disabled={isPending}
+        // Terms first, then in-app one tap or the menu (onConnectTap).
+        onClick={() => void onConnectTap()}
+        // In-app, a second tap while pending re-asks the wallet (which answers
+        // "request already open" -> a message) instead of a dead button.
+        disabled={isPending && !inApp}
         aria-expanded={menuOpen}
       >
         {isPending ? t("connect.connecting") : connectLabel}
       </button>
+      {connectError && (
+        <div
+          role="status"
+          className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-rosso/40 bg-card p-3 text-xs leading-snug text-testo shadow-xl"
+          onClick={() => setConnectError(null)}
+        >
+          {connectError}
+        </div>
+      )}
       {menuOpen && !isMobile && (
         <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-bordi bg-card p-2 shadow-xl">
           {connectorItems(false)}

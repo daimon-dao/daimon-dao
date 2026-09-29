@@ -1,5 +1,5 @@
 # Daimon — Avvertenze legali e Condizioni d'uso
-*v0.2 — 31 agosto 2026. Traduzione di cortesia: fa fede
+*v0.3 — 29 settembre 2026. Traduzione di cortesia: fa fede
 esclusivamente il testo inglese (§8).*
 
 ---
@@ -72,7 +72,7 @@ Interagendo con i contratti riconoscete che:
   responsabili di stabilire se l'uso del software è lecito nel luogo
   in cui vivete.
 
-## 5. Uso ristretto
+## 5. Uso lecito
 
 Il software e qualsiasi interfaccia correlata non sono destinati a, e
 non devono essere utilizzati da: persone che si trovano in
@@ -83,11 +83,11 @@ obblighi di licenza, registrazione o prospetto a carico di chiunque.
 Se rientrate in una di queste categorie, non interagite con i
 contratti né con le interfacce.
 
-Gli smart contract sono per costruzione privi di permessi e non
-possono far rispettare questa restrizione; qualsiasi interfaccia
-pubblicata dai contributori può limitare l'accesso dalle
-giurisdizioni sanzionate. Aggirare tale limitazione costituisce
-violazione delle presenti condizioni.
+Gli smart contract sono per costruzione privi di permessi, e le
+interfacce pubblicate dai contributori non limitano l'accesso in base
+alla posizione. Ciascun utente è l'unico responsabile del rispetto
+delle leggi e dei regolamenti che gli si applicano, e non deve usare
+il software né alcuna interfaccia dove ciò è vietato.
 
 ## 6. Limitazione di responsabilità
 
@@ -127,3 +127,11 @@ versione inglese.
 > giurisdizione — siete gli unici responsabili del rispetto delle
 > leggi locali. Dove questo testo e il codice distribuito non
 > concordano, l'unica autorità è il codice.
+
+---
+
+*Modifiche — v0.3 (29 settembre 2026): il §5 ora afferma che le
+interfacce non limitano l'accesso in base alla posizione e che
+ciascun utente è responsabile di un uso lecito nel luogo in cui si
+trova; l'intestazione del testo inglese ora rimanda al §5 (citava per
+errore il §4).*
