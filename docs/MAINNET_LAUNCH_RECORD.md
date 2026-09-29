@@ -4,22 +4,23 @@ The launch journal of Daimon DAO, run step by step from `docs/LAUNCH_DAY.md`
 (master `9c4af2a`, code at tag `launch-config-rc2`). Every value below was
 read back from mined state after the step, before the next one.
 
-## Status -- PAUSED
+## Status -- PAUSED before 11a/11b
 
 | | |
 |---|---|
-| paused at | 2026-09-29 04:48 UTC, block 124655356 |
-| **last step done** | **5b (with step 6 merged)** -- the pool is open, the LP is the Timelock's |
-| **next step** | **7** (read-only), then 8 (read-only), 9 (owner, 3 tx), 10 (owner), 11a + 11b (owner) |
+| paused at | 2026-09-29 17:32 UTC, block 124757113 |
+| **last step done** | **8** (7 and 8 read-only on the re-baselined state; **9 and 10 SKIPPED** by decision, see below) |
+| **next step** | the operator publishes the dApp, then **11a + 11b** (owner, back to back) |
 | pending transactions | **none** -- deployer nonce 20 latest = pending; owner nonce 1011 latest = pending |
 | migration window | **CLOSED** (11a/11b not done): `_maxTxAmount` 1.5e27, `isExcludedFromFee(TL)` false -- every claim reverts `AmountMismatch` |
 | deployer | done: nonce 20, 0.099291 BNB, signs nothing more |
 | DMX owner | nonce 1011, 0.390959 BNB, 0 DMN; `owner()` = itself, `getUnlockTime()` 0 |
-| dApp | branch `dapp/mainnet`, published only at 11b; its preview is confirmed before 11b |
-| monitor | live on mainnet |
+| dApp | branch `dapp/mainnet`, published by the operator before 11a/11b |
+| monitor | live on mainnet; it reported the incident below |
 
 **To resume:** `. .\script\launch\resume-56.ps1` (every address and fixed
-value, no secrets), re-read the "expected at resume" block in it, then step 7.
+value, no secrets). Its "expected at resume" block describes the state of
+the 04:48 pause, before the incident: the current baseline is step 8 below.
 The DMX owner must NEVER call `lock()`, `renounceOwnership` or
 `transferOwnership` on DMX until 11b is done.
 
@@ -179,6 +180,121 @@ NET 4799566631387043754255102254**; owner 2.384999 BNB -> FUNDED.
 At the pause (block 124655356) the reserves are unchanged since the seed (no
 trade yet); `DMX.balanceOf(TL)` = `totalMigrated` = GROSS.
 
+## Incident -- a bot captured the first fee conversion (during the pause)
+
+On resuming (17:12 UTC) the "expected at resume" values no longer held: pair
+reserves, fee inventory, token BNB and the Migration's DMN had moved. The
+monitor identified the cause. Everything happened in ONE atomic transaction:
+
+| | |
+|---|---|
+| tx | `0xa1238092425b7c1cc0840568d1ce9fe7534f842e584555049df353363f2ed048` |
+| block / time | 124657486, **2026-09-29 05:04:08 UTC** (1h18m after the seed, 16 min after the pause snapshot) |
+| actor | contract `0x818fF7dbfF345390F27E7C6EA209D3b1be8bf900` (3,247 bytes), called by the EOA `0xfc3facd67138966ab0c841e905b0c4bca1abe92f` (EIP-7702-delegated, nonce 749 at the time) |
+| gas | 1,104,173 at 0.05 gwei; tx index 188 |
+
+The sequence, from the 40 logs of the receipt:
+
+1. Flash-borrows 0.022 WBNB from another V2 pair (`0x16b9a82891338f9ba80e2d6970fdda79d1eb0dae`).
+2. **Buys** DMN from the launch pool through the router: 0.022 BNB -> gross
+   52,246,707.98 DMN out of the pair; 50,156,839.66 to the bot, 1,567,401.24
+   (3 %) to the token's fee inventory, 522,467.08 (1 %) reflected.
+3. **Stakes 1 wei**, lock option 0 (30 days, 1x): voting power **1**, the
+   whole `totalVotingPower`. Lock ends 2026-10-29 05:04:08 UTC.
+4. **Donates 48,438,526.78 DMN directly to the token contract**, lifting the
+   fee inventory (about 0.150 B + 0.0016 B from its buy) past the 0.2 B
+   `minimumTokensBeforeSwap`.
+5. Sells the remaining 1,718,339.22 DMN through the router for 0.000699 BNB
+   (a router-initiated transfer skips the automation, by design, finding #1).
+6. **Pokes**: a 1-wei direct transfer to the pair triggers
+   `_swapAccumulatedFees(0.2 B)`: 200,000,000 DMN sold for 0.081248 BNB.
+7. The conversion splits: marketing branch 20/30 = **0.054165 BNB ->
+   `notifyRewardAmount`** (`stakingRewardShareBps` 1000 = all of it to
+   staking, 0 to the Timelock); buyback branch 10/30 = 0.027083 BNB stays in
+   the token. With `totalVotingPower` = 1, **100 % of the notify accrues to
+   the bot**.
+8. **`claimReward`: 0.054165 BNB** to the bot, same transaction.
+9. Repays 0.022055 WBNB to the flash lender.
+
+Bot's net: 0.054165 + 0.000699 - 0.022055 = **about +0.0328 BNB** (gas
+0.000055). The protocol's cost: the fee inventory accumulated at the seed
+(5b) was converted early, and its staking share, which with no staker would
+have gone to `zeroStakerReserve` (recoverable by governance), went to a
+1-wei position. Side effects: the Migration's DMN grew by 50,527,491.68
+(reflection of this volume); staking holds 1 wei of DMN and 0 BNB; the pool
+price fell by about 5.9 %.
+
+**Finding.** A 1-wei stake placed in the same transaction immediately before
+a NEW notify captures 100 % of that notify while `totalVotingPower` is near
+zero. The #35 guard (`zeroStakerReserve`, `DaimonStaking.sol:134-139`,
+`338-344`) covers a BACKLOG received while nobody staked, not this: once any
+voting power exists, `notifyRewardAmount` distributes pro rata
+(`DaimonStaking.sol:349`) and `claimReward` pays at once (`380-390`). The
+trigger is public by design (`DaimonV2.sol:573-577`: any direct transfer to
+the pair once the inventory is >= 0.2 B), and a donation to the token
+contract arms it. Source of the split: `DaimonV2.sol:705-723`. **Mitigation:
+structural, once staking is populated**: stake cannot exit for 30 days, so a
+position that captures a notify must stay locked, and against real voting
+power a dust stake receives dust. The window is the empty-staking period
+only.
+
+**What the bot could and could not do** (read at block 124756368):
+
+- Governance: **nothing**. Its voting power is 1 wei, below
+  `proposalThreshold` 1000e18, so it cannot propose. `proposalCount` 0; no
+  Timelock operation can exist (only the Governor is PROPOSER). Anyone who
+  stakes >= 1000 DMN could propose and, with total voting power this small,
+  clear the 10 % quorum alone, but the path is at least 13 days (1-day delay,
+  5-day vote, 7-day Timelock) and the guardian Safe can cancel it on the
+  Governor and on the Timelock at any stage until 2029-09-28.
+- Rewards: **yes, not cancellable**. While it is the only staker it receives
+  100 % of the staking share of every future conversion and can claim at any
+  time. The guardian's only lever is `setPaused` (all DMN transfers, bounded
+  window). Exposure now is small: the inventory is 51,554 DMN, and repeating
+  the trick means donating the gap to 0.2 B, which costs more than one
+  conversion's staking share (about 0.054 BNB at the day's price). Any real
+  stake dilutes the 1-wei position to nothing.
+- Its own 1 wei: withdrawable after 2026-10-29.
+
+Nothing in the transaction touches DMX, the Migration's custody (window
+closed), or the LP (the Timelock still holds exactly the minted
+`97828093424055675223914`).
+
+## Step 7 -- one pool only (block 124754501)
+
+`getPair(DMN, WBNB)` = `0x40A97Ae210a44057603186B4BE92BAe719342AFA`;
+`getPair(DMN, USDT)` = `0x0`; `getPair(DMN, BUSD)` = `0x0`.
+
+## Step 8 -- re-baselined after the incident (block 124757113, 17:31:57 UTC)
+
+| check | read |
+|---|---|
+| reserves | DMN `4948969529051442709553456167`, WBNB `1934053593848810506`, both > 0; last change 05:04:08 UTC (the bot) |
+| pair `balanceOf` | DMN reserve + 1 wei (the bot's poke, after the sync), WBNB = reserve |
+| fee inventory | `51553630463798540020259` (51,554 DMN), **0.026 % of the 0.2 B threshold** -- the runbook's "~0.15 B" no longer applies |
+| automation | `swapAndLiquifyEnabled` true, `buyBackEnabled` true; token BNB 0.027083 (buyback fires only above 1 BNB) |
+| staking | `totalVotingPower` 1 (the bot), 0 BNB, `zeroStakerReserve` 0 |
+| Timelock | 0 BNB; LP `97828093424055675223914` == supply - 1000 |
+| prices | DMN 390,799,252 wei/token; DMX **463,263,611** (it rose from 415,454,176 at sizing): **DMN is 15.6 % below DMX** |
+| DMX | `owner()` = owner, `getUnlockTime` 0, `_maxTxAmount` 1.5e27, not fee-exempt: TL, MIG |
+
+## Step 9 -- SKIPPED (decision); the 4 % fee verified on the bot's trades
+
+Instead of the owner's test swap, the fee is verified exactly on the bot's
+own buy and sell in tx `0xa1238092...d048`, to the wei:
+
+| leg | gross | to the token (3 %) | reflected (1 %) | net | check |
+|---|---|---|---|---|---|
+| buy (pair -> bot) | `52246707983495916400064594` (== the pair's `Swap` amount0Out) | `1567401239504877492001937` == floor(gross x 30 / 1000) | `522467079834959164000645` == floor(gross x 10 / 1000) | `50156839664156079744062012` | net == gross - both floors: 96 % |
+| sell (bot -> pair) | `1718339216557158019185944` | `51550176496714740575578` == floor(gross x 30 / 1000) | `17183392165571580191859` == floor(gross x 10 / 1000) | `1649605647894871698418507` (== the pair's `Swap` amount0In) | net == gross - both floors: 96 % |
+
+4 % on both directions, not the historical 5 %.
+
+## Step 10 -- SKIPPED (decision)
+
+The inventory is 51,554 DMN, far below the 0.2 B threshold: a poke converts
+nothing. The first conversion has already happened (the incident).
+
 ## Deviations from LAUNCH_DAY.md
 
 1. P3 failed once (Ledger not connected), passed after connecting.
@@ -191,14 +307,21 @@ trade yet); `DMX.balanceOf(TL)` = `totalMigrated` = GROSS.
    2.1; `forge build --force` removed it before the second 2.1 and 2.2.
 5. The phase-1 script prints no guardian line; the guardian was read from the
    state file and the decoded `initialize` calldata.
+6. During the pause a bot captured the first fee conversion (see Incident);
+   the resume baseline no longer held, and steps 8-10 were re-planned.
+7. Step 9 skipped: the 4 % fee verified on the bot's trades instead. Step 10
+   skipped: nothing to convert.
+8. Pair event history is not readable on the day's RPCs (dataseed refuses
+   `eth_getLogs`; publicnode treats the range as an archive request): the
+   incident was reconstructed from the transaction's own receipt.
 
 ## Remaining
 
 | step | who | status |
 |---|---|---|
-| 7 one pool only | read-only | NEXT |
-| 8 reserves / automation | read-only | |
-| 9 test swap (9.1 buy 0.001 BNB, 9.2 approve, 9.3 sell half) | owner | |
-| 10 first poke (`transfer(PAIR, 1)`; expected to convert nothing) | owner | |
-| dApp preview confirmation | operator | before 11b |
-| 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | the window opens at 11b |
+| 7 one pool only | read-only | done |
+| 8 reserves / automation | read-only | done (re-baselined) |
+| 9 test swap | owner | SKIPPED -- fee verified on the bot's trades |
+| 10 first poke | owner | SKIPPED -- inventory 51.5 K |
+| dApp publication | operator | NEXT, before 11a/11b |
+| 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | expected data 11a `0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000`, 11b `0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891` (re-printed from the session, == LAUNCH_DAY.md); the window opens at 11b |

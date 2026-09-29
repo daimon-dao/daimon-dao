@@ -1,7 +1,7 @@
 # Resume the BSC mainnet launch (docs/LAUNCH_DAY.md, master 9c4af2a) -- dot-source it:
 #   . .\script\launch\resume-56.ps1
-# State at the pause (2026-09-29 04:48 UTC, block 124655356): steps 1-6 DONE (last: 5b with 6 merged).
-# NEXT: step 7 (read-only), then 8 (read-only), then 9 (owner, 3 tx), 10 (owner), 11a + 11b (owner).
+# State at the pause (2026-09-29 17:32 UTC, block 124757113): steps 1-8 DONE, 9 and 10 SKIPPED (see the journal's Incident).
+# NEXT: the operator publishes the dApp, then 11a + 11b (owner, back to back).
 # The deployer signs NOTHING more. Every remaining transaction is the DMX owner's, in MetaMask via BscScan.
 # The journal is docs/MAINNET_LAUNCH_RECORD.md. No secrets in this file.
 
@@ -37,10 +37,15 @@ $GROSS = "4999548574361503910682398180"
 $BNB   = "1994000000000000000"
 $NET   = "4799566631387043754255102254"
 
-# --- expected at resume (step 7/8 and the no-change guard) ---
-#   getReserves(PAIR) == NET | BNB until someone trades; fee inventory DMN.balanceOf(TOKEN) == 149993992418992321497667254 (~0.15 B)
+# --- expected at resume -- baseline of step 8 (block 124757113, 17:31:57 UTC), AFTER the 05:04 bot incident ---
+#   (the 04:48 pause baseline -- reserves NET | BNB, inventory ~0.15 B -- was superseded by tx 0xa1238092...d048)
+#   getReserves(PAIR) == 4948969529051442709553456167 | 1934053593848810506 until someone trades
+#   fee inventory DMN.balanceOf(TOKEN) == 51553630463798540020259; staking totalVotingPower == 1, 0 BNB
 #   DMX: owner() == OWNER, getUnlockTime() == 0, _maxTxAmount() == 1.5e27, isExcludedFromFee(TL) == false (11a/11b NOT done)
 #   owner: nonce 1011, 0.390959 BNB, 0 DMN; deployer: nonce 20
+#   steps 9 and 10 SKIPPED by decision; next: dApp publication, then 11a + 11b
+#   11a expected data 0xec28438a000000000000000000000000000000000000000c9f2c9cd04674edea40000000
+#   11b expected data 0x437823ec000000000000000000000000cdaa1cfe783a4de642ca3ed98a38bfdc16f30891
 #   The DMX owner must NEVER call lock(), renounceOwnership or transferOwnership until 11b is done.
 
 # P3 gate (not needed any more: no deployer step is left), kept for completeness.
