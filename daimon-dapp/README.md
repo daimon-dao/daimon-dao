@@ -107,8 +107,18 @@ React provider ([src/components/LocaleProvider.tsx](src/components/LocaleProvide
 helper in [src/lib/i18n.ts](src/lib/i18n.ts)) — no i18n libraries. To
 add/change text: same key in **both** files (the fallback is English; a
 missing key shows up literally, so it is noticed immediately). On-chain data
-and proposal descriptions are not translated; number formatting is identical
-in both languages, dates and countdowns are localized.
+and proposal descriptions are not translated; dates and countdowns are
+localized.
+
+**Numbers follow the language**, through one formatter,
+[src/lib/format.ts](src/lib/format.ts), used everywhere via `useFormat()`:
+EN `1,000B DMN`, `$0.296`, `17.2M` ("," thousands, "." decimals, K/M/B); IT
+`1.000 mld di DMN`, `$0,296`, `17,2 mln` ("." thousands, "," decimals,
+mila/mln/mld). Headline figures and tooltips always agree. No number is
+typed into a text: messages take them as placeholders (`{floor}`,
+`{amount}`...). Typed amounts are read in the same language (`1.000` is one
+thousand in IT, one in EN); unreadable input is rejected, never guessed.
+Token amounts are truncated, never rounded up.
 
 ## Chains (testnet / mainnet)
 

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
+import { ADDRESSES, SUPPLY_FLOOR, explorerAddress, IS_TESTNET } from "@/config/contracts";
+import { useFormat } from "@/hooks/useFormat";
 import { useI18n } from "@/components/LocaleProvider";
 
 const LINKS: Array<[string, string]> = [
@@ -14,6 +15,7 @@ const LINKS: Array<[string, string]> = [
 
 export function Footer() {
   const { t, locale } = useI18n();
+  const f = useFormat();
   return (
     <footer className="mt-16 border-t border-bordi py-8">
       <div className="mx-auto max-w-6xl px-4">
@@ -46,7 +48,7 @@ export function Footer() {
           )}
         </div>
         <p className="mt-6 text-xs text-secondario">
-          {t("footer.tagline")}{" "}
+          {t("footer.tagline", { floor: f.compact(SUPPLY_FLOOR) })}{" "}
           <Link
             href={locale === "it" ? "/terms/it" : "/terms"}
             className="underline underline-offset-2 hover:text-oro"

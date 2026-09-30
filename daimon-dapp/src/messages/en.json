@@ -55,7 +55,7 @@
     "timelock": "Timelock",
     "migration": "Migration",
     "buyOnPancake": "Buy DMN on PancakeSwap ↗",
-    "tagline": "Daimon DAO — no owner, no mint, supply floor at 21B. Verify everything on-chain."
+    "tagline": "Daimon DAO — no owner, no mint, supply floor at {floor}. Verify everything on-chain."
   },
   "tx": {
     "signing": "✍️ Waiting for signature in the wallet…",
@@ -98,18 +98,18 @@
     "testnetSuffix": " (testnet)",
     "supplyTitle": "Current supply",
     "burnedTitle": "Tokens burned",
-    "burnedSub": "towards the 21B floor",
+    "burnedSub": "towards the {floor} floor",
     "stakedTitle": "Total staked",
-    "stakedPct": "{pct}% of supply",
+    "stakedPct": "{pct} of supply",
     "priceTitle": "DMN price",
     "priceNa": "n/a",
     "priceNaTestnet": "n/a (testnet)",
     "priceSource": "price from the PancakeSwap pool",
     "verifyContract": "Verify the contract on BscScan",
     "deflationTitle": "Deflation towards the floor",
-    "deflationRange": "1000B → 21B",
-    "burnedAmount": "{amount} DMN burned",
-    "floorLabel": "floor: 21B",
+    "deflationRange": "{from} → {to}",
+    "burnedAmount": "{amount} burned",
+    "floorLabel": "floor: {floor}",
     "floorPromise": "If and when the floor is reached, 100% of revenue will go to stakers",
     "yourStaking": "Your staking",
     "connectForStaking": "Connect your wallet to see positions and rewards.",
@@ -123,7 +123,7 @@
     "noDescription": "(no description)",
     "totalSupply": "total supply",
     "migratedOf": "of which migrated: {amount}",
-    "perMillion": "per 1M DMN",
+    "perMillion": "per {amount}",
     "perToken": "per DMN"
   },
   "governance": {
@@ -157,7 +157,7 @@
     "yes": "Yes",
     "no": "No",
     "abstained": "Abstained",
-    "quorum": "Quorum: {votes} / {needed} required ({pct}%)",
+    "quorum": "Quorum: {votes} / {needed} required ({pct})",
     "yourVp": "Your voting power on this proposal:",
     "vpTooltip": "Voting power is snapshotted when the proposal is created to prevent manipulation: later stakes do not count.",
     "cantVote": "You cannot vote on this proposal: your wallet had no voting power when it was created. Only wallets that already had tokens staked before the proposal can vote on it (anti-manipulation protection).",
@@ -211,7 +211,8 @@
     "opensShortlyTitle": "The migration opens shortly.",
     "opensShortly": "The contracts are live; one last launch step, which lets old Daimon reach the DAO treasury without fees, is still to come. Until then every migration would fail, so this page will not send one. There is nothing to do: your old Daimon stay in your wallet, and this page unlocks by itself when the window opens.",
     "checkingOpen": "Checking on chain whether the migration is open…",
-    "capExceeded": "The old token allows at most {cap} Daimon per transaction: migrate in several steps of {cap} at most."
+    "capExceeded": "The old token allows at most {cap} per transaction: migrate in several steps of {cap} at most.",
+    "invalidAmount": "This amount can't be read. Write it like this: {example}."
   },
   "staking": {
     "title": "Staking",
@@ -230,7 +231,7 @@
     "approve": "1. Approve",
     "stakeNumbered": "2. Stake",
     "stake": "Stake",
-    "available": "Available: {amount} DMN",
+    "available": "Available: {amount}",
     "insufficientTitle": "Amount exceeds the available balance",
     "approveFirst": "Approve the amount first",
     "insufficientMsg": "The amount exceeds the available balance{balance}: reduce it to proceed.",
@@ -278,7 +279,7 @@
     "ContractIsPaused": "The contract is temporarily paused for emergency.",
     "GuardianExpired": "The guardian role has expired: the pause can no longer be activated.",
     "TransferAmountExceedsMaxTx": "The amount exceeds the per-transaction limit.",
-    "BelowMinSupply": "The operation would bring the supply below the 21B floor.",
+    "BelowMinSupply": "The operation would bring the supply below the {floor} floor.",
     "FeeTooHigh": "The proposed fees exceed the 10% cap.",
     "ZeroAddress": "Invalid address (zero address).",
     "AccessControlUnauthorizedAccount": "The connected wallet does not have permission for this action.",
