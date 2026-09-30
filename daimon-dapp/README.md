@@ -112,9 +112,12 @@ localized.
 
 **Numbers follow the language**, through one formatter,
 [src/lib/format.ts](src/lib/format.ts), used everywhere via `useFormat()`:
-EN `1,000B DMN`, `$0.296`, `17.2M` ("," thousands, "." decimals, K/M/B); IT
-`1.000 mld di DMN`, `$0,296`, `17,2 mln` ("." thousands, "," decimals,
-mila/mln/mld). Headline figures and tooltips always agree. No number is
+EN `1,000B DMN`, `250,000 DMN`, `$0.296`, `17.2M` ("," thousands, "."
+decimals, M/B); IT `1.000 mld di DMN`, `250.000 DMN`, `$0,296`, `17,2 mln`
+("." thousands, "," decimals, mln/mld). Suffixes start at a million: below
+it, amounts are written in full. The parts of an amount are joined by
+no-break spaces, so it never splits across lines. Headline figures and
+tooltips always agree. No number is
 typed into a text: messages take them as placeholders (`{floor}`,
 `{amount}`...). Typed amounts are read in the same language (`1.000` is one
 thousand in IT, one in EN); unreadable input is rejected, never guessed.
