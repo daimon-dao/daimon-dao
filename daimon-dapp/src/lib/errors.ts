@@ -1,5 +1,7 @@
 import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } from "viem";
 import { translate, type Locale } from "@/lib/i18n";
+import { SUPPLY_FLOOR } from "@/config/contracts";
+import { formatCompact } from "@/lib/format";
 
 /*
  * Maps contract errors -> human-readable messages in the UI language
@@ -74,8 +76,10 @@ export function isUserRejection(err: unknown): boolean {
 }
 
 export function mapTxError(err: unknown, locale: Locale = "en"): string {
+  // Numbers quoted by the messages, formatted in the same language.
+  const numbers = { floor: formatCompact(SUPPLY_FLOOR, locale) };
   const t = (key: string, vars?: Record<string, string | number>) =>
-    translate(locale, key, vars);
+    translate(locale, key, { ...numbers, ...vars });
 
   if (err instanceof BaseError) {
     const rejected = err.walk((e) => e instanceof UserRejectedRequestError);

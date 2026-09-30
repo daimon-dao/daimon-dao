@@ -56,6 +56,12 @@ export const ADDRESSES: ContractAddresses =
 
 export const IS_TESTNET = ACTIVE_CHAIN.id === 97;
 
+// DaimonV2's immutable supply bounds (INITIAL_SUPPLY, MIN_SUPPLY: 1,000B and
+// 21B, checked on chain), for the texts that quote them outside the dashboard,
+// which reads them live. Formatted per language like every other number.
+export const INITIAL_SUPPLY = 1_000_000_000_000n * 10n ** 18n;
+export const SUPPLY_FLOOR = 21_000_000_000n * 10n ** 18n;
+
 export const EXPLORER =
   ACTIVE_CHAIN.id === 56
     ? "https://bscscan.com"

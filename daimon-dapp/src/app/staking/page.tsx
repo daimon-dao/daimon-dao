@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { parseUnits } from "viem";
+import { useFormat } from "@/hooks/useFormat";
 import { ADDRESSES } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
@@ -16,12 +16,7 @@ import { useNow } from "@/hooks/useNow";
 import { usePrice } from "@/hooks/usePrice";
 import { usePaused } from "@/components/PausedBanner";
 import {
-  formatCompact,
-  formatCountdown,
-  formatDate,
-  formatExact,
   formatUnitsNumber,
-  formatUsd,
 } from "@/lib/format";
 
 const token = { address: ADDRESSES.daimonV2, abi: daimonV2Abi } as const;
@@ -42,7 +37,8 @@ type Lock = {
 };
 
 export default function Staking() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const f = useFormat();
   const now = useNow();
   const paused = usePaused();
   const price = usePrice();
@@ -139,11 +135,12 @@ export default function Staking() {
   // --- Simulator (works even without a wallet, spec §6) ---
   const amount = useMemo(() => {
     try {
-      return parseUnits((amountInput || "0").replace(",", "."), 18);
+      // Read in the current language; unreadable input is 0 (never a guess).
+      return f.parse(amountInput || "0") ?? 0n;
     } catch {
       return 0n;
     }
-  }, [amountInput]);
+  }, [amountInput, f]);
   const previewVp = selected ? (amount * selected.multiplierX1000) / 1000n : 0n;
   const unlockDate = selected ? now + Number(selected.duration) : now;
   const usdValue = price.usd !== null ? price.usd * formatUnitsNumber(amount) : null;
@@ -218,8 +215,8 @@ export default function Staking() {
                       : "border-bordi text-secondario hover:text-testo"
                   }`}
                 >
-                  {t("staking.days", { n: Math.round(Number(o.duration) / 86400) })} ·{" "}
-                  {Number(o.multiplierX1000) / 1000}x
+                  {t("staking.days", { n: f.number(Math.round(Number(o.duration) / 86400), 0) })} ·{" "}
+                  {f.multiplier(Number(o.multiplierX1000) / 1000)}
                 </button>
               ))}
               {options.length === 0 && (
@@ -229,19 +226,19 @@ export default function Staking() {
           </div>
           <div className="rounded-xl border border-bordi bg-bg/50 p-4">
             <p className="text-sm text-secondario">{t("staking.youGet")}</p>
-            <p className="mt-1 text-2xl font-medium text-orochiaro" title={formatExact(previewVp)}>
-              {formatCompact(previewVp)} {t("staking.votingPower")}
+            <p className="mt-1 text-2xl font-medium text-orochiaro" title={f.exact(previewVp)}>
+              {f.compact(previewVp)} {t("staking.votingPower")}
             </p>
             <p className="mt-2 text-sm text-secondario">
               {t("staking.usdValue")}
-              {usdValue !== null ? formatUsd(usdValue) : t("staking.naTestnet")}
+              {usdValue !== null ? f.usd(usdValue) : t("staking.naTestnet")}
             </p>
             <p className="mt-2 text-sm">
               <span className="text-secondario">{t("staking.unlockOn")}</span>
               {/* Gated on the on-chain options: a date derived from the clock
                   at first paint never matches between the prerendered HTML and
                   the client (hydration mismatch). */}
-              <b>{selected ? formatDate(unlockDate, locale) : "…"}</b>
+              <b>{selected ? f.date(unlockDate) : "…"}</b>
             </p>
           </div>
         </div>
@@ -278,7 +275,7 @@ export default function Staking() {
               </button>
               {balance !== undefined && (
                 <span className="text-xs text-secondario">
-                  {t("staking.available", { amount: formatCompact(balance) })}
+                  {t("staking.available", { amount: f.token(balance, "DMN") })}
                 </span>
               )}
             </>
@@ -287,7 +284,7 @@ export default function Staking() {
         {insufficientBalance && (
           <p className="mt-2 text-xs text-rosso">
             {t("staking.insufficientMsg", {
-              balance: balance !== undefined ? ` (${formatCompact(balance)} DMN)` : "",
+              balance: balance !== undefined ? ` (${f.token(balance, "DMN")})` : "",
             })}
           </p>
         )}
@@ -311,18 +308,18 @@ export default function Staking() {
                 return (
                   <div key={l.id} className="flex flex-wrap items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium" title={formatExact(l.amount)}>
-                        {formatCompact(l.amount)} DMN ·{" "}
-                        <span className="text-oro">{Number(l.multiplierX1000) / 1000}x</span>
+                      <p className="text-sm font-medium" title={f.tokenExact(l.amount, "DMN")}>
+                        {f.token(l.amount, "DMN")} ·{" "}
+                        <span className="text-oro">{f.multiplier(Number(l.multiplierX1000) / 1000)}</span>
                       </p>
-                      <p className="text-xs text-secondario" title={formatExact(l.votingPowerGranted)}>
+                      <p className="text-xs text-secondario" title={f.exact(l.votingPowerGranted)}>
                         {t("staking.positionVp", {
-                          vp: formatCompact(l.votingPowerGranted),
-                          date: formatDate(l.unlockTime, locale),
+                          vp: f.compact(l.votingPowerGranted),
+                          date: f.date(l.unlockTime),
                         })}
                         {!unlocked &&
                           t("staking.inTime", {
-                            countdown: formatCountdown(Number(l.unlockTime) - now, locale),
+                            countdown: f.countdown(Number(l.unlockTime) - now),
                           })}
                       </p>
                     </div>
@@ -331,7 +328,7 @@ export default function Staking() {
                       disabled={!unlocked || paused || withdrawTx.phase === "signing" || withdrawTx.phase === "pending"}
                       title={
                         !unlocked
-                          ? t("staking.unlockableOn", { date: formatDate(l.unlockTime, locale) })
+                          ? t("staking.unlockableOn", { date: f.date(l.unlockTime) })
                           : undefined
                       }
                       onClick={() => doWithdraw(l.id)}
@@ -346,7 +343,7 @@ export default function Staking() {
           <TxStatus phase={withdrawTx.phase} hash={withdrawTx.hash} errorMessage={withdrawTx.errorMessage} notice={withdrawTx.notice} />
           {Number(nextLockId ?? 0n) > MAX_LOCK_SCAN && (
             <p className="mt-2 text-xs text-secondario">
-              {t("staking.scanNote", { n: MAX_LOCK_SCAN })}
+              {t("staking.scanNote", { n: f.number(MAX_LOCK_SCAN, 0) })}
             </p>
           )}
         </div>
@@ -358,9 +355,9 @@ export default function Staking() {
             <p className="mt-3 text-sm text-secondario">{t("staking.connectRewards")}</p>
           ) : (
             <>
-              <p className="mt-3 text-2xl font-medium text-orochiaro" title={myReward !== undefined ? formatExact(myReward) : ""}>
+              <p className="mt-3 text-2xl font-medium text-orochiaro" title={myReward !== undefined ? f.tokenExact(myReward, "BNB") : ""}>
                 {myReward !== undefined ? (
-                  `${formatCompact(myReward)} BNB`
+                  f.token(myReward, "BNB")
                 ) : (
                   <Skeleton className="h-7 w-28" />
                 )}
@@ -368,7 +365,7 @@ export default function Staking() {
               <p className="mt-1 text-sm text-secondario">
                 ≈{" "}
                 {myReward !== undefined && price.bnbUsd !== null
-                  ? formatUsd(price.bnbUsd * formatUnitsNumber(myReward))
+                  ? f.usd(price.bnbUsd * formatUnitsNumber(myReward))
                   : t("staking.na")}
               </p>
               <button
@@ -382,7 +379,7 @@ export default function Staking() {
               <TxStatus phase={claimTx.phase} hash={claimTx.hash} errorMessage={claimTx.errorMessage} notice={claimTx.notice} />
               {myVotingPower !== undefined && (
                 <p className="mt-4 text-xs text-secondario">
-                  {t("staking.totalVp", { vp: formatCompact(myVotingPower) })}
+                  {t("staking.totalVp", { vp: f.compact(myVotingPower) })}
                 </p>
               )}
             </>

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { ADDRESSES, explorerAddress, IS_TESTNET } from "@/config/contracts";
+import { ADDRESSES, INITIAL_SUPPLY, SUPPLY_FLOOR, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
 import { daimonStakingAbi } from "@/config/abis/daimonStaking";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { daimonMigrationAbi } from "@/config/abis/daimonMigration";
-import { formatCompact, formatCompactTrim, formatExact, formatUsdPlain, formatCountdown, truncFixed } from "@/lib/format";
+import { useFormat } from "@/hooks/useFormat";
 import { BuyDmnButton } from "@/components/BuyDmnButton";
 import { DataOwner } from "@/components/DataOwner";
 import { Skeleton } from "@/components/Skeleton";
@@ -20,6 +20,8 @@ const token = { address: ADDRESSES.daimonV2, abi: daimonV2Abi } as const;
 const staking = { address: ADDRESSES.daimonStaking, abi: daimonStakingAbi } as const;
 const governor = { address: ADDRESSES.daimonGovernor, abi: daimonGovernorAbi } as const;
 const migration = { address: ADDRESSES.daimonMigration, abi: daimonMigrationAbi } as const;
+// The price headline is per this many DMN.
+const ONE_MILLION_DMN = 1_000_000n * 10n ** 18n;
 
 function MetricCard({
   title,
@@ -61,6 +63,7 @@ function MetricCard({
 
 export default function Dashboard() {
   const { t } = useI18n();
+  const f = useFormat();
   const now = useNow();
   const { isConnected, address } = useAccount();
   const price = usePrice();
@@ -151,7 +154,7 @@ export default function Dashboard() {
           value={
             totalSupply !== undefined ? (
               <>
-                {formatCompactTrim(totalSupply)} DMN{" "}
+                {f.token(totalSupply, "DMN", 3)}{" "}
                 <span className="whitespace-nowrap text-sm font-normal text-secondario">
                   — {t("dashboard.totalSupply")}
                 </span>
@@ -160,32 +163,30 @@ export default function Dashboard() {
           }
           sub={
             totalMigrated !== undefined
-              ? t("dashboard.migratedOf", { amount: `${formatCompactTrim(totalMigrated)} DMN` })
+              ? t("dashboard.migratedOf", { amount: f.token(totalMigrated, "DMN", 3) })
               : undefined
           }
-          exact={totalSupply !== undefined ? `${formatExact(totalSupply)} DMN` : undefined}
+          exact={totalSupply !== undefined ? f.tokenExact(totalSupply, "DMN") : undefined}
           contract={ADDRESSES.daimonV2}
           linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
           title={t("dashboard.burnedTitle")}
-          value={burned !== undefined ? `${formatCompact(burned)} DMN` : undefined}
-          sub={t("dashboard.burnedSub")}
-          exact={burned !== undefined ? `${formatExact(burned)} DMN` : undefined}
+          value={burned !== undefined ? f.token(burned, "DMN") : undefined}
+          sub={t("dashboard.burnedSub", { floor: f.compact(minSupply ?? SUPPLY_FLOOR) })}
+          exact={burned !== undefined ? f.tokenExact(burned, "DMN") : undefined}
           contract={ADDRESSES.daimonV2}
           linkTitle={t("dashboard.verifyContract")}
         />
         <MetricCard
           title={t("dashboard.stakedTitle")}
-          value={totalStaked !== undefined ? `${formatCompact(totalStaked)} DMN` : undefined}
+          value={totalStaked !== undefined ? f.token(totalStaked, "DMN") : undefined}
           sub={
             stakedPct !== undefined
-              ? t("dashboard.stakedPct", {
-                  pct: stakedPct < 0.01 ? stakedPct.toFixed(4) : stakedPct.toFixed(2),
-                })
+              ? t("dashboard.stakedPct", { pct: f.percent(stakedPct, stakedPct < 0.01 ? 4 : 2) })
               : undefined
           }
-          exact={totalStaked !== undefined ? `${formatExact(totalStaked)} DMN` : undefined}
+          exact={totalStaked !== undefined ? f.tokenExact(totalStaked, "DMN") : undefined}
           contract={ADDRESSES.daimonStaking}
           linkTitle={t("dashboard.verifyContract")}
         />
@@ -197,9 +198,9 @@ export default function Dashboard() {
           value={
             price.usd !== null ? (
               <>
-                {formatUsdPlain(price.usd * 1e6)}{" "}
+                {f.usd(price.usd * 1e6)}{" "}
                 <span className="whitespace-nowrap text-sm font-normal text-secondario">
-                  {t("dashboard.perMillion")}
+                  {t("dashboard.perMillion", { amount: f.token(ONE_MILLION_DMN, "DMN") })}
                 </span>
               </>
             ) : IS_TESTNET ? (
@@ -208,12 +209,12 @@ export default function Dashboard() {
               t("dashboard.priceNa")
             )
           }
-          exact={price.usd !== null ? `${formatUsdPlain(price.usd, 6)} ${t("dashboard.perToken")}` : undefined}
+          exact={price.usd !== null ? `${f.usd(price.usd, 6)} ${t("dashboard.perToken")}` : undefined}
           sub={
             price.usd !== null ? (
               <>
                 <span className="block">
-                  {formatUsdPlain(price.usd)} {t("dashboard.perToken")}
+                  {f.usd(price.usd)} {t("dashboard.perToken")}
                 </span>
                 <span className="block">{t("dashboard.priceSource")}</span>
               </>
@@ -232,7 +233,12 @@ export default function Dashboard() {
       <div className="card">
         <div className="mb-2 flex items-baseline justify-between text-sm">
           <span className="font-medium text-orochiaro">{t("dashboard.deflationTitle")}</span>
-          <span className="text-secondario">{t("dashboard.deflationRange")}</span>
+          <span className="text-secondario">
+            {t("dashboard.deflationRange", {
+              from: f.compact(initialSupply ?? INITIAL_SUPPLY),
+              to: f.compact(minSupply ?? SUPPLY_FLOOR),
+            })}
+          </span>
         </div>
         <div className="h-4 overflow-hidden rounded-full border border-bordi bg-bg">
           <div
@@ -240,7 +246,7 @@ export default function Dashboard() {
             style={{ width: `${Math.max(progressPct, 0.4)}%` }}
             title={
               burned !== undefined
-                ? t("dashboard.burnedAmount", { amount: formatExact(burned) })
+                ? t("dashboard.burnedAmount", { amount: f.tokenExact(burned, "DMN") })
                 : undefined
             }
           />
@@ -248,13 +254,13 @@ export default function Dashboard() {
         <div className="mt-2 flex justify-between text-xs text-secondario">
           <span>
             {burned !== undefined ? (
-              t("dashboard.burnedAmount", { amount: formatCompact(burned) })
+              t("dashboard.burnedAmount", { amount: f.token(burned, "DMN") })
             ) : (
               <Skeleton className="h-3 w-24" />
             )}{" "}
-            ({truncFixed(progressPct, 3)}%)
+            ({f.percent(progressPct, 3)})
           </span>
-          <span>{t("dashboard.floorLabel")}</span>
+          <span>{t("dashboard.floorLabel", { floor: f.compact(minSupply ?? SUPPLY_FLOOR) })}</span>
         </div>
         <p className="mt-4 rounded-lg bg-oro/10 px-4 py-3 text-center text-sm font-medium text-oro">
           {t("dashboard.floorPromise")}
@@ -272,9 +278,9 @@ export default function Dashboard() {
             <div className="mt-3 space-y-1.5 text-sm">
               <p>
                 <span className="text-secondario">{t("dashboard.inStake")}</span>
-                <span title={mine?.[1]?.result !== undefined ? formatExact(mine[1].result as bigint) : ""}>
+                <span title={mine?.[1]?.result !== undefined ? f.tokenExact(mine[1].result as bigint, "DMN") : ""}>
                   {mine?.[1]?.result !== undefined ? (
-                    `${formatCompact(mine[1].result as bigint)} DMN`
+                    f.token(mine[1].result as bigint, "DMN")
                   ) : (
                     <Skeleton className="h-4 w-16" />
                   )}
@@ -283,7 +289,7 @@ export default function Dashboard() {
               <p>
                 <span className="text-secondario">{t("dashboard.votingPower")}</span>
                 {mine?.[0]?.result !== undefined ? (
-                  formatCompact(mine[0].result as bigint)
+                  <span title={f.exact(mine[0].result as bigint)}>{f.compact(mine[0].result as bigint)}</span>
                 ) : (
                   <Skeleton className="h-4 w-16" />
                 )}
@@ -291,7 +297,7 @@ export default function Dashboard() {
               <p>
                 <span className="text-secondario">{t("dashboard.rewards")}</span>
                 {mine?.[2]?.result !== undefined ? (
-                  `${formatCompact(mine[2].result as bigint)} BNB`
+                  <span title={f.tokenExact(mine[2].result as bigint, "BNB")}>{f.token(mine[2].result as bigint, "BNB")}</span>
                 ) : (
                   <Skeleton className="h-4 w-16" />
                 )}
@@ -344,7 +350,8 @@ function LatestProposal({
   state?: number;
   now: number;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const f = useFormat();
   const phase = phaseOf(state, proposal, now);
   const info = PROPOSAL_PHASE[phase.key];
   return (
@@ -362,7 +369,7 @@ function LatestProposal({
         {phase.countdownTo && phase.countdownTo > now && (
           <span className="ml-2 text-secondario">
             {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
-            {formatCountdown(phase.countdownTo - now, locale)}
+            {f.countdown(phase.countdownTo - now)}
           </span>
         )}
       </p>

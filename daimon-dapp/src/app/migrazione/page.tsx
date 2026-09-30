@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { parseUnits, type Abi } from "viem";
+import { type Abi } from "viem";
 import {
   ADDRESSES,
   OLD_DAIMON_FEE_EXEMPT,
@@ -20,7 +20,7 @@ import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
 import { usePaused } from "@/components/PausedBanner";
-import { formatCompact, formatCountdown, formatDate, formatExact } from "@/lib/format";
+import { useFormat } from "@/hooks/useFormat";
 
 const oldToken = { address: ADDRESSES.oldDaimon, abi: mockOldDaimonAbi } as const;
 const migration = { address: ADDRESSES.daimonMigration, abi: daimonMigrationAbi } as const;
@@ -56,7 +56,8 @@ function Step({
 }
 
 export default function Migrazione() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const f = useFormat();
   const now = useNow();
   const paused = usePaused();
   const { address, isConnected } = useAccount();
@@ -130,13 +131,12 @@ export default function Migrazione() {
 
   const deadlineExpired = deadline !== undefined && BigInt(now) > deadline;
 
-  // Amount: default = detected balance, editable (spec §5)
-  const amount = useMemo(() => {
-    try {
-      if (amountInput.trim() !== "") return parseUnits(amountInput.replace(",", "."), 18);
-    } catch {}
-    return oldBalance ?? 0n;
-  }, [amountInput, oldBalance]);
+  // Amount: default = detected balance, editable (spec §5). Typed amounts are
+  // read in the current language ("1.000" is one thousand in IT, one in EN);
+  // anything unreadable is 0 -- never silently the full balance.
+  const parsedInput = amountInput.trim() === "" ? undefined : f.parse(amountInput);
+  const invalidAmount = parsedInput === null;
+  const amount = parsedInput === undefined ? (oldBalance ?? 0n) : (parsedInput ?? 0n);
 
   const approved = allowance !== undefined && amount > 0n && allowance >= amount;
   const step1Done = isConnected;
@@ -184,10 +184,10 @@ export default function Migrazione() {
           }`}
         >
           {deadlineExpired
-            ? t("migration.closed", { date: formatDate(deadline, locale) })
+            ? t("migration.closed", { date: f.date(deadline) })
             : t("migration.closesOn", {
-                date: formatDate(deadline, locale),
-                countdown: formatCountdown(Number(deadline) - now, locale),
+                date: f.date(deadline),
+                countdown: f.countdown(Number(deadline) - now),
               })}
         </div>
       )}
@@ -219,7 +219,7 @@ export default function Migrazione() {
           <h2 className="mt-2 text-xl font-semibold text-verde">{t("migration.success")}</h2>
           <p className="mt-2 text-sm">
             {t("migration.successPrefix")}
-            <b title={formatExact(claimed.amount)}>{formatCompact(claimed.amount)} DMN</b>
+            <b title={f.tokenExact(claimed.amount, "DMN")}>{f.token(claimed.amount, "DMN", 3)}</b>
             {t("migration.successSuffix")}
           </p>
           <a
@@ -243,9 +243,9 @@ export default function Migrazione() {
               <>
                 <p className="text-sm">
                   {t("migration.detected")}{" "}
-                  <b title={oldBalance !== undefined ? formatExact(oldBalance) : ""}>
+                  <b title={oldBalance !== undefined ? f.tokenExact(oldBalance, "DMX") : ""}>
                     {oldBalance !== undefined ? (
-                      `${formatCompact(oldBalance)}`
+                      f.token(oldBalance, "DMX", 3)
                     ) : (
                       <Skeleton className="h-4 w-20" />
                     )}
@@ -269,22 +269,27 @@ export default function Migrazione() {
               className="input"
               inputMode="decimal"
               placeholder={
-                oldBalance !== undefined ? formatExact(oldBalance) : t("migration.amountPlaceholder")
+                oldBalance !== undefined ? f.exact(oldBalance) : t("migration.amountPlaceholder")
               }
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
               disabled={!step1Done || paused || deadlineExpired || isTreasury}
             />
+            {invalidAmount && (
+              <p className="mt-1 text-xs text-rosso">
+                {t("migration.invalidAmount", { example: f.number(1000.5, 1) })}
+              </p>
+            )}
             {insufficientBalance && (
               <p className="mt-1 text-xs text-rosso">
                 {t("migration.insufficient", {
-                  balance: oldBalance !== undefined ? ` (${formatCompact(oldBalance)})` : "",
+                  balance: oldBalance !== undefined ? ` (${f.token(oldBalance, "DMX", 3)})` : "",
                 })}
               </p>
             )}
             {capExceeded && maxTx !== undefined && (
               <p className="mt-1 text-xs text-rosso">
-                {t("migration.capExceeded", { cap: formatCompact(maxTx) })}
+                {t("migration.capExceeded", { cap: f.token(maxTx, "DMX") })}
               </p>
             )}
             <button
@@ -300,8 +305,8 @@ export default function Migrazione() {
           <Step n={3} title={t("migration.step3")} active={step2Done} done={false}>
             <p className="text-sm text-secondario">
               {t("migration.receivePrefix")}
-              <b className="text-testo" title={formatExact(amount)}>
-                {formatCompact(amount)} DMN
+              <b className="text-testo" title={f.tokenExact(amount, "DMN")}>
+                {f.token(amount, "DMN", 3)}
               </b>
               {t("migration.receiveSuffix")}
             </p>

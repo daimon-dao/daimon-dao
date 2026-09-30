@@ -211,8 +211,12 @@ Executed/Defeated/Canceled → status badge
      notices, mapped errors, tooltips, metadata.
    - NOT translated: on-chain data (numbers, addresses, hashes, symbols),
      proposal descriptions (content written by the proposers).
-   - Number formatting UNCHANGED between languages (floor-truncation
-     included); dates and countdowns localized (it-IT ↔ en-US, "3g" ↔ "3d").
+   - Number formatting PER LANGUAGE (decision 2026-09-30, replacing
+     "unchanged between languages"): EN "," thousands, "." decimals, K/M/B
+     ("1,000B DMN"); IT "." thousands, "," decimals, mila/mln/mld ("1.000 mld
+     di DMN"). One formatter (daimon-dapp/src/lib/format.ts) for headline
+     figures and tooltips alike; floor-truncation kept. Dates and countdowns
+     localized (it-IT ↔ en-US, "3g" ↔ "3d").
 9. First-visit acknowledgment: the dApp must show the full legal terms on
    first interaction and require explicit acceptance before enabling any
    contract interaction.

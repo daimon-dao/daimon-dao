@@ -55,7 +55,7 @@
     "timelock": "Timelock",
     "migration": "Migrazione",
     "buyOnPancake": "Compra DMN su PancakeSwap ↗",
-    "tagline": "Daimon DAO — nessun owner, nessun mint, floor di supply a 21B. Verifica tutto on-chain."
+    "tagline": "Daimon DAO — nessun owner, nessun mint, floor di supply a {floor}. Verifica tutto on-chain."
   },
   "tx": {
     "signing": "✍️ In attesa di firma nel wallet…",
@@ -98,18 +98,18 @@
     "testnetSuffix": " (testnet)",
     "supplyTitle": "Supply attuale",
     "burnedTitle": "Token bruciati",
-    "burnedSub": "verso il floor 21B",
+    "burnedSub": "verso il floor di {floor}",
     "stakedTitle": "Totale stakato",
-    "stakedPct": "{pct}% della supply",
+    "stakedPct": "{pct} della supply",
     "priceTitle": "Prezzo DMN",
     "priceNa": "n/d",
     "priceNaTestnet": "n/d (testnet)",
     "priceSource": "prezzo dalla pool PancakeSwap",
     "verifyContract": "Verifica il contratto su BscScan",
     "deflationTitle": "Deflazione verso il floor",
-    "deflationRange": "1000B → 21B",
-    "burnedAmount": "{amount} DMN bruciati",
-    "floorLabel": "floor: 21B",
+    "deflationRange": "{from} → {to}",
+    "burnedAmount": "{amount} bruciati",
+    "floorLabel": "floor: {floor}",
     "floorPromise": "Se e quando il floor sarà raggiunto, il 100% della revenue andrà agli staker",
     "yourStaking": "Il tuo staking",
     "connectForStaking": "Connetti il wallet per vedere posizioni e reward.",
@@ -123,7 +123,7 @@
     "noDescription": "(senza descrizione)",
     "totalSupply": "supply totale",
     "migratedOf": "di cui migrati: {amount}",
-    "perMillion": "per 1M di DMN",
+    "perMillion": "per {amount}",
     "perToken": "per DMN"
   },
   "governance": {
@@ -157,7 +157,7 @@
     "yes": "Sì",
     "no": "No",
     "abstained": "Astenuti",
-    "quorum": "Quorum: {votes} / {needed} richiesto ({pct}%)",
+    "quorum": "Quorum: {votes} / {needed} richiesto ({pct})",
     "yourVp": "Il tuo voting power su questa proposta:",
     "vpTooltip": "Il potere di voto è fotografato alla creazione della proposta per impedire manipolazioni: stake successivi non contano.",
     "cantVote": "Non puoi votare questa proposta: il tuo wallet non aveva voting power al momento della sua creazione. Solo chi aveva già token in stake prima della proposta può votarla (protezione anti-manipolazione).",
@@ -211,7 +211,8 @@
     "opensShortlyTitle": "La migrazione apre a breve.",
     "opensShortly": "I contratti sono attivi; manca un ultimo passo del lancio, che permette ai vecchi Daimon di arrivare alla treasury della DAO senza commissioni. Fino ad allora ogni migrazione fallirebbe, quindi questa pagina non ne invia. Non devi fare nulla: i tuoi vecchi Daimon restano nel tuo wallet, e questa pagina si sblocca da sola quando la finestra apre.",
     "checkingOpen": "Verifica on-chain dell'apertura della migrazione…",
-    "capExceeded": "Il vecchio token consente al massimo {cap} Daimon per transazione: migra in più passaggi da {cap} al massimo."
+    "capExceeded": "Il vecchio token consente al massimo {cap} per transazione: migra in più passaggi da {cap} al massimo.",
+    "invalidAmount": "Importo non leggibile. Scrivilo così: {example}."
   },
   "staking": {
     "title": "Staking",
@@ -230,7 +231,7 @@
     "approve": "1. Approva",
     "stakeNumbered": "2. Metti in stake",
     "stake": "Metti in stake",
-    "available": "Disponibili: {amount} DMN",
+    "available": "Disponibili: {amount}",
     "insufficientTitle": "Importo superiore al saldo disponibile",
     "approveFirst": "Prima approva l'importo",
     "insufficientMsg": "L'importo supera il saldo disponibile{balance}: riducilo per procedere.",
@@ -278,7 +279,7 @@
     "ContractIsPaused": "Il contratto è temporaneamente in pausa di emergenza.",
     "GuardianExpired": "Il ruolo guardian è scaduto: la pausa non è più attivabile.",
     "TransferAmountExceedsMaxTx": "L'importo supera il limite massimo per transazione.",
-    "BelowMinSupply": "L'operazione porterebbe la supply sotto il floor di 21B.",
+    "BelowMinSupply": "L'operazione porterebbe la supply sotto il floor di {floor}.",
     "FeeTooHigh": "Le fee proposte superano il tetto massimo del 10%.",
     "ZeroAddress": "Indirizzo non valido (zero address).",
     "AccessControlUnauthorizedAccount": "Il wallet connesso non ha i permessi per questa azione.",

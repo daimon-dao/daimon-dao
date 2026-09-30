@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { isAddress, isHex, parseEther } from "viem";
+import { isAddress, isHex } from "viem";
 import { ADDRESSES } from "@/config/contracts";
 import { daimonGovernorAbi } from "@/config/abis/daimonGovernor";
 import { daimonTimelockAbi } from "@/config/abis/daimonTimelock";
@@ -13,7 +13,8 @@ import { useI18n } from "@/components/LocaleProvider";
 import { useTx } from "@/hooks/useTx";
 import { useNow } from "@/hooks/useNow";
 import { usePaused } from "@/components/PausedBanner";
-import { formatCompact, formatCountdown, formatDate, formatExact, shortAddress } from "@/lib/format";
+import { shortAddress } from "@/lib/format";
+import { useFormat } from "@/hooks/useFormat";
 import {
   PROPOSAL_PHASE,
   ProposalState,
@@ -123,7 +124,8 @@ function ProposalCard({
   id: bigint;
   highlight?: boolean;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const f = useFormat();
   const now = useNow();
   const paused = usePaused();
   const { address, isConnected } = useAccount();
@@ -259,7 +261,7 @@ function ProposalCard({
           {phase.countdownTo && phase.countdownTo > now && (
             <p className="mt-1 text-xs text-secondario">
               {phase.countdownLabelKey ? t(phase.countdownLabelKey) : ""}{" "}
-              {formatCountdown(phase.countdownTo - now, locale)}
+              {f.countdown(phase.countdownTo - now)}
             </p>
           )}
         </div>
@@ -275,12 +277,12 @@ function ProposalCard({
             <div className="mb-1 flex justify-between text-secondario">
               <span>
                 {t("governance.quorum", {
-                  votes: formatCompact(quorumVotes),
-                  needed: formatCompact(quorumNeeded),
-                  pct: (Number(quorumBps) / 100).toFixed(0),
+                  votes: f.compact(quorumVotes),
+                  needed: f.compact(quorumNeeded),
+                  pct: f.percent(Number(quorumBps) / 100),
                 })}
               </span>
-              <span>{quorumPct.toFixed(0)}%</span>
+              <span>{f.percent(quorumPct, 0)}</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-bg">
               <div className="h-full rounded-full bg-oro" style={{ width: `${quorumPct}%` }} />
@@ -294,7 +296,7 @@ function ProposalCard({
         <p className="mt-3 text-xs text-secondario">
           {t("governance.yourVp")}{" "}
           <b className="text-testo" title={t("governance.vpTooltip")}>
-            {snapshotVp !== undefined ? formatCompact(snapshotVp) : "…"} ⓘ
+            {snapshotVp !== undefined ? f.compact(snapshotVp) : "…"} ⓘ
           </b>
         </p>
       )}
@@ -336,7 +338,7 @@ function ProposalCard({
             disabled
             title={
               readyTs
-                ? t("governance.executableFrom", { date: formatDate(readyTs, locale) })
+                ? t("governance.executableFrom", { date: f.date(readyTs) })
                 : undefined
             }
           >
@@ -367,12 +369,13 @@ function VoteBar({
   pct: number;
   color: string;
 }) {
+  const f = useFormat();
   return (
     <div>
       <div className="mb-0.5 flex justify-between">
         <span>{label}</span>
-        <span title={formatExact(value)}>
-          {formatCompact(value)} ({pct.toFixed(1)}%)
+        <span title={f.exact(value)}>
+          {f.compact(value)} ({f.percent(pct, 1)})
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-bg">
@@ -384,6 +387,7 @@ function VoteBar({
 
 function CreateProposal({ threshold }: { threshold?: bigint }) {
   const { t } = useI18n();
+  const f = useFormat();
   const { address, isConnected } = useAccount();
   const paused = usePaused();
   const tx = useTx();
@@ -399,8 +403,11 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
     query: { enabled: Boolean(address) },
   });
 
+  // BNB value, read in the current language; unreadable blocks the submit
+  // (it used to become 0 silently).
+  const wei = f.parse(value || "0");
   const valid =
-    isAddress(target) && isHex(calldata) && description.trim().length > 0;
+    isAddress(target) && isHex(calldata) && description.trim().length > 0 && wei !== null;
   const enoughVp =
     myVp !== undefined && threshold !== undefined && (myVp as bigint) >= threshold;
 
@@ -409,10 +416,7 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
   // they work even if this component is unmounted before the on-chain
   // confirmation.
   async function submit() {
-    let wei = 0n;
-    try {
-      wei = parseEther(value || "0");
-    } catch {}
+    if (wei === null) return;
     await tx.send({
       ...governor,
       functionName: "propose",
@@ -425,12 +429,12 @@ function CreateProposal({ threshold }: { threshold?: bigint }) {
       <h2 className="font-medium text-orochiaro">{t("governance.newProposal")}</h2>
       <p className="mt-1 text-xs text-secondario">
         {t("governance.thresholdInfo", {
-          threshold: threshold !== undefined ? formatCompact(threshold) : "…",
+          threshold: threshold !== undefined ? f.compact(threshold) : "…",
         })}
         {myVp !== undefined && (
           <>
             {" "}
-            {t("governance.yourVpShort", { vp: formatCompact(myVp as bigint) })}
+            {t("governance.yourVpShort", { vp: f.compact(myVp as bigint) })}
             {enoughVp ? t("governance.enough") : t("governance.insufficient")}.
           </>
         )}
