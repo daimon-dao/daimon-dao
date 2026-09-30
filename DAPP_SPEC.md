@@ -218,9 +218,11 @@ Executed/Defeated/Canceled → status badge
    - NOT translated: on-chain data (numbers, addresses, hashes, symbols),
      proposal descriptions (content written by the proposers).
    - Number formatting PER LANGUAGE (decision 2026-09-30, replacing
-     "unchanged between languages"): EN "," thousands, "." decimals, K/M/B
-     ("1,000B DMN"); IT "." thousands, "," decimals, mila/mln/mld ("1.000 mld
-     di DMN"). One formatter (daimon-dapp/src/lib/format.ts) for headline
+     "unchanged between languages"): EN "," thousands, "." decimals, M/B
+     ("1,000B DMN"); IT "." thousands, "," decimals, mln/mld ("1.000 mld di
+     DMN"). No thousands suffix: below a million amounts are written in full
+     ("1.000 DMN", "250.000 DMN" / "1,000 DMN"). An amount never breaks
+     across lines (no-break spaces). One formatter (daimon-dapp/src/lib/format.ts) for headline
      figures and tooltips alike; floor-truncation kept. Dates and countdowns
      localized (it-IT ↔ en-US, "3g" ↔ "3d").
 9. First-visit acknowledgment: the dApp must show the full legal terms on

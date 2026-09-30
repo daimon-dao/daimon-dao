@@ -8,11 +8,15 @@ import type { Locale } from "@/lib/i18n";
  * nothing is formatted by hand in the pages (use them through
  * useFormat(), src/hooks/useFormat.ts).
  *
- *   EN  "," thousands, "." decimals, suffixes K / M / B     1,000B DMN
- *   IT  "." thousands, "," decimals, suffixes mila/mln/mld  1.000 mld di DMN
+ *   EN  "," thousands, "." decimals, suffixes M / B      1,000B DMN, 250,000 DMN
+ *   IT  "." thousands, "," decimals, suffixes mln / mld  1.000 mld di DMN, 250.000 DMN
  *
- * Grouping is applied here, not left to Intl: Italian CLDR does not group
- * four-digit numbers ("1000"), and the spec wants "1.000".
+ * Suffixes start at a million: below it, amounts are written in full with
+ * separators ("1.000 DMN", never "1 mila"). Grouping is applied here, not
+ * left to Intl: Italian CLDR does not group four-digit numbers ("1000").
+ *
+ * The parts of an amount (number, suffix, "di", unit) are joined with
+ * NON-BREAKING spaces: "1.000 mld di DMN" never breaks across two lines.
  *
  * Token amounts are TRUNCATED toward zero, never rounded (DAPP_SPEC.md §8.5):
  * the figure shown never exceeds the on-chain value -- with rounding a burned
@@ -25,12 +29,16 @@ const SEP: Record<Locale, { group: string; decimal: string }> = {
   it: { group: ".", decimal: "," },
 };
 
-// Compact tiers: [power of ten, suffix]. IT suffixes are words, spaced from
-// the number and followed by "di" before a unit ("5,016 mld di DMN").
+// Compact tiers: [power of ten, suffix], from a million up only. IT suffixes
+// are words, spaced from the number and followed by "di" before a unit
+// ("5,016 mld di DMN").
 const TIERS: Record<Locale, ReadonlyArray<readonly [number, string]>> = {
-  en: [[9, "B"], [6, "M"], [3, "K"]],
-  it: [[9, "mld"], [6, "mln"], [3, "mila"]],
+  en: [[9, "B"], [6, "M"]],
+  it: [[9, "mld"], [6, "mln"]],
 };
+
+// Joins the parts of one amount: never a line break inside it.
+const NBSP = String.fromCharCode(0xa0); // U+00A0 NO-BREAK SPACE
 
 /** "1234567.5" (plain, "." decimal) -> "1,234,567.5" / "1.234.567,5". */
 function localize(plain: string, locale: Locale): string {
@@ -72,7 +80,8 @@ export function formatMultiplier(x: number, locale: Locale): string {
 /*
  * Compact amount from a bigint: "17.2M" / "17,2 mln", "1,000B" / "1.000 mld".
  * `digits` = decimals kept on the tiered figure (truncated, padding dropped).
- * Below 1,000 there is no tier: 2 decimals from 1 up, 6 below 1.
+ * Below a million there is no tier, the amount is written in full ("250,000" /
+ * "250.000"): 2 decimals from 1 up, 6 below 1.
  */
 function compactParts(
   value: bigint,
@@ -87,7 +96,7 @@ function compactParts(
   for (const [exp, suffix] of TIERS[locale]) {
     if (abs >= 10n ** BigInt(exp) * unit) {
       const num = localize(truncPlain(formatUnits(abs, decimals + exp), digits), locale);
-      return { text: `${sign}${num}${locale === "it" ? " " : ""}${suffix}`, tiered: true };
+      return { text: `${sign}${num}${locale === "it" ? NBSP : ""}${suffix}`, tiered: true };
     }
   }
   const plain = formatUnits(abs, decimals);
@@ -111,7 +120,7 @@ export function formatToken(
   decimals = 18
 ): string {
   const { text, tiered } = compactParts(value, locale, decimals, digits);
-  return `${text}${locale === "it" && tiered ? " di" : ""} ${unit}`;
+  return `${text}${locale === "it" && tiered ? `${NBSP}di` : ""}${NBSP}${unit}`;
 }
 
 /** Exact amount, all integer digits grouped, up to 6 decimals (truncated), for the tooltips. */
@@ -121,7 +130,7 @@ export function formatExact(value: bigint, locale: Locale, decimals = 18): strin
 
 /** Exact amount with its unit: "1,000,000,000,000 DMN" / "1.000.000.000.000 DMN". */
 export function formatTokenExact(value: bigint, locale: Locale, unit: string, decimals = 18): string {
-  return `${formatExact(value, locale, decimals)} ${unit}`;
+  return `${formatExact(value, locale, decimals)}${NBSP}${unit}`;
 }
 
 /*
@@ -146,7 +155,8 @@ export function formatUsd(n: number, locale: Locale, significant = 3): string {
  * for anything else -- never a guess.
  */
 export function parseAmount(input: string, locale: Locale, decimals = 18): bigint | null {
-  const s = input.trim().replace(/[\s  ']/g, "");
+  // \s also covers no-break spaces (U+00A0, U+202F) pasted from formatted text.
+  const s = input.trim().replace(/[\s']/g, "");
   if (s === "") return null;
   const { group, decimal } = SEP[locale];
   const g = group === "." ? "\\." : ",";
