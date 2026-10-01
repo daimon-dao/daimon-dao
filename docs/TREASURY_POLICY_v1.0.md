@@ -1,7 +1,10 @@
 # Daimon Treasury Policy
-*Draft v1.2 — September 2026. To be published before the first
-mainnet governance proposal. Where this text and the deployed code
-disagree, the code is the only authority.*
+*Version 1.2 — in force from the execution of G1, the first mainnet
+governance proposal, whose on-chain description links to this text at
+the tag `treasury-policy-v1.2`. Published on 2026-10-01, before the
+first proposal. Where this text and the deployed code disagree, the
+code is the only authority. (The file name keeps "v1.0" so that links
+to it stay stable.)*
 *v1.1 amends §2 and §7 only: the treasury is the fee destination from
 deploy, so the first vote is one proposal, the split.*
 *v1.2 amends §2 and §6b only: the project wallets claim the
