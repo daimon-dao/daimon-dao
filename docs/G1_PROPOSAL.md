@@ -147,7 +147,9 @@ executed operation stays URGENT.
   through account impersonation, with no key anywhere. Nothing was sent
   to mainnet.
 - **The proposer:** a real mainnet staker with 17.2 M DMN of voting
-  power (address not recorded here). It sent the exact 740 bytes above.
+  power, chosen by a fixed rule: the owner of the oldest staking lock
+  whose owner holds at least the threshold. Its address is not recorded
+  here. It sent the exact 740 bytes above.
 - **The FOR votes:** team-sized positions -- 140 B DMN, the size
   `CALENDARIO_GOVERNANCE_Q1.md` (Scenario W) uses for the team's
   personal holdings. Staked for 365 days (4.0x) in four fork-only
@@ -155,6 +157,11 @@ executed operation stays URGENT.
 - That DMN was taken on the fork from the Migration's unclaimed
   balance. The Migration is a fee-exempt sender, so the token's fee
   inventory did not move. This funding exists only on the fork.
+- **Reproduce it:** run `node script/g1/g1-fork.mjs` against a fresh
+  fork (see [script/g1/README.md](../script/g1/README.md)). The committed
+  script reads the bytes from this file. It gave the same 20/20, with
+  identical amounts, at fork blocks 125013681 (Node 24) and 125014404
+  (Node 22).
 
 | row | check | result |
 |---|---|---|
@@ -321,3 +328,9 @@ Timelock going from 0 to
 22,966,406,573,919,895 wei and staking from 0 to 34,449,609,860,879,841
 wei: the 40 % and 60 % legs of the table above. The amounts follow the
 pool; the 60/40 ratio of the marketing branch does not.
+
+**5. The whole rehearsal**, all 20 rows, on your own fork:
+`node script/g1/g1-fork.mjs` ([script/g1/README.md](../script/g1/README.md)).
+It re-reads the calldata and the description from this page and
+refuses to run if they don't encode `propose(token, 0,
+setStakingRewardShareBps(600), description)`.

@@ -25,3 +25,5 @@ script/fork/holders.local.json
 script/fork/state.json
 script/fork/out/
 script/launch/out/
+# G1 fork rehearsal: per-run results
+script/g1/out/

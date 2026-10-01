@@ -105,6 +105,10 @@ precedence, and the deployed code takes precedence over all of them:
 - [docs/CALENDARIO_GOVERNANCE_Q1.md](docs/CALENDARIO_GOVERNANCE_Q1.md) —
   the first quarter of mainnet governance, proposal by proposal, each
   written as a scenario before it exists
+- [docs/G1_PROPOSAL.md](docs/G1_PROPOSAL.md) — G1, the first proposal of
+  that calendar (the 60/40 split): the exact bytes, the timeline, the
+  mainnet-fork rehearsal ([script/g1/](script/g1/)) and how to verify it
+  before voting
 - [docs/SCENARI_TESTNET.md](docs/SCENARI_TESTNET.md) — the test plan the
   two testnet campaigns executed (kept as the original plan)
 - [CHAPEL_L2_RESULTS.md](CHAPEL_L2_RESULTS.md) — the level-2 campaign
