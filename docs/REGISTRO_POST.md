@@ -2,10 +2,14 @@
 
 Register of official posts from the mainnet launch onward. Earlier posts (July–September 2026) are not recorded here and may be added later.
 
+Italian posts go to the Italian group (`Daimon_Official_Italian_Group`),
+English posts to the announcements channel (`Daimon_one`). Times are UTC;
+the X times match the timestamps encoded in the tweet IDs.
+
 | date | channels | subject | cards | link |
 |---|---|---|---|---|
-| 2026-09-28, **[TO FILL: hh:mm UTC]** | Telegram IT, Telegram EN; X thread of 6 | The Scenario W drill and the first 40% reaching the Chapel Timelock | `brake_TG_it`, `brake_TG_en`, `brake_X_en` | TG IT: **[TO FILL: link]** · TG EN: **[TO FILL: link]** · X: **[TO FILL: link]** |
-| 2026-09-30, **[TO FILL: hh:mm UTC]** | Telegram IT and EN (pinned); X thread of 5, 45 minutes after Telegram | The mainnet launch announcement | `live_TG_it`, `live_TG_en`, `live_X_en` | TG IT/EN: https://t.me/Daimon_one/71 · X: **[TO FILL: link]** |
+| 2026-09-28 | Telegram IT, Telegram EN; X thread of 6 | The Scenario W drill and the first 40% reaching the Chapel Timelock | `brake_TG_it`, `brake_TG_en`, `brake_X_en` | 16:48 TG IT: https://t.me/Daimon_Official_Italian_Group/471 · 16:48 TG EN: https://t.me/Daimon_one/69 · 17:15 X: https://x.com/DaimonDAO/status/2104620904349336001 |
+| 2026-09-30 | Telegram IT and EN (pinned); X thread of 5 | The mainnet launch announcement | `live_TG_it`, `live_TG_en`, `live_X_en` | 09:09 TG IT: https://t.me/Daimon_Official_Italian_Group/475 · 09:09 TG EN: https://t.me/Daimon_one/71 · 10:00 X: https://x.com/DaimonDAO/status/2105236213447934080 |
 
 Cards are the PNG files of the same name; they are not kept in the repository.
 
