@@ -117,6 +117,20 @@ under *Reading the alert count*: `npm audit` totals are **lower** than
 Dependabot's, because many advisories against one package collapse into a
 single entry.
 
+## Past issues
+
+### 2026-10-02 — dApp: a visitor's wallet address could appear in another visitor's page (fixed)
+
+From the mainnet launch until 2 October 2026, the dApp's server
+shared one wallet-library state across requests. After a visit with
+a connected wallet, the next visitor's page could be rendered with
+that wallet's address in the staking panel, until the browser
+re-rendered it. No funds, keys or signatures were ever exposed — a
+wallet address is public on-chain — but it could reveal that a given
+address had visited the dApp. Found during an internal check,
+reproduced, fixed (a separate state per request) and verified in
+production on 2 October 2026. The smart contracts were not involved.
+
 ## Bug bounty
 
 A bug bounty funded by the treasury will be proposed to governance. Until
