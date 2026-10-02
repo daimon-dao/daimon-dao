@@ -22,8 +22,8 @@ SVG rebuild.
 | `quote-codice.png` | 1600×900 | X post — "Humans make mistakes. Code doesn't." |
 | `quote-verificate.png` | 1600×900 | X post — "Don't trust us. Verify." |
 | `github-preview.png` | 1280×640 | Repository social preview (Settings → Social preview). |
-| `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header and the GitHub organization avatar. Rendered by `scripts/brand.mjs`. |
-| `brand/` | — | The logo's source of truth (`Logo_DMN_Official.ai`), its SVG rebuild and 32/256/512 PNGs. See [brand/README.md](brand/README.md). |
+| `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header, the GitHub organization avatar and daimon.money. Same bytes as `brand/daimon-logo-ring-512.png`. Rendered by `scripts/brand.mjs`. |
+| `brand/` | — | The logo's source of truth (`Logo_DMN_Official.ai`), its SVG rebuild, the gold-ring version (`daimon-logo-ring.svg`) and their PNGs. Which file to use where: [brand/README.md](brand/README.md). |
 
 The social cards (stat/quote) and the GitHub preview are in **English**,
 consistent with the official banner and the root README. The banners keep the
