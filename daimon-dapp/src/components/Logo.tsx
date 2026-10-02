@@ -1,6 +1,6 @@
 /*
- * Official Daimon logo (public/logo.svg, vector, 500x500 artboard, converted
- * from the official .ai file).
+ * Official Daimon logo (public/logo.svg, vector, 500x500 artboard, a
+ * plain-shape rebuild of the official .ai file: social-assets/brand/).
  *
  * In dark mode the logo's navy disc would blend into the midnight-blue
  * background: a thin gold ring (dark only) defines its border without altering
