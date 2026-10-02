@@ -143,15 +143,19 @@ Proposal status is always `Governor.state(id)` — never the struct's
 
 ## Logo
 
-The official logo (vector, from the .ai file) is in `public/logo.svg`, used by
+The official logo (vector, a plain-shape rebuild of the .ai file; both live in
+`social-assets/brand/` at the repo root) is in `public/logo.svg`, used by
 [src/components/Logo.tsx](src/components/Logo.tsx). In dark mode the component
 adds a thin gold ring (`dark:ring-oro/60`) because the logo's navy disc would
 blend into the night-blue background.
 
 Favicon and iOS icon are handled by Next's App Router conventions:
 `src/app/icon.svg` (vector favicon) and `src/app/apple-icon.png` (180×180,
-opaque night-blue square). To update the logo: regenerate these three files
-(SVG via `pdftocairo -svg`, see repo history).
+opaque night-blue square). To update the logo: copy
+`social-assets/brand/daimon-logo.svg` to `public/logo.svg` and
+`src/app/icon.svg`, and regenerate `apple-icon.png`. Do not go back to a
+`pdftocairo -svg` conversion: it draws the dark band as a masked stroke that
+browsers crop to an octagon (see `social-assets/brand/README.md`).
 
 ## Deploy on Vercel (staging)
 
