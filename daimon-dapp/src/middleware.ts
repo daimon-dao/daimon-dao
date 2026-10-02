@@ -49,7 +49,7 @@ export function middleware(req: NextRequest) {
 // need their scripts and styles, and those carry no app behaviour by
 // themselves.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.svg).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|logo\\.svg|logo-ring\\.svg).*)"],
 };
 
 // Deliberately neutral: it quotes no terms clause. Whoever switches the

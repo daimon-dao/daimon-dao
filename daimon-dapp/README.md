@@ -143,15 +143,18 @@ Proposal status is always `Governor.state(id)` — never the struct's
 
 ## Logo
 
-The official logo (vector, a plain-shape rebuild of the .ai file; both live in
-`social-assets/brand/` at the repo root) is in `public/logo.svg`, used by
-[src/components/Logo.tsx](src/components/Logo.tsx). In dark mode the component
-adds a thin gold ring (`dark:ring-oro/60`) because the logo's navy disc would
-blend into the night-blue background.
+The header and the terms screen show the logo with its gold edge ring, as
+daimon.money does: `public/logo-ring.svg`, a copy of
+`social-assets/brand/daimon-logo-ring.svg` (the .ai's plain-shape rebuild plus
+the ring; both live in `social-assets/brand/` at the repo root), used by
+[src/components/Logo.tsx](src/components/Logo.tsx). The ring is in the file, so
+both themes show it and no CSS draws it. `public/logo.svg` is the plain logo
+(`social-assets/brand/daimon-logo.svg`), still served for external links.
 
 Favicon and iOS icon are handled by Next's App Router conventions:
 `src/app/icon.svg` (vector favicon) and `src/app/apple-icon.png` (180×180,
 opaque night-blue square). To update the logo: copy
+`social-assets/brand/daimon-logo-ring.svg` to `public/logo-ring.svg`,
 `social-assets/brand/daimon-logo.svg` to `public/logo.svg` and
 `src/app/icon.svg`, and regenerate `apple-icon.png`. Do not go back to a
 `pdftocairo -svg` conversion: it draws the dark band as a masked stroke that

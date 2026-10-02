@@ -1,20 +1,19 @@
 /*
- * Official Daimon logo (public/logo.svg, vector, 500x500 artboard, a
- * plain-shape rebuild of the official .ai file: social-assets/brand/).
- *
- * In dark mode the logo's navy disc would blend into the midnight-blue
- * background: a thin gold ring (dark only) defines its border without altering
- * the original file.
+ * Official Daimon logo with its gold edge ring (public/logo-ring.svg, vector,
+ * 512x512 viewBox): a byte-for-byte copy of
+ * social-assets/brand/daimon-logo-ring.svg, the logo as daimon.money shows it.
+ * The ring is part of the file, so it looks the same in both themes and needs
+ * no CSS. public/logo.svg (the plain logo) stays served for external links.
  */
 /* eslint-disable @next/next/no-img-element */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
     <img
-      src="/logo.svg"
+      src="/logo-ring.svg"
       alt="Daimon"
       width={size}
       height={size}
-      className="shrink-0 select-none rounded-full dark:ring-1 dark:ring-oro/60"
+      className="shrink-0 select-none"
       style={{ width: size, height: size }}
     />
   );
