@@ -13,12 +13,19 @@
 #      the same tool a human uses to spot-check any single line by hand.
 #
 # Usage:
-#   powershell -File script/verify-deploy.ps1 -Rpc <url> [-StateFile <path>]
+#   powershell -File script/verify-deploy.ps1 -Rpc <url> [-StateFile <path>] [-PostLaunch]
 # StateFile defaults to deployments/two-phase-<chainid>.json, with the chain
 # id read from the RPC itself. Exit code = number of failed checks.
+#
+# -PostLaunch: for a deployment whose migration window is open. The first
+# claim moves DMN out of the Migration, so the deploy-time row "all of it in
+# the migration" can never pass again, and the first buyback burn lowers
+# totalSupply. The switch replaces those two rows with the invariants that
+# hold once claims begin (36 rows -> 37). Without it nothing changes.
 param(
   [Parameter(Mandatory = $true)][string]$Rpc,
-  [string]$StateFile = ""
+  [string]$StateFile = "",
+  [switch]$PostLaunch
 )
 $ErrorActionPreference = "Stop"
 
@@ -42,8 +49,7 @@ function CastCall { param([string]$to, [string]$sig, [string[]]$callArgs = @())
 
 $script:results = @()
 $script:failures = 0
-function Check { param([string]$name, $got, $expected)
-  $ok = ("$got".ToLower() -eq "$expected".ToLower())
+function AddRow { param([string]$name, $got, $expected, [bool]$ok)
   if (-not $ok) { $script:failures++ }
   $script:results += [pscustomobject]@{
     check    = $name
@@ -51,6 +57,24 @@ function Check { param([string]$name, $got, $expected)
     observed = "$got"
     verdict  = $(if ($ok) { "PASS" } else { "FAIL" })
   }
+}
+function Check { param([string]$name, $got, $expected)
+  AddRow $name $got $expected ("$got".ToLower() -eq "$expected".ToLower())
+}
+
+# The post-launch rows are inequalities on 18-decimal balances: compared as
+# big integers, never as strings or doubles. A READ-ERROR does not parse and
+# makes the row FAIL.
+function Big { param($v)
+  try { return [System.Numerics.BigInteger]::Parse("$v") } catch { return $null }
+}
+function CheckAtLeast { param([string]$name, $got, $min)
+  $g = Big $got; $m = Big $min
+  AddRow $name $got ">= $min" (($null -ne $g) -and ($null -ne $m) -and ($g -ge $m))
+}
+function CheckBetween { param([string]$name, $got, $min, $max)
+  $g = Big $got; $lo = Big $min; $hi = Big $max
+  AddRow $name $got "$min..$max" (($null -ne $g) -and ($null -ne $lo) -and ($null -ne $hi) -and ($g -ge $lo) -and ($g -le $hi))
 }
 
 # ---- Resolve the state file from the chain the RPC actually serves ----
@@ -76,7 +100,7 @@ $treasuryOverridden = [bool]$st.treasuryOverridden
 $marketingOverridden = [bool]$st.marketingWalletOverridden
 $oldDaimon = $st.oldDaimon
 
-Write-Output "Post-broadcast verification -- chain $chainId"
+Write-Output "Post-broadcast verification -- chain $chainId$(if ($PostLaunch) { ' -- POST-LAUNCH mode' })"
 Write-Output "State file: $StateFile"
 Write-Output ""
 
@@ -139,10 +163,34 @@ Check "expiry: governor == token (exact)"       $expiryGovernor $expiryToken
 Check "staking: timelock is governance"         (CastCall $staking "isGovernance(address)(bool)" @($timelock)) "true"
 Check "staking: deployer is not governance"     (CastCall $staking "isGovernance(address)(bool)" @($deployer)) "false"
 
-# ---- Supply: entirely in the migration ----
 $initialSupply = CastCall $token "INITIAL_SUPPLY()(uint256)"
-Check "supply: totalSupply == INITIAL_SUPPLY"   (CastCall $token "totalSupply()(uint256)") $initialSupply
-Check "supply: all of it in the migration"      (CastCall $token "balanceOf(address)(uint256)" @($migration)) $initialSupply
+if (-not $PostLaunch) {
+  # ---- Supply: entirely in the migration ----
+  Check "supply: totalSupply == INITIAL_SUPPLY"   (CastCall $token "totalSupply()(uint256)") $initialSupply
+  Check "supply: all of it in the migration"      (CastCall $token "balanceOf(address)(uint256)" @($migration)) $initialSupply
+} else {
+  # ---- Supply after claims begin ----
+  # Every claim moves exactly `amount` DMN out of the Migration and exactly
+  # `amount` DMX into the treasury (both legs are checked in claim()), and
+  # adds `amount` to totalMigrated. Both sides are lower bounds, not
+  # equalities: DMN and DMX reflect, so the Migration and the treasury earn
+  # on top, and anyone can send either token to them. The treasury is the
+  # Timelock (row "migration: treasury is the timelock" below).
+  # The Migration row holds until sweepUnclaimed() moves the remainder to
+  # the treasury, after the deadline.
+  $minSupply     = CastCall $token "MIN_SUPPLY()(uint256)"
+  $totalMigrated = CastCall $migration "totalMigrated()(uint256)"
+  $migFloor = "READ-ERROR(INITIAL_SUPPLY or totalMigrated)"
+  if (($null -ne (Big $initialSupply)) -and ($null -ne (Big $totalMigrated))) {
+    $migFloor = "$((Big $initialSupply) - (Big $totalMigrated))"
+  }
+  CheckBetween "supply: MIN_SUPPLY <= totalSupply <= INITIAL_SUPPLY" (CastCall $token "totalSupply()(uint256)") $minSupply $initialSupply
+  CheckAtLeast "migration: DMN >= INITIAL_SUPPLY - totalMigrated"   (CastCall $token "balanceOf(address)(uint256)" @($migration)) $migFloor
+  CheckAtLeast "treasury: DMX >= totalMigrated"                     (CastCall $oldDaimon "balanceOf(address)(uint256)" @($treasury)) $totalMigrated
+  if ((CastCall $migration "sweepExecuted()(bool)") -eq "true") {
+    Write-Output "!!! sweepUnclaimed() has run: the Migration holds no DMN by design; the row 'migration: DMN >= INITIAL_SUPPLY - totalMigrated' cannot pass."
+  }
+}
 
 # ---- Migration: immutable wiring ----
 Check "migration: governance is the timelock"   (CastCall $migration "governance()(address)") $timelock

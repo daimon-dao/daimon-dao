@@ -67,7 +67,8 @@ context; this runner re-reads 36 invariants from MINED state through plain
 Timelock, the guardian expiry EXACTLY equal across the three contracts and
 the migration treasury being the Timelock -- and exits non-zero on any
 failure. All 36 are effective in the script: 36/36 green on Chapel from
-mined state (docs/CHAPEL_2B_RESULTS.md, H1.7).
+mined state (docs/CHAPEL_2B_RESULTS.md, H1.7). Once the migration window is
+open, run it with `-PostLaunch` (37 rows, see the verification gate below).
 
 > The guardian keeps only pause (token) and cancel (timelock/governor), by
 > design. On testnet it can be the deployer; **in production it is the
@@ -192,6 +193,36 @@ forge script script/DeployPhase2.s.sol:DeployPhase2 `
 ```sh
 powershell -File script/verify-deploy.ps1 -Rpc <your-rpc-url>
 ```
+
+**After launch: `-PostLaunch`.** The default run is the deploy-time gate,
+and one of its rows, "supply: all of it in the migration", stops passing at
+the first claim (on mainnet the default run has read 35/36 since the owner's
+5a claim). For a deployment whose migration window is open, the switch
+replaces the two deploy-time supply rows with the invariants that hold
+after claims begin:
+
+- `MIN_SUPPLY <= totalSupply <= INITIAL_SUPPLY`: the buyback burn
+  (`burnDeadBalanceToFloor()`, callable by anyone) lowers the supply, never
+  below the 21B floor;
+- `DMN.balanceOf(Migration) >= INITIAL_SUPPLY - totalMigrated`: every claim
+  moves exactly `amount` DMN out and adds `amount` to `totalMigrated`;
+- `DMX.balanceOf(treasury) >= totalMigrated`: the treasury is the Timelock,
+  and every claim moves exactly `amount` DMX into it.
+
+The last two are `>=`, not `==`, because DMN and DMX reflect: the Migration
+and the Timelock earn on top of the claimed amounts, and anyone can send
+either token to them. The balance rows are compared as big integers, and a
+read error fails the row. 36 rows become 37; every other row is the same,
+and without the switch the script behaves as before. The Migration row holds
+only until `sweepUnclaimed()`, after the deadline: from then on the Migration
+holds no DMN by design, and the script prints a warning above the table.
+
+```sh
+powershell -File script/verify-deploy.ps1 -Rpc <your-rpc-url> -PostLaunch
+```
+
+On BSC mainnet, 2026-10-02 (around block 125310000, read-only through
+`https://bsc-dataseed.bnbchain.org`): **37/37, exit 0**.
 
 **Step 4 — ONLY after the verification is green: open the migration.**
 The predecessor fee exemption is what makes claims possible (without it,
