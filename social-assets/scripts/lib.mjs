@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 
-// Inner content of the logo (defs + paths), without the <svg> wrapper.
+// Inner content of the logo (plain paths), without the <svg> wrapper.
 // It must be placed inside an <svg ... viewBox="0 0 500 500"> to scale well.
-const raw = fs.readFileSync("logo.svg", "utf8");
+// Source: the plain-shape rebuild in ../brand (see ../brand/README.md).
+const raw = fs.readFileSync(new URL("../brand/daimon-logo.svg", import.meta.url), "utf8");
 export const LOGO_INNER = raw
   .replace(/<\?xml[^>]*\?>/, "")
   .replace(/<svg[^>]*>/, "")

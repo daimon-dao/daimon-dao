@@ -1,0 +1,2 @@
+# Keep the Illustrator original byte-exact (core.autocrlf would otherwise treat it as text).
+*.ai binary

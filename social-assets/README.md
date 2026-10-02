@@ -6,7 +6,9 @@ night-blue `#0a1128` · gold `#c9a227` · cream `#f5e9c8` palette). Sober,
 charts. Inter font (the same as the dApp), at most 3 colors.
 
 Regenerable with the Node script in `scripts/` (uses `@resvg/resvg-js` +
-Inter's static TTFs; see the comment at the top of the script).
+Inter's static TTFs; see the comment at the top of the script). The logo comes
+from [`brand/`](brand/README.md): the Illustrator original and its plain-shape
+SVG rebuild.
 
 | File | Size | Use |
 |---|---|---|
@@ -20,7 +22,8 @@ Inter's static TTFs; see the comment at the top of the script).
 | `quote-codice.png` | 1600×900 | X post — "Humans make mistakes. Code doesn't." |
 | `quote-verificate.png` | 1600×900 | X post — "Don't trust us. Verify." |
 | `github-preview.png` | 1280×640 | Repository social preview (Settings → Social preview). |
-| `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header and the GitHub organization avatar. |
+| `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header and the GitHub organization avatar. Rendered by `scripts/brand.mjs`. |
+| `brand/` | — | The logo's source of truth (`Logo_DMN_Official.ai`), its SVG rebuild and 32/256/512 PNGs. See [brand/README.md](brand/README.md). |
 
 The social cards (stat/quote) and the GitHub preview are in **English**,
 consistent with the official banner and the root README. The banners keep the
