@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import { cookieToInitialState } from "wagmi";
 import "./globals.css";
-import { wagmiConfig } from "@/lib/wagmi";
+import { getWagmiConfig } from "@/lib/wagmi";
 import { Providers } from "@/components/Providers";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { Header } from "@/components/Header";
@@ -60,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // connection is in the first render (no "Connect wallet" flash and no state
   // loss across navigations). Note: headers() makes the routes dynamic — fine,
   // the data is read on-chain from the client anyway.
-  const initialState = cookieToInitialState(wagmiConfig, headers().get("cookie"));
+  const initialState = cookieToInitialState(getWagmiConfig(), headers().get("cookie"));
 
   return (
     <html lang={locale} suppressHydrationWarning>
