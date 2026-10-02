@@ -14,8 +14,13 @@ no risk of mismatched ABIs).
 cd daimon-dapp
 npm install
 npm run abis        # generates src/config/abis/ from the Foundry artifacts (../out)
-npm run dev         # http://localhost:3000
+npm run dev         # http://127.0.0.1:3000
 ```
+
+`npm run dev` (also via `dev.cmd`) and `npm run start` listen on 127.0.0.1
+only: a local Next 14 server is otherwise reachable from the whole network,
+and on Windows that exposes it to GHSA-p293-qw3h-jr36 (remote code execution).
+To test on a phone, use a Vercel preview, not the local server.
 
 If you change the contracts: `forge build` in the root, then `npm run abis`.
 
