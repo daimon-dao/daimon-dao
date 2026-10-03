@@ -3,8 +3,11 @@
 Register of official posts from the mainnet launch onward. Earlier posts (July–September 2026) are not recorded here and may be added later.
 
 Italian posts go to the Italian group (`Daimon_Official_Italian_Group`),
-English posts to the announcements channel (`Daimon_one`). Times are UTC;
-the X times match the timestamps encoded in the tweet IDs.
+English posts to the announcements channel (`Daimon_one`). There is also an
+English community group (`Daimon_Official_Group`,
+https://t.me/Daimon_Official_Group): messages meant for every channel, like
+the pinned "Official channels" message, go to all three. Times are UTC; the X
+times match the timestamps encoded in the tweet IDs.
 
 | date | channels | subject | cards | link |
 |---|---|---|---|---|
