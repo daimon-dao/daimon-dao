@@ -193,23 +193,12 @@ export default function Migrazione() {
       )}
 
       {/*
-       * Open/closed is a chain read. While it is loading nothing is claimed:
-       * a neutral one-line pulsing block (the banner's padding around one
-       * text line) holds the place, so the "opens shortly" notice is only
-       * ever shown when the read has actually answered false. Showing the
-       * yellow box while loading flashed it on every page open. One line, not
-       * the banner's height: on mainnet the migration is open, so the common
-       * case is "placeholder, then nothing", and the collapse must be small.
+       * Open/closed is a chain read. While it is loading nothing is rendered
+       * here (no placeholder either: on mainnet the migration is open, so a
+       * placeholder would collapse on every visit), and the "opens shortly"
+       * notice appears only when the read has actually answered false.
+       * Showing the yellow box while loading flashed it on every page open.
        */}
-      {!deadlineExpired && feeExempt === undefined && (
-        <div
-          className="animate-pulse rounded-xl border border-transparent bg-bordi px-4 py-3 text-sm"
-          aria-busy="true"
-          aria-label={t("migration.checkingOpen")}
-        >
-          <span className="block h-5" aria-hidden />
-        </div>
-      )}
       {!deadlineExpired && feeExempt === false && (
         <div
           className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro"
