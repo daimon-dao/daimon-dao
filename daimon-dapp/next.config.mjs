@@ -15,6 +15,10 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // No next/image anywhere (the logo is a plain <img> of a static SVG): the
+  // image optimizer is unused, so it is switched off. It has been the subject
+  // of several advisories (DoS, cache growth, SSRF, RCE) and has no job here.
+  images: { unoptimized: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

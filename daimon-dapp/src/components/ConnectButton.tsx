@@ -13,6 +13,7 @@ import {
   subscribeInjectedWallet,
   waitForInjectedWallet,
 } from "@/lib/injectedWallet";
+import { isOnActiveChain } from "@/lib/chain";
 import { useI18n } from "@/components/LocaleProvider";
 import { BottomSheet, useIsMobile } from "@/components/BottomSheet";
 import { useTerms } from "@/components/TermsGate";
@@ -46,6 +47,25 @@ export function ConnectButton() {
 
   useEffect(() => setMounted(true), []);
   useEffect(() => () => window.clearTimeout(errorTimer.current), []);
+
+  // "Switch to <chain>" only when the wallet is REALLY elsewhere: wagmi's
+  // chainId is double-checked against the provider (src/lib/chain.ts), which
+  // also re-syncs wagmi when the wallet had moved without an event. Until the
+  // check answers, the wallet is treated as on the right chain.
+  const [offChain, setOffChain] = useState(false);
+  useEffect(() => {
+    if (!isConnected || chainId === ACTIVE_CHAIN.id) {
+      setOffChain(false);
+      return;
+    }
+    let cancelled = false;
+    void isOnActiveChain(connector, chainId).then((ok) => {
+      if (!cancelled) setOffChain(!ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, chainId, connector]);
 
   function showConnectError(msg: string) {
     setConnectError(msg);
@@ -239,7 +259,7 @@ export function ConnectButton() {
     return <button className="btn-oro whitespace-nowrap opacity-60">{connectLabel}</button>;
   }
 
-  if (isConnected && chainId !== ACTIVE_CHAIN.id) {
+  if (isConnected && offChain) {
     return (
       <button
         className="whitespace-nowrap rounded-lg bg-rosso/90 px-4 py-2 text-sm font-medium text-white hover:bg-rosso"

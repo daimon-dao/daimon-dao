@@ -192,18 +192,19 @@ export default function Migrazione() {
         </div>
       )}
 
-      {!deadlineExpired && !migrationOpen && (
+      {/*
+       * Open/closed is a chain read. While it is loading nothing is rendered
+       * here (no placeholder either: on mainnet the migration is open, so a
+       * placeholder would collapse on every visit), and the "opens shortly"
+       * notice appears only when the read has actually answered false.
+       * Showing the yellow box while loading flashed it on every page open.
+       */}
+      {!deadlineExpired && feeExempt === false && (
         <div
           className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro"
           role="status"
         >
-          {feeExempt === false ? (
-            <>
-              <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
-            </>
-          ) : (
-            t("migration.checkingOpen")
-          )}
+          <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
         </div>
       )}
 
