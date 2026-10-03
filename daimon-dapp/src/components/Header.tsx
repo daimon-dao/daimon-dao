@@ -22,7 +22,20 @@ function ThemeToggle() {
   const [light, setLight] = useState(false);
   useEffect(() => {
     setMounted(true);
-    setLight(document.documentElement.classList.contains("light"));
+    // The theme class is put on <html> by the inline script in <head> before
+    // paint. If React had to re-render the document from scratch (a hydration
+    // mismatch, e.g. a script injected into <head> by a bot-protection layer
+    // in front of the app), that class is gone: re-apply the stored choice
+    // here, so the user's theme survives whatever happened to the first HTML.
+    const el = document.documentElement;
+    if (!el.classList.contains("light") && !el.classList.contains("dark")) {
+      let stored: string | null = null;
+      try {
+        stored = localStorage.getItem("daimon-theme");
+      } catch {}
+      el.classList.add(stored === "light" ? "light" : "dark");
+    }
+    setLight(el.classList.contains("light"));
   }, []);
   function toggle() {
     const el = document.documentElement;
