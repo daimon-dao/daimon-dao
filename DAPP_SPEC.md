@@ -15,7 +15,7 @@ document is kept as the original build specification.
 ## 1. Technical stack
 
 ```
-Framework:         Next.js 14+ (App Router) + TypeScript
+Framework:         Next.js 15 (App Router, React 19) + TypeScript
 Styling:           TailwindCSS
 Wallet/chain:      wagmi v2 + viem (NO web3.js, NO ethers)
 Supported wallets: MetaMask, WalletConnect, Trust Wallet (via wagmi connectors)

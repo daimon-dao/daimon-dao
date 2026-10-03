@@ -52,7 +52,7 @@ network only.
 
 ## Known dependency advisories (dApp)
 
-*Last reviewed: 2026-08-13.*
+*Last reviewed: 2026-10-03 (Next 15 upgrade, branch `dapp/next15`).*
 
 The frontend in `daimon-dapp/` carries open npm advisories that Dependabot
 reports on this repository. They are listed here so a reviewer does not have to
@@ -66,24 +66,28 @@ ship as bytecode. No npm advisory can reach them.
 Dependabot and `npm audit` report different totals for the same tree, and both
 are correct: they count different things.
 
-- **Dependabot counts one alert per advisory.** Next.js alone accounts for 21
-  of them — one per CVE against a single installed version.
+- **Dependabot counts one alert per advisory.** Before the upgrade Next.js
+  alone accounted for 23 of them — one per CVE against a single installed
+  version.
 - **`npm audit` counts one entry per affected package** in the tree, so those
-  same 21 Next.js advisories collapse into a single `next` entry.
+  23 Next.js advisories collapsed into a single `next` entry, and today the
+  single `braces` advisory shows up as 7 entries.
 
-After this review's fixes, `npm audit` reports **9 entries** (1 high,
-8 moderate), resolving to **22 unique advisories**: `next` 21 and `uuid` 1.
-Dependabot's figure will land near 22 once it reprocesses the lockfile; it
-last reported 29 against the pre-fix tree.
+After the 2026-10-03 upgrade (Next 14.2.35 → 15.5.27, React 18 → 19),
+`npm audit` reports **7 entries** (all high), resolving to **1 unique
+advisory**: `braces` GHSA-vfj7-8cjw-p6xm, reached only through build-time
+tooling (see *Open, accepted*). Before the upgrade it reported 32 entries
+(1 critical, 8 high, 23 moderate): `next` alone carried 23 advisories, two of
+them critical (unauthenticated RCE on Windows-hosted servers,
+GHSA-p293-qw3h-jr36, and RCE in the image optimizer), all fixed in 15.5.24+.
+Dependabot's figure will land near 1 once it reprocesses the lockfile.
 
-The count had risen sharply from the ~5 reported in mid-2026. That was **not a
-regression and not new exposure in our code**: the overrides below were in
-place throughout and still effective. It was the sum of two effects —
-Dependabot reprocessing the lockfile and surfacing the full Next.js advisory
-set it had not yet expanded, plus three advisories published upstream in the
-meantime (`hono`, `nanoid`, `socket.io-parser`), all three since fixed by the
-overrides below. The per-advisory analysis is unchanged; only the arithmetic
-moved.
+The count had risen sharply during 2026. That was **not a regression and not
+new exposure in our code**: it was Dependabot expanding the full Next.js
+advisory set against one installed version, plus advisories published
+upstream in the meantime. The per-advisory analysis of the Next 14 tree
+(2026-10-02: only the Windows RCE applied, and only to local dev servers,
+which were bound to 127.0.0.1 the same day) is superseded by the upgrade.
 
 What matters for the assessment: the dApp server is a **stateless public
 frontend**. It holds no keys, no funds, no database and no authenticated
@@ -92,25 +96,41 @@ the user's browser through their own wallet. The worst realistic outcome of a
 frontend compromise or outage is that the page is unavailable — users can
 always interact with the contracts directly via BscScan or `cast`.
 
-**Fixed** (overrides in `daimon-dapp/package.json`): `axios` ≥1.18.0,
-`hono` ≥4.12.34, `nanoid` ≥3.3.18, `postcss` ≥8.5.23,
-`socket.io-parser` ≥4.2.7, `ws` ≥8.21.1. All are within-major bumps of
-transitive or build-time dependencies, so no user-facing behaviour changes.
-The `ws` override alone cleared the whole WalletConnect / reown / viem chain,
-which was flagged only through that transitive dependency; `hono`, `nanoid`
-and `socket.io-parser` together removed 6 further advisories.
+**Fixed by the upgrade** (2026-10-03): `next` 15.5.27 (all 23 advisories),
+`react` / `react-dom` 19 as Next 15 requires, `images.unoptimized: true` (the
+optimizer was never used; now it is off), `browserslist` and
+`baseline-browser-mapping` within-major updates.
 
-After each override round: `tsc --noEmit` clean, `next build` green on all
-routes, the dev server renders live on-chain data, and both wallet connectors
-(injected and WalletConnect) still initialise with a clean browser console.
+**Fixed by overrides** in `daimon-dapp/package.json`, all within-major bumps
+of transitive dependencies: `axios` ≥1.20.0, `hono` ≥4.13.7, `nanoid`
+≥3.3.18, `postcss` ≥8.5.23, `socket.io-parser` ≥4.2.7, `ws` ≥8.21.1,
+`@walletconnect/ethereum-provider` ≥2.25.0 (the version wagmi 2.19 pins,
+2.21.1, carried the WalletConnect / reown advisories; 2.25.0 is the same
+provider wagmi 3 ships and brings `@reown/appkit` 1.8.19, which also lifts the
+`valtio` / `use-sync-external-store` React-18 peer), `uuid` ≥11.1.1 (one copy
+in the tree now; the MetaMask SDK and utils only call `v4()`, which is
+unchanged in 11.x, and this dApp never activates the MetaMask SDK connector).
+
+After the upgrade: `tsc --noEmit` and `eslint .` clean, `next build` green
+for chain 56 and 97, and on a local anvil fork of mainnet with a mock wallet:
+migration approve + claim, staking approve + stake, propose + vote all
+confirmed on chain; one-tap in-app connect (`eth_requestAccounts` only), the
+WalletConnect modal on a mobile browser, the desktop extension path, 43 fresh
+loads after wallet-cookie requests with no hydration error, no theme loss and
+no foreign address.
 
 **Open, accepted:**
 
 | Advisory | Why it stays open | Why it is not exploitable here |
 |---|---|---|
-| `next` 14.2.35 — several DoS / SSRF / cache-poisoning / XSS advisories | No fix exists in the 14.x line (14.2.35 is the last release); the fixed versions are 15.5.21+ / 16.x, a framework major upgrade. Deferred: it would destabilise a working dApp for no security gain here. | Every advisory requires a feature this app does not use. It has **no Server Actions, no route handlers, no rewrites, no i18n routing, no `next/image`, no `images.remotePatterns`, no CSP nonces and no custom server**. It does have a middleware since 2026-09-29 (`src/middleware.ts`): the region check, a no-op while the country list is empty. `next.config.mjs` sets `reactStrictMode` and, since 2026-09-30, the security headers (`Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`). The residue is DoS against server-side rendering of public, read-only pages. |
-| `uuid` <11.1.1 (via `@metamask/sdk` and the MetaMask utils chain) | The fix is uuid 11.x, a major bump forced onto MetaMask packages that expect the v8/v9 API — a real risk of breaking wallet connection. | The advisory is a missing bounds check in `v3`/`v5`/`v6` **when the caller passes a `buf` argument**. The MetaMask SDK uses `uuid.v4()` for request ids and never passes a buffer, so the vulnerable path is not reached. |
-| `@metamask/sdk`, `@metamask/utils`, `@metamask/rpc-errors`, `@metamask/sdk-communication-layer`, `@gemini-wallet/core`, `@wagmi/connectors`, `wagmi` | Flagged transitively because of the `uuid` entry above; they have no advisory of their own. Clearing them would mean `wagmi@3`, a major upgrade of the wallet layer. | Same as `uuid`: the vulnerable code path is never executed. |
+| `braces` ≤3.0.3 — stack exhaustion through deeply nested glob patterns (GHSA-vfj7-8cjw-p6xm), reported as 7 entries: `braces`, `micromatch`, `fast-glob`, `chokidar`, `tailwindcss` 3.4, `@next/eslint-plugin-next`, `eslint-config-next` | No patched `braces` release exists (3.0.3 is the latest); the only "fix" npm offers is Tailwind 4, a CSS-engine major rewrite that would not change the exposure. | `braces` only runs at build time, on glob patterns written by us: Tailwind's content scan and ESLint's file matching. It is not in the server bundle, not in the browser bundle, and never sees user input. |
+
+The dApp still has **no Server Actions, no route handlers, no rewrites, no
+i18n routing, no `next/image` and no custom server**; the middleware
+(`src/middleware.ts`) is the region check, a no-op while the country list is
+empty, and `next.config.mjs` sets the security headers
+(`Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+`X-Content-Type-Options: nosniff`), re-verified after the upgrade.
 
 Re-check with `npm audit` inside `daimon-dapp/`. Note the two axes described
 under *Reading the alert count*: `npm audit` totals are **lower** than

@@ -27,16 +27,17 @@ const inter = Inter({ subsets: ["latin"] });
 /*
  * Request language: explicit cookie (the user's choice) or, on first visit,
  * Accept-Language (Italian only if primary). Detected server-side so the
- * initial HTML and the first client render coincide.
+ * initial HTML and the first client render coincide. cookies() and headers()
+ * are async since Next 15.
  */
-function detectLocale(): Locale {
-  const fromCookie = cookies().get(LOCALE_COOKIE)?.value;
+async function detectLocale(): Promise<Locale> {
+  const fromCookie = (await cookies()).get(LOCALE_COOKIE)?.value;
   if (isLocale(fromCookie)) return fromCookie;
-  return localeFromAcceptLanguage(headers().get("accept-language"));
+  return localeFromAcceptLanguage((await headers()).get("accept-language"));
 }
 
-export function generateMetadata(): Metadata {
-  const locale = detectLocale();
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await detectLocale();
   return {
     title: translate(locale, "meta.title"),
     description: translate(locale, "meta.description"),
@@ -54,13 +55,13 @@ try {
 } catch (e) { document.documentElement.classList.add('dark'); }
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = detectLocale();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await detectLocale();
   // wagmi state reconstructed from the cookie server-side: the wallet
   // connection is in the first render (no "Connect wallet" flash and no state
   // loss across navigations). Note: headers() makes the routes dynamic — fine,
   // the data is read on-chain from the client anyway.
-  const initialState = cookieToInitialState(getWagmiConfig(), headers().get("cookie"));
+  const initialState = cookieToInitialState(getWagmiConfig(), (await headers()).get("cookie"));
 
   return (
     <html lang={locale} suppressHydrationWarning>

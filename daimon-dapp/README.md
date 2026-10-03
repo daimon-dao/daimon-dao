@@ -1,8 +1,8 @@
 # Daimon dApp
 
 Official Daimon DAO frontend: on-chain dashboard, 1:1 migration, vote-escrow
-staking and governance. Next.js 14 (App Router) + TypeScript + TailwindCSS +
-wagmi v2/viem. Static build compatible with Vercel.
+staking and governance. Next.js 15 (App Router, React 19) + TypeScript +
+TailwindCSS + wagmi v2/viem. Static build compatible with Vercel.
 
 It is a subfolder of the contracts monorepo (deliberate choice: the ABIs are
 generated directly from the Foundry artifacts in `../out`, same git history,
@@ -18,9 +18,14 @@ npm run dev         # http://127.0.0.1:3000
 ```
 
 `npm run dev` (also via `dev.cmd`) and `npm run start` listen on 127.0.0.1
-only: a local Next 14 server is otherwise reachable from the whole network,
-and on Windows that exposes it to GHSA-p293-qw3h-jr36 (remote code execution).
-To test on a phone, use a Vercel preview, not the local server.
+only: a local Next server is otherwise reachable from the whole network, and
+on Windows that exposed Next 14 to GHSA-p293-qw3h-jr36 (remote code execution,
+fixed in 15.5.24+). To test on a phone, use a Vercel preview, not the local
+server.
+
+`npm run lint` (ESLint 9, flat config in `eslint.config.mjs`, Next's rule
+sets) and `npm run typecheck` (`tsc --noEmit`) must both be clean before a
+push; `next build` runs the same checks.
 
 If you change the contracts: `forge build` in the root, then `npm run abis`.
 
