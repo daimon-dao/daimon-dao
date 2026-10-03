@@ -6,6 +6,7 @@ import { useConfig, useWriteContract, useWaitForTransactionReceipt } from "wagmi
 import { getAccount, switchChain, waitForTransactionReceipt } from "wagmi/actions";
 import { ACTIVE_CHAIN } from "@/config/contracts";
 import { mapTxError, isUserRejection, isChainMismatch } from "@/lib/errors";
+import { isOnActiveChain } from "@/lib/chain";
 import { useI18n } from "@/components/LocaleProvider";
 import { useTerms } from "@/components/TermsGate";
 
@@ -83,8 +84,10 @@ export function useTx() {
     // Network guard: the wallet might be on another chain (e.g. BSC mainnet).
     // The switch is requested BEFORE the signature; if the user rejects it, no
     // transaction starts.
-    const { chainId } = getAccount(config);
-    if (chainId !== undefined && chainId !== ACTIVE_CHAIN.id) {
+    // The wallet's own answer decides (src/lib/chain.ts): wagmi's value can be
+    // stale, and a switch must never be asked of a wallet already on the chain.
+    const { chainId, connector } = getAccount(config);
+    if (chainId !== undefined && !(await isOnActiveChain(connector, chainId))) {
       try {
         await switchChain(config, { chainId: ACTIVE_CHAIN.id });
       } catch (err) {

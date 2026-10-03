@@ -192,18 +192,30 @@ export default function Migrazione() {
         </div>
       )}
 
-      {!deadlineExpired && !migrationOpen && (
+      {/*
+       * Open/closed is a chain read. While it is loading nothing is claimed:
+       * a neutral pulsing block of exactly the banner's height (the banner's
+       * own text, invisible, sizes it) holds the place, so the "opens shortly"
+       * notice is only ever shown when the read has actually answered false.
+       * Showing the yellow box while loading flashed it on every page open.
+       */}
+      {!deadlineExpired && feeExempt === undefined && (
+        <div
+          className="animate-pulse rounded-xl border border-transparent bg-bordi px-4 py-3 text-sm"
+          aria-busy="true"
+          aria-label={t("migration.checkingOpen")}
+        >
+          <span className="invisible" aria-hidden>
+            <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
+          </span>
+        </div>
+      )}
+      {!deadlineExpired && feeExempt === false && (
         <div
           className="rounded-xl border border-oro/50 bg-oro/10 px-4 py-3 text-sm text-oro"
           role="status"
         >
-          {feeExempt === false ? (
-            <>
-              <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
-            </>
-          ) : (
-            t("migration.checkingOpen")
-          )}
+          <b>{t("migration.opensShortlyTitle")}</b> {t("migration.opensShortly")}
         </div>
       )}
 
