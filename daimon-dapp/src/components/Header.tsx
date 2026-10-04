@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { AppLink } from "@/components/AppLink";
+import { useRoutePath } from "@/lib/route";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 import { ConnectButton } from "./ConnectButton";
@@ -67,21 +67,21 @@ function ThemeToggle() {
  */
 export function Header() {
   const { t } = useI18n();
-  const pathname = usePathname();
+  const pathname = useRoutePath();
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
   return (
     <header className="sticky top-0 z-30 border-b border-bordi bg-bg/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4">
-        <Link href="/" className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <AppLink href="/" className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Logo />
           <span className="text-lg font-semibold tracking-wide text-orochiaro">DAIMON</span>
-        </Link>
+        </AppLink>
 
         <nav className="ml-6 hidden gap-1 md:flex">
           {NAV.map((n) => (
-            <Link
+            <AppLink
               key={n.href}
               href={n.href}
               className={`rounded-lg px-3 py-2 text-sm ${
@@ -91,7 +91,7 @@ export function Header() {
               }`}
             >
               {t(n.labelKey)}
-            </Link>
+            </AppLink>
           ))}
         </nav>
 
@@ -117,7 +117,7 @@ export function Header() {
       {open && !isMobile && (
         <nav className="border-t border-bordi px-4 py-2 md:hidden">
           {NAV.map((n) => (
-            <Link
+            <AppLink
               key={n.href}
               href={n.href}
               onClick={() => setOpen(false)}
@@ -126,7 +126,7 @@ export function Header() {
               }`}
             >
               {t(n.labelKey)}
-            </Link>
+            </AppLink>
           ))}
         </nav>
       )}
@@ -135,7 +135,7 @@ export function Header() {
       <BottomSheet open={open && isMobile} onClose={() => setOpen(false)} label={t("header.openMenu")}>
         <nav>
           {NAV.map((n) => (
-            <Link
+            <AppLink
               key={n.href}
               href={n.href}
               onClick={() => setOpen(false)}
@@ -144,7 +144,7 @@ export function Header() {
               }`}
             >
               {t(n.labelKey)}
-            </Link>
+            </AppLink>
           ))}
         </nav>
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-bordi px-4 py-3">

@@ -27,6 +27,39 @@ export function localeFromAcceptLanguage(header: string | null): Locale {
   return (header ?? "").trim().toLowerCase().startsWith("it") ? "it" : DEFAULT_LOCALE;
 }
 
+/*
+ * IPFS mirror (static build, docs/IPFS_MIRROR.md): no server reads a cookie,
+ * so the choice lives in localStorage under the same name, and the first
+ * visit follows navigator.language with the same rule as Accept-Language. The
+ * prerendered HTML is English; LOCALE_PENDING_SCRIPT runs in <head> before
+ * paint and, when the browser will switch to Italian, marks <html> so the CSS
+ * keeps the body invisible until the provider has applied the language (no
+ * flash of English). The mark lifts itself after a few seconds in case the
+ * scripts never run, so a broken bundle still shows the English page.
+ */
+export const LOCALE_STORAGE_KEY = "daimon-locale";
+export const LOCALE_PENDING_ATTR = "data-locale-pending";
+
+/** The language the static build must show in this browser. */
+export function readBrowserLocale(): Locale {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+  } catch {}
+  if (isLocale(stored)) return stored;
+  return localeFromAcceptLanguage(typeof navigator === "undefined" ? null : navigator.language);
+}
+
+export const LOCALE_PENDING_SCRIPT = `
+try {
+  var l = localStorage.getItem('${LOCALE_STORAGE_KEY}');
+  if (l === 'it' || (l !== 'en' && (navigator.language || '').toLowerCase().indexOf('it') === 0)) {
+    document.documentElement.setAttribute('${LOCALE_PENDING_ATTR}', 'it');
+    setTimeout(function () { document.documentElement.removeAttribute('${LOCALE_PENDING_ATTR}'); }, 4000);
+  }
+} catch (e) {}
+`;
+
 function lookup(dict: unknown, key: string): string | undefined {
   let cur: unknown = dict;
   for (const part of key.split(".")) {

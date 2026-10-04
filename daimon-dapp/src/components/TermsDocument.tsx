@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/AppLink";
 import { TERMS, type TermsRun } from "@/content/terms";
 
 /*
@@ -24,12 +24,12 @@ export function TermsDocument({ lang }: { lang: "en" | "it" }) {
   return (
     <article className="mx-auto max-w-2xl" lang={lang}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <Link href="/" className="text-secondario hover:text-oro">
+        <AppLink href="/" className="text-secondario hover:text-oro">
           {lang === "en" ? "← Back to the dApp" : "← Torna alla dApp"}
-        </Link>
-        <Link href={other.href} className="text-oro underline underline-offset-2">
+        </AppLink>
+        <AppLink href={other.href} className="text-oro underline underline-offset-2">
           {other.label}
-        </Link>
+        </AppLink>
       </div>
       <div className="space-y-4 text-sm leading-relaxed text-testo">
         {blocks.map((b, i) => {

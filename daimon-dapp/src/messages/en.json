@@ -304,5 +304,9 @@
     "accept": "I understand and accept",
     "storage": "Your acceptance is saved only in this browser, with the terms version: no cookie, no tracking, nothing sent anywhere. You will be asked again if the terms change.",
     "footerLink": "Terms of use"
+  },
+  "mirror": {
+    "sharedOrigin": "IPFS mirror on a shared gateway path: what this page stores in the browser (terms, language, wallet session) is visible to every other site served by this gateway. Prefer the official app or a gateway that gives the site its own address.",
+    "official": "Open app.daimon.money"
   }
 }

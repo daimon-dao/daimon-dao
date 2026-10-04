@@ -5,10 +5,19 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
-import { LOCALE_COOKIE, translate, type Locale } from "@/lib/i18n";
+import { IS_IPFS_BUILD } from "@/config/target";
+import {
+  LOCALE_COOKIE,
+  LOCALE_PENDING_ATTR,
+  LOCALE_STORAGE_KEY,
+  readBrowserLocale,
+  translate,
+  type Locale,
+} from "@/lib/i18n";
 
 type I18nContext = {
   locale: Locale;
@@ -24,6 +33,13 @@ const Ctx = createContext<I18nContext | null>(null);
  * HTML → no hydration mismatch. Changing language is client-side only: it
  * writes the cookie (persistence across later refreshes/navigations) and
  * updates the state → the whole UI re-renders without a reload, wallet included.
+ *
+ * IPFS mirror (static build): the HTML is prerendered in English and there is
+ * no server to read anything. The choice is kept in localStorage, and the
+ * browser's language is applied in a layout effect right after hydration --
+ * synchronously, before the browser paints -- while the inline script in
+ * <head> keeps the body hidden for an Italian-speaking visitor until then
+ * (LOCALE_PENDING_SCRIPT, src/lib/i18n.ts).
  */
 export function LocaleProvider({
   initialLocale,
@@ -36,7 +52,19 @@ export function LocaleProvider({
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
+    if (IS_IPFS_BUILD) {
+      try {
+        localStorage.setItem(LOCALE_STORAGE_KEY, l);
+      } catch {}
+      return;
+    }
     document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!IS_IPFS_BUILD) return;
+    setLocaleState(readBrowserLocale());
+    document.documentElement.removeAttribute(LOCALE_PENDING_ATTR);
   }, []);
 
   // After a client-side language change: <html lang> and <title> stay
