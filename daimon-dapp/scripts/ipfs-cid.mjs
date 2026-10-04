@@ -97,7 +97,10 @@ export async function packDirectory(dir, carPath) {
   if (carPath) {
     const { writer, out } = CarWriter.create([rootCid]);
     const done = pipeline(Readable.from(out), createWriteStream(carPath));
-    for (const block of blockstore.blocks.values()) await writer.put(block);
+    // The importer reads files concurrently, so its block order varies from
+    // run to run; written sorted by CID, the CAR is byte-identical as well.
+    const blocks = [...blockstore.blocks.values()].sort((a, b) => (a.cid.toString() < b.cid.toString() ? -1 : 1));
+    for (const block of blocks) await writer.put(block);
     await writer.close();
     await done;
   }

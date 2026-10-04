@@ -117,17 +117,22 @@ What is NOT fixed, hence part of "the same commit":
 
 ### Proof (two clean builds)
 
-Done on 2026-10-04 from commit `PROOF_COMMIT`, Node 24.20.0, Windows 11:
-after `rm -rf node_modules out-ipfs release-ipfs .next && npm ci`, two
-consecutive `npm run build:ipfs` produced
+Done on 2026-10-04 from commit `e746190`, Node 24.20.0, Windows 11: after
+`rm -rf node_modules out-ipfs release-ipfs .next && npm ci`, two consecutive
+`npm run build:ipfs` produced
 
 | Build | CID | Files | Bytes |
 |---|---|---|---|
-| 1 | `PROOF_CID_1` | PROOF_FILES | PROOF_BYTES |
-| 2 | `PROOF_CID_2` | PROOF_FILES | PROOF_BYTES |
+| 1 | `bafybeifnf3oepnldwebfnhukltu6bpw2rcslnny2zybuomn573pzjnkxoq` | 114 | 3,542,827 |
+| 2 | `bafybeifnf3oepnldwebfnhukltu6bpw2rcslnny2zybuomn573pzjnkxoq` | 114 | 3,542,827 |
 
-and `diff -r` of the two `out-ipfs/` directories was empty. The CAR files
-were byte-identical (`PROOF_CAR_SHA`).
+and `diff -r` of the two `out-ipfs/` directories was empty. The two CAR
+files differed in byte order only (the importer reads files concurrently):
+`scripts/ipfs-cid.mjs` now writes the blocks sorted by CID, and three runs
+on the same export then gave one CAR, SHA-256
+`5419ca61ae3a2c19cd11e9a2cb4a9feaf8e90915a533793c728579e57a40c42e`, 138
+blocks, root as above. (That fix is the commit after `e746190`, which
+changes nothing in `out-ipfs/`, so the CID of this commit is the same.)
 
 ### How anyone can rebuild and compare
 
@@ -200,7 +205,40 @@ menu, no `wallet_requestPermissions`, still connected after a page load).
 build with a project id:
 `IPFS_OVERRIDE_NEXT_PUBLIC_WC_PROJECT_ID=<id> npm run build:ipfs -- --allow-dirty`.
 
-Results of 2026-10-04: TEST_RESULTS
+Results of 2026-10-04 (build of commit `542fc8b`, CID
+`bafybeihecuoelmxnibwkvcqfuwfi274lnhptbdq6xz7zgdvot7mmm6glxe`, anvil fork of
+BSC mainnet at the day's head through the proxy, Edge headless on Windows):
+**every functional check passed on both origins** — 44 "ok" lines each on
+`http://127.0.0.1:8080/ipfs/<cid>` and on `http://<cid>.ipfs.localhost:8080`:
+all six routes, no failed or escaped request, nav with the wallet kept
+across page loads, Italian browser → Italian page with no cookie, EN/IT
+switch persisted in `localStorage`, both themes persisted, terms readable
+in both languages and gate persisted, 404 page, dashboard figures equal to
+the fork's (5/5), migration 5,000 DMX → 5,000 DMN (1:1 on chain), stake
+2,000 DMN → voting power on chain, propose + vote (`hasVoted` on chain),
+in-app one-tap connect without `wallet_requestPermissions` and still
+connected after a full page load. The shared-origin notice showed on the
+path origin and not on the subdomain one. `mobile-wc` was not run: the
+committed `.env.ipfs` ships no WalletConnect id (decision 3).
+
+One finding, not a failure of the mirror: on roughly one page load in four,
+React reports a hydration mismatch (`Minified React error #418`) and
+re-renders the document on the client; the page then works (every check
+above passed on such loads too), the theme, language and terms acceptance
+are re-applied by the app, and the only visible effect is a brief re-render
+of the first paint. The harness counts these as "hydration re-renders" and
+does not fail on them. It is **not caused by the mirror's changes**: the
+untouched master dApp (`e4fa328`), built as for Vercel and with its own
+assets, shows the same intermittent #418 (7 in 22 loads,
+`e2e/hydration-diag.mjs` + `e2e/static-vercel-serve.mjs`) as soon as its
+HTML is served as a static file in one piece — it never does when
+`next start` streams the same HTML, and it stops when the file is sent in
+two chunks 150 ms apart. So it is a property of Next 15 / React 19 pages
+delivered whole, which is what every gateway does; it may also be the
+"residual #418" seen on Vercel's cached responses. Left as is: the mirror is
+built so that a client re-render loses nothing (page-relative paths, no
+`<base>`, state re-applied after mount). Worth a separate investigation on
+the Vercel app, outside this scope.
 
 ## Where it will live (research of 2026-10-04)
 
