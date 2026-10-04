@@ -11,7 +11,8 @@ const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args
 const FROM = opt("--from", "http://127.0.0.1:3006");
 const PORT = Number(opt("--port", "3007"));
 const MODE = opt("--mode", "plain"); // plain | split (head first, body 150 ms later) | nocache (assets uncacheable)
-const APP = resolve("..");
+// APP_DIR: another checkout to take .next/static and public/ from (e.g. the untouched master).
+const APP = resolve(process.env.APP_DIR ?? "..");
 const TYPES = { ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
 const pages = new Map();
 for (const route of ["/", "/staking", "/governance", "/migrazione"]) {
