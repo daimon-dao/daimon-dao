@@ -1,8 +1,9 @@
 # The IPFS mirror of the dApp
 
-Status: **phase 1 — built and tested locally, nothing published** (2026-10-04).
-Phase 2 (pinning, pointing `daimon.blockchain` at it) needs the decisions
-listed at the end.
+Status: **phase 2 prepared, nothing uploaded or signed** (2026-10-06). The
+package to pin is the build of commit `30fc8d9`, CID
+`bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki` (see "Phase 2:
+the package"). Phase 1 (design, build, local tests) was done on 2026-10-04.
 
 ## What it is
 
@@ -293,16 +294,23 @@ Read-only facts (UD public profile API and the Polygon registry, 2026-10-04):
   `0x42cf9218e407b8577218ee198c7651f2db66bc476c716f73e314586cc7b004d9`.
   It does not exist on Ethereum L1 or on Base, and UD does not bridge
   Polygon names to Base.
-- **Owner: `0x41B533AF0Db427dc97988B47f86383f42372f395`**, which is none of
-  the DMX owner (`0xF8EC…B0Ae`), the DMN deployer (`0x4D38…a26e`), the
-  guardian Safe (`0x37F4…c7a8`) or its three signers (`0xD9dB…fc16`,
-  `0xdFfe…687f`, `0xacA4…0F9b`). It is DMX's `marketingAddress2`
-  (CHECKLIST_MAINNET.md, protocol paper §"The DMX contract"), which holds
-  about 303.5 billion DMX and has 121 transactions on BSC.
-- Records already set: `ipfs.html.value = QmZV91e6bp2Pn7eVdg7GHa1c8gKipu1dwJhR24ECqjA5BW`
-  (the deprecated key: an IPFS site was pointed at some time in the past; no
-  gateway serves that CID today), a BNB address (the owner), and the web2
-  URL `https://www.daimon.one/`.
+- **Owner on 2026-10-04: `0x41B533AF0Db427dc97988B47f86383f42372f395`**,
+  which is none of the DMX owner (`0xF8EC…B0Ae`), the DMN deployer
+  (`0x4D38…a26e`), the guardian Safe (`0x37F4…c7a8`) or its three signers
+  (`0xD9dB…fc16`, `0xdFfe…687f`, `0xacA4…0F9b`). It is DMX's
+  `marketingAddress2` (CHECKLIST_MAINNET.md, protocol paper §"The DMX
+  contract"), which holds about 303.5 billion DMX and has 121 transactions
+  on BSC. **Re-read on 2026-10-06: the owner is now the project's Brand
+  account `0xA40eA5830d206ba8b1e91Bd9793fDDC36380a49E`** (`ownerOf` on the
+  registry; no operator approved; the former owner is rejected by the
+  registry with `SENDER_IS_NOT_APPROVED_OR_OWNER`). That account holds 0 POL
+  on Polygon and has never sent a transaction there (nonce 0).
+- Records on chain (`getMany`, 2026-10-06): `ipfs.html.value =
+  QmZV91e6bp2Pn7eVdg7GHa1c8gKipu1dwJhR24ECqjA5BW` (the deprecated key: an
+  IPFS site was pointed at some time in the past; no gateway serves that CID
+  today), `crypto.BNB.version.BEP20.address = 0x41B5…f395` (the former
+  owner), `dweb.ipfs.hash` empty; the public profile also shows the web2 URL
+  `https://www.daimon.one/`.
 
 How a .blockchain name points to IPFS today:
 
@@ -378,7 +386,61 @@ pinned (unpin it after the name points at the new one and the new one is
 confirmed served). Keep `release-ipfs/CID.txt` and the commit of every
 published mirror in the launch record.
 
-## Phase 2: publishing (not done)
+## Phase 2: the package (prepared 2026-10-06, not uploaded)
+
+Built from commit `30fc8d9` (the branch head; origin/master was still
+`9b48be1`, the branch point, so nothing had to be merged) after
+`rm -rf node_modules out-ipfs release-ipfs .next && npm ci`, twice:
+
+| | Build 1 | Build 2 |
+|---|---|---|
+| CID (v1, base32) | `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki` | same |
+| CAR SHA-256 | `fab3ad4b9bb99ea359d818178ed63f56f60f0cd8f0a39437b208a0e188bc3011` | same |
+| Files / bytes | 114 / 3,542,827 | same, `diff -r` empty |
+
+The CAR (138 blocks, 3,551,066 bytes, root = the CID) was copied to the
+Desktop as `daimon-dapp-bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki.car`.
+`mirror.json` inside names commit `30fc8d9`; the docs commit that records
+this CID comes after it, so the CID of a rebuild of *that* later commit
+differs only by the commit string in `mirror.json`.
+
+E2e rerun on this exact build (2026-10-06, fresh anvil fork through the
+proxy): **44/44 functional checks on the path origin and 44/44 on the
+subdomain origin**, no failed or escaped request; hydration re-renders
+(#418, see "Testing locally") 3 and 4 respectively, all on loads whose
+checks still passed. The harness now ignores the browser's own
+`favicon.ico` console line when no request of the page failed.
+
+### The two record changes on `daimon.blockchain` (prepared, not sent)
+
+Target: UNS Registry on Polygon (chain 137), `0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f`
+(a proxy; on Polygonscan use "Write as Proxy"). Token id
+`0x42cf9218e407b8577218ee198c7651f2db66bc476c716f73e314586cc7b004d9`
+(= `30219393674924436981703462705683275269112283188285917415735361027143946470617`).
+Sender: the owner, the Brand account `0xA40eA5830d206ba8b1e91Bd9793fDDC36380a49E`.
+
+1. `ipfs.html.value` ← `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`
+2. `crypto.BNB.version.BEP20.address` ← `""` (a UNS record is removed by
+   setting it empty)
+
+One transaction, `setMany(string[] keys, string[] values, uint256 tokenId)`,
+selector `0xce92b33e`, calldata (decoded and checked with `cast`):
+
+```
+0xce92b33e0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000014042cf9218e407b8577218ee198c7651f2db66bc476c716f73e314586cc7b004d9000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000f697066732e68746d6c2e76616c75650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002063727970746f2e424e422e76657273696f6e2e42455032302e616464726573730000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000003b626166796265696374697a6236786e767a6b74676e6f71357435653469666374716e6c34727676637a3367657a706a653433616e3479356d726b6900000000000000000000000000000000000000000000000000000000000000000000000000
+```
+
+`eth_estimateGas` from the Brand account: **128,897 gas**. Polygon gas price
+on 2026-10-06 was 240–280 gwei (a high period), i.e. about **0.036 POL**;
+at a quiet 30 gwei it is 0.004 POL. The Brand account holds **0 POL**: it
+must receive some POL first (0.1 POL covers the transaction many times
+over). The same estimate from the former owner reverts, which confirms the
+authority. Alternative with no gas for the owner: the Unstoppable panel,
+where the owner signs a message and UD's relayer pays. Whether the panel
+accepts a 59-character CIDv1 in the website record is to be checked on the
+spot; the direct transaction accepts any string.
+
+## Phase 2: publishing (steps)
 
 1. Decide the four points below; set `.env.ipfs` accordingly; commit; tag
    (`ipfs-mirror-v1`).

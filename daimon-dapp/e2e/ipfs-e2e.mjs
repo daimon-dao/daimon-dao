@@ -160,7 +160,11 @@ function report(label, errors, requests) {
   // static file all at once (docs/IPFS_MIRROR.md, "Testing locally"), the page recovers, and every
   // check above still has to pass on such a load.
   const rerenders = errors.filter((e) => /error #418/.test(e)).length;
-  const other = errors.filter((e) => !/error #418/.test(e));
+  // "Failed to load resource" with no failed same-site request is the browser's own favicon.ico probe
+  // (a re-rendered document briefly has no icon link): nothing of the page failed.
+  const other = errors.filter(
+    (e) => !/error #418/.test(e) && !(/Failed to load resource/.test(e) && requests.failed.length === 0)
+  );
   console.log(`${label}: requests: ${req}; hydration re-renders (#418): ${rerenders}; page errors: ${other.length ? JSON.stringify(other) : "none"}`);
   if (requests.failed.length || requests.escaped.length || other.length) process.exitCode = 1;
 }
