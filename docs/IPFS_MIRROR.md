@@ -1,9 +1,23 @@
 # The IPFS mirror of the dApp
 
-Status: **phase 2 prepared, nothing uploaded or signed** (2026-10-06). The
-package to pin is the build of commit `30fc8d9`, CID
-`bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki` (see "Phase 2:
-the package"). Phase 1 (design, build, local tests) was done on 2026-10-04.
+Status: **published** (2026-10-08). The mirror is the build of commit
+`30fc8d9`, CID `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`,
+pinned on Filebase (CAR import, CID preserved) and on Lighthouse (CAR import,
+CID preserved), and `daimon.blockchain` points at it on chain (see "Phase 2:
+done"). Phase 1 (design, build, local tests) was done on 2026-10-04, the
+package and the record changes were prepared on 2026-10-06.
+
+## Phase 2: done (2026-10-07 / 2026-10-08)
+
+| Step | Result |
+|---|---|
+| Filebase (2026-10-07) | Bucket `daimon-dapp-mirror`, object `daimon-dapp-mirror.car` imported with `x-amz-meta-import: car`; `HeadObject` reports `cid = bafybeictizb6…mrki`, `pinning-status = pinned`. Served at `https://ipfs.filebase.io/ipfs/<cid>/` (200, `mirror.json` names `30fc8d9`). Three Filebase peers announce the CID in `delegated-ipfs.dev`. |
+| Pinata | Not used: its free plan has neither pin-by-CID nor CAR upload (pricing table, "Paid plan required"); the account's key works but nothing was uploaded. |
+| Lighthouse (2026-10-07) | Second copy: `POST upload.lighthouse.storage/api/v0/dag/import` returned `Hash = bafybeictizb6…mrki` (exact match); the file is listed under the Brand wallet. Its public gateway answers 402 for every CID (paid), so Lighthouse cannot be verified as a *serving* provider; it is a pin record. |
+| Public gateways | `https://<cid>.ipfs.inbrowser.link/` renders the dApp with live mainnet data (the gateway Brave uses). `4everland.io` answered 504 (not replicated there). |
+| `daimon.blockchain` (2026-10-08) | One `setMany` from the owner, the Brand account `0xA40e…a49E`, signed on a Ledger (`m/44'/60'/11'/0/0`): Polygon tx `0xf6d7d539e862c16bc26bd73a8fbb5157a2b518872288e6160fec646f1a23a08a`, block 95,138,326, status 1, 204,468 gas at 328.3 gwei = 0.0671 POL. Records read back from the registry and from the ProxyReader `0x91ED…0091` (what Brave reads): `dweb.ipfs.hash` and `ipfs.html.value` both `bafybeictizb6…mrki`, `crypto.BNB.version.BEP20.address` empty. Both keys were set because Brave reads `dweb.ipfs.hash` first and falls back to `ipfs.html.value`; CIDv1 because Brave 1.90.79+ builds `https://<cid>.ipfs.inbrowser.link/` and validates the CID by multibase. UD's public profile API still showed the old records right after the block (its indexer lags). |
+
+Rebuild-and-compare for this mirror: `git checkout 30fc8d9 && cd daimon-dapp && npm ci && npm run build:ipfs` must print the CID above.
 
 ## What it is
 
