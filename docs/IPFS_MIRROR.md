@@ -243,6 +243,39 @@ CID without trusting the maintainer's machine, read the commit in the
 mirror's `mirror.json`, run the workflow on it (or the recipe above) and
 compare.
 
+#### Proof (workflow, 2026-10-08)
+
+Commit `621129d` (the branch `ci/ipfs-mirror-reproducible`, two commits on
+top of `master` at `2c024f4`), run
+[37842179534](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534):
+attempt 1 (triggered by the push) and attempt 2 (a re-run, fresh runners),
+each with its two independent builds, so four builds on four runners, each
+`--no-cache`:
+
+| Attempt / build | CID | CAR SHA-256 | Files / bytes |
+|---|---|---|---|
+| [1 / 1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534019544) | `bafybeigiohbfulfa3conds2xcby477ywhhftffaspcskmxyczavm7mog6a` | `6d0fadc9a3dcf149778ce16f233ec2df5a4998b78b1ceb8329cc1b4e80014136` | 112 / 3,535,862 |
+| [1 / 2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534019784) | same | same | same |
+| [2 / 1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535172307) | same | same | same |
+| [2 / 2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535172745) | same | same | same |
+
+The compare job of each attempt
+([1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534859879),
+[2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535951576))
+found the two CIDs, the two CARs and the two `site/` folders identical. That
+CID is the container CID of commit `621129d`; it differs from the published
+mirror (`30fc8d9`, 114 files) because the code is newer (the terms-acceptance
+head script of `2c024f4`) and because of the path dependency above, and it
+was **not** uploaded anywhere: `daimon.blockchain` still points at
+`bafybeictizb6…mrki`. A local container build could not be run on the
+maintainer's machine (no Docker, Podman or WSL there; nothing was installed
+for this), which is the point of the recipe: the proof does not depend on
+that machine. What was checked there: the artifact of attempt 2 / build 1
+downloaded, its CAR's SHA-256 equal to `SHA256SUMS`, and the CID recomputed
+from its `site/` with `scripts/ipfs-cid.mjs` on Windows equal to `CID.txt`
+(the CID computation itself is machine-independent; only `next build` was
+not).
+
 Note on merge commits: `mirror.json` names the commit, so the CID of a
 branch head is not the CID of the merge commit that lands it on `master`
 (same bytes except that string). The CID to publish is the one of the
