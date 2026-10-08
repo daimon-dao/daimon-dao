@@ -147,7 +147,7 @@ precedence, and the deployed code takes precedence over all of them:
 | Telegram — community group (IT) | https://t.me/Daimon_Official_Italian_Group |
 | X (Twitter) | https://x.com/DaimonDAO |
 | GitHub | https://github.com/daimon-dao |
-| IPFS mirror of the dApp (backup of app.daimon.money) | `daimon.blockchain` in Brave (with "Resolve Unstoppable Domains names" on) or with the Unstoppable Domains extension; directly: https://bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki.ipfs.inbrowser.link/ — CID `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`, how it is built and verified in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md) |
+| IPFS mirror of the dApp (backup of app.daimon.money) | `daimon.blockchain` in Brave (with "Resolve Unstoppable Domains names" on) or with the Unstoppable Domains extension; directly: https://bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq.ipfs.inbrowser.link/ — current version v2 (tag `mirror-v2`, commit `1cccf9d`), CID `bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq`, reproducible by anyone with the container recipe in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md). Previous version v1 (commit `30fc8d9`), CID `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`, still pinned, no longer the one the name points at |
 
 Additional official channels will be listed here as they go live. Any channel
 not listed here is not official. The IPFS mirror is identified by its content

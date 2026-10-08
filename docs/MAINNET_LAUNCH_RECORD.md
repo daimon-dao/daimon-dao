@@ -380,3 +380,23 @@ is `>=` `totalMigrated`, never `==`.
 | 11a `setMaxTxAmount(1e30)` then 11b `excludeFromFee(TL)` | owner | done -- **the window opened at 11b, 2026-09-29 20:06:24 UTC** |
 | the owner-key rule | owner | in force until 2026-12-28 01:08:44 UTC (see Status) |
 | push of the journal commits | operator | done -- merged as `fae8be6`, pushed `0a65087..fae8be6` on 2026-09-29 21:35:47 UTC |
+| IPFS mirror of the dApp (`daimon.blockchain`) | operator + Brand Ledger | done -- v1 on 2026-10-08, v2 (container-built, reproducible) on 2026-10-09; see "IPFS mirror" below |
+
+## IPFS mirror -- the backup interface (after launch)
+
+The dApp's static mirror on IPFS, named by `daimon.blockchain` (Unstoppable
+Domains, Polygon) and the backup of `app.daimon.money`; what it is, how it is
+built and verified, and the update procedure are in `IPFS_MIRROR.md`. Each
+version is a new CID; the old CID stays pinned.
+
+| version | published | tag / commit | CID | pins | name record (Polygon) |
+|---|---|---|---|---|---|
+| v1 (previous) | 2026-10-08 | no tag; commit `30fc8d9` (branch `dapp/ipfs-mirror`, merged as `0c5d428`), built on the maintainer's machine (not reproducible elsewhere: path-dependent chunk ids) | `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki` | Filebase object `daimon-dapp-mirror.car` (pinned), Lighthouse dag import (pin record); both kept | `setMany` tx `0xf6d7d539e862c16bc26bd73a8fbb5157a2b518872288e6160fec646f1a23a08a`, block 95,138,326: `dweb.ipfs.hash` and `ipfs.html.value` = v1 CID, `crypto.BNB.version.BEP20.address` removed |
+| **v2 (current)** | 2026-10-09 | `mirror-v2` on `1cccf9dbb7b4259b61ea2d78f3072bb2cd61fda1` (merge of `ci/ipfs-mirror-reproducible`); built by the pinned container (`daimon-dapp/Dockerfile`) in workflow run 37844014401, two builds compared, same CID in the push run 37844006691 | `bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq` (CAR SHA-256 `a77e24cf…0b09`) | Filebase object `daimon-dapp-mirror-v2.car` (pinned, CID preserved), Lighthouse dag import (`Hash` = CID) | `setMany` tx `0x38d1fa671ebe1e3b329faea584441860318953efc6e0d543914952e646eac149`, block 95,195,417, status 1, 124,347 gas, 0.0397 POL, from the Brand account `0xA40e…a49E` (Ledger `m/44'/60'/11'/0/0`): both IPFS keys = v2 CID, BNB record still empty, owner unchanged |
+
+Checked after v2: `https://ipfs.filebase.io/ipfs/<cid>/` and
+`https://<cid>.ipfs.inbrowser.link/` serve `mirror.json` naming `1cccf9d`;
+in Brave the name resolves to v2, the dApp loads and the terms gate works,
+also in a fresh private window through the direct CID link. The provider
+credentials used for the uploads were written to files outside the
+repository for the update and deleted afterwards.

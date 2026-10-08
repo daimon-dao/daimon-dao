@@ -1,13 +1,34 @@
 # The IPFS mirror of the dApp
 
-Status: **published** (2026-10-08). The mirror is the build of commit
-`30fc8d9`, CID `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`,
-pinned on Filebase (CAR import, CID preserved) and on Lighthouse (CAR import,
-CID preserved), and `daimon.blockchain` points at it on chain (see "Phase 2:
-done"). Phase 1 (design, build, local tests) was done on 2026-10-04, the
-package and the record changes were prepared on 2026-10-06.
+Status: **published, version 2** (2026-10-09). The current mirror is the
+container build of commit `1cccf9d` (tag `mirror-v2`), CID
+`bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq`, pinned on
+Filebase and on Lighthouse (CAR imports, CID preserved), and
+`daimon.blockchain` points at it on chain (see "Mirror v2"). The previous
+version, v1 (commit `30fc8d9`, CID
+`bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`, published
+2026-10-08), stays pinned on both providers and is no longer the one the name
+points at (see "Mirror v1"). Phase 1 (design, build, local tests) was done
+on 2026-10-04, the v1 package and record changes were prepared on
+2026-10-06.
 
-## Phase 2: done (2026-10-07 / 2026-10-08)
+## Mirror v2: published (2026-10-09)
+
+The first mirror built by the container recipe ("Reproducible build: the
+container"), hence the first one anyone can reproduce.
+
+| | |
+|---|---|
+| Tag / commit | `mirror-v2` (annotated) on `1cccf9dbb7b4259b61ea2d78f3072bb2cd61fda1`, the merge of `ci/ipfs-mirror-reproducible` into `master` |
+| CID | `bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq` |
+| CAR | `daimon-dapp.car`, SHA-256 `a77e24cfe3698de051d95140a2a098384f2fa6a7eca611641480b58a27480b09`, 3,543,899 bytes, 136 blocks; 112 files / 3,535,862 bytes in the site |
+| Builds | tag run [37844014401](https://github.com/daimon-dao/daimon-dao/actions/runs/37844014401) (two builds, compare job: identical) and the push run [37844006691](https://github.com/daimon-dao/daimon-dao/actions/runs/37844006691) on the same commit: four builds, one CID. The artifact of the tag run was downloaded on the maintainer's machine, its CAR hash and its CID recomputed from `site/` and from the CAR root: equal |
+| Filebase (2026-10-08) | New object `daimon-dapp-mirror-v2.car` in bucket `daimon-dapp-mirror`, `x-amz-meta-import: car`; `HeadObject` reports `cid = bafybeidmjrqs5…kvyq`, `pinning-status = pinned`. The v1 object `daimon-dapp-mirror.car` is untouched and still pinned |
+| Lighthouse (2026-10-08) | `POST upload.lighthouse.storage/api/v0/dag/import` returned `Hash = bafybeidmjrqs5…kvyq` (exact match), file id `9789a567-2da5-4ffb-8302-268cefea1b9b`; v1 still listed. As for v1, its gateway answers 402, so it is a pin record |
+| Public gateways | `https://ipfs.filebase.io/ipfs/<cid>/` (200; `mirror.json` names `1cccf9d`, `index.html` title "Daimon DAO") and `https://<cid>.ipfs.inbrowser.link/` (the Brave path, same `mirror.json` and title). `delegated-ipfs.dev` lists providers. Not usable any more: `gateway.pinata.cloud`, `cf-ipfs.com` and `ipfs.eth.aragon.network` no longer resolve in DNS; `4everland.io` 504, `trustless-gateway.link` 522, `dweb.link` 429 |
+| `daimon.blockchain` (2026-10-09) | One `setMany(["dweb.ipfs.hash","ipfs.html.value"], [<cid>, <cid>], tokenId)` from the owner, the Brand account `0xA40e…a49E`, signed on the Ledger (`m/44'/60'/11'/0/0`, address derived and checked first): Polygon tx `0x38d1fa671ebe1e3b329faea584441860318953efc6e0d543914952e646eac149`, block 95,195,417, status 1, 124,347 gas at 319.4 gwei = 0.0397 POL. Read back from the registry and from the ProxyReader `0x91ED…0091`: both keys `bafybeidmjrqs5…kvyq`, `crypto.BNB.version.BEP20.address` still empty, owner unchanged. Checked in Brave: the name resolves to v2, the dApp loads and the terms gate works, also in a fresh private window through the direct CID link |
+
+## Mirror v1, the previous version: phase 2 done (2026-10-07 / 2026-10-08)
 
 | Step | Result |
 |---|---|
@@ -17,7 +38,7 @@ package and the record changes were prepared on 2026-10-06.
 | Public gateways | `https://<cid>.ipfs.inbrowser.link/` renders the dApp with live mainnet data (the gateway Brave uses). `4everland.io` answered 504 (not replicated there). |
 | `daimon.blockchain` (2026-10-08) | One `setMany` from the owner, the Brand account `0xA40e…a49E`, signed on a Ledger (`m/44'/60'/11'/0/0`): Polygon tx `0xf6d7d539e862c16bc26bd73a8fbb5157a2b518872288e6160fec646f1a23a08a`, block 95,138,326, status 1, 204,468 gas at 328.3 gwei = 0.0671 POL. Records read back from the registry and from the ProxyReader `0x91ED…0091` (what Brave reads): `dweb.ipfs.hash` and `ipfs.html.value` both `bafybeictizb6…mrki`, `crypto.BNB.version.BEP20.address` empty. Both keys were set because Brave reads `dweb.ipfs.hash` first and falls back to `ipfs.html.value`; CIDv1 because Brave 1.90.79+ builds `https://<cid>.ipfs.inbrowser.link/` and validates the CID by multibase. UD's public profile API still showed the old records right after the block (its indexer lags). |
 
-Rebuild-and-compare for this mirror: the published CID is the build of
+Rebuild-and-compare for v1: its CID is the build of
 `30fc8d9` on the maintainer's Windows machine at
 `C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`, with `.env.ipfs`
 created by hand (not tracked at that commit). The client-entry chunk ids hash
@@ -266,8 +287,10 @@ found the two CIDs, the two CARs and the two `site/` folders identical. That
 CID is the container CID of commit `621129d`; it differs from the published
 mirror (`30fc8d9`, 114 files) because the code is newer (the terms-acceptance
 head script of `2c024f4`) and because of the path dependency above, and it
-was **not** uploaded anywhere: `daimon.blockchain` still points at
-`bafybeictizb6…mrki`. A local container build could not be run on the
+was **not** uploaded anywhere (at that time `daimon.blockchain` still
+pointed at v1, `bafybeictizb6…mrki`; the merge commit `1cccf9d` was then
+tagged `mirror-v2` and published, see "Mirror v2"). A local container build
+could not be run on the
 maintainer's machine (no Docker, Podman or WSL there; nothing was installed
 for this), which is the point of the recipe: the proof does not depend on
 that machine. What was checked there: the artifact of attempt 2 / build 1
@@ -298,14 +321,14 @@ Older commits:
   NEXT_PUBLIC_WC_PROJECT_ID=
   ```
 
-- the published mirror (`30fc8d9`, CID `bafybeictizb6…mrki`) was built
+- the previous mirror, v1 (`30fc8d9`, CID `bafybeictizb6…mrki`), was built
   before the container existed, on Windows at
   `C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`: the container's
   build of `30fc8d9` differs from it in the ten client-entry chunks and the
   pages' references to them (the absolute-path dependency above), so it
   cannot reproduce that CID. A verifier of *that* mirror compares everything
-  but those files, or rebuilds at that path. The next published CID is a
-  container CID.
+  but those files, or rebuilds at that path. From v2 (`mirror-v2`,
+  `1cccf9d`) on, every published CID is a container CID.
 
 Independent check of the CID itself, with any IPFS node (kubo), on the
 exported folder: `ipfs add -r -Q --cid-version 1 release-ipfs/site` (kubo
@@ -558,11 +581,15 @@ Who: the name `daimon.blockchain` is owned by the project's Brand account
 records are the two IPFS hashes; the BNB address record was removed on
 2026-10-08 and must not come back (a crypto record on the name is a payment
 target anyone could be tricked into using). The Filebase and Lighthouse
-accounts hold the pins (credentials outside the repository, under
-`C:\Users\Utente\daimon-ipfs\`, never in a file of the repo).
+accounts hold the pins. Their credentials are never in a file of the repo
+and are not kept on disk between updates: for an update they are written by
+hand into `C:\Users\Utente\daimon-ipfs\filebase.env` (`FILEBASE_ACCESS_KEY`,
+`FILEBASE_SECRET_KEY`, `FILEBASE_BUCKET`) and `lighthouse.env`
+(`LIGHTHOUSE_API_KEY`), loaded into the upload process only, and the two
+files are deleted once the name points at the new CID (done so for v2).
 
 1. Merge the release into `master` and tag the release commit
-   (`ipfs-mirror-v<N>`). The tag push runs the "IPFS mirror" workflow
+   (`mirror-v<N>`; v2 is `mirror-v2`). The tag push runs the "IPFS mirror" workflow
    (`.github/workflows/ipfs-mirror.yml`): two container builds on separate
    runners, compared; it can also be started by hand from the Actions tab on
    that commit. The run summary shows the CID; the artifact
