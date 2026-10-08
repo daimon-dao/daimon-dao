@@ -400,6 +400,44 @@ pinned (unpin it after the name points at the new one and the new one is
 confirmed served). Keep `release-ipfs/CID.txt` and the commit of every
 published mirror in the launch record.
 
+### Update procedure (next release)
+
+Who: the name `daimon.blockchain` is owned by the project's Brand account
+`0xA40eA5830d206ba8b1e91Bd9793fDDC36380a49E`, a Ledger key at
+`m/44'/60'/11'/0/0` (account index 11), holding POL for gas. Its only
+records are the two IPFS hashes; the BNB address record was removed on
+2026-10-08 and must not come back (a crypto record on the name is a payment
+target anyone could be tricked into using). The Filebase and Lighthouse
+accounts hold the pins (credentials outside the repository, under
+`C:\Users\Utente\daimon-ipfs\`, never in a file of the repo).
+
+1. Merge the release into `master`; from the release commit, in
+   `daimon-dapp/`: `npm ci && npm run build:ipfs` twice from a clean tree
+   (the dirty-tree check refuses otherwise); both must print the same CID.
+   Note that `mirror.json` names the commit, so the CID is tied to that exact
+   commit: record commit and CID together.
+2. Filebase: import `release-ipfs/daimon-dapp.car` into the bucket
+   `daimon-dapp-mirror` through the S3 API with `--metadata import=car`
+   (console uploads re-chunk and change the CID); `head-object` must return
+   `x-amz-meta-cid` equal to the CID.
+3. Lighthouse: `POST https://upload.lighthouse.storage/api/v0/dag/import`
+   with the CAR; the returned `Hash` must equal the CID, otherwise delete it.
+4. Check `https://<cid>.ipfs.inbrowser.link/` renders the new build and that
+   `https://delegated-ipfs.dev/routing/v1/providers/<cid>` lists providers.
+5. Name: one `setMany` on the UNS registry
+   `0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f` (Polygon) from the Brand
+   account, setting **both** `dweb.ipfs.hash` and `ipfs.html.value` to the
+   new CID (CIDv1; Brave reads the first and falls back to the second, so the
+   two must never differ), token id
+   `0x42cf9218e407b8577218ee198c7651f2db66bc476c716f73e314586cc7b004d9`.
+   Simulate with `cast estimate --from 0xA40e…a49E` first, then
+   `cast send --ledger --mnemonic-derivation-path "m/44'/60'/11'/0/0"`; about
+   220k gas. Read the records back with `getMany` on the registry and on the
+   ProxyReader `0x91EDd8708062bd4233f4Dd0FCE15A7cb4d500091`.
+6. Update the README's "Official channels" row (CID and URL), this file's
+   status and the launch record; unpin the previous CID on both services
+   only after the new one is confirmed served.
+
 ## Phase 2: the package (prepared 2026-10-06, not uploaded)
 
 Built from commit `30fc8d9` (the branch head; origin/master was still

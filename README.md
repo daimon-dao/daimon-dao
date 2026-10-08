@@ -147,9 +147,11 @@ precedence, and the deployed code takes precedence over all of them:
 | Telegram — community group (IT) | https://t.me/Daimon_Official_Italian_Group |
 | X (Twitter) | https://x.com/DaimonDAO |
 | GitHub | https://github.com/daimon-dao |
+| IPFS mirror of the dApp (backup of app.daimon.money) | `daimon.blockchain` in Brave (with "Resolve Unstoppable Domains names" on) or with the Unstoppable Domains extension; directly: https://bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki.ipfs.inbrowser.link/ — CID `bafybeictizb6xnvzktgnoq5t5e4ifctqnl4rvvcz3gezpje43an4y5mrki`, how it is built and verified in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md) |
 
 Additional official channels will be listed here as they go live. Any channel
-not listed here is not official.
+not listed here is not official. The IPFS mirror is identified by its content
+hash (the CID above): a different CID is a different site, whoever serves it.
 
 **No admin will ever DM you first. Nobody will ever ask for your seed phrase or
 private key. Always verify contract addresses on-chain.**

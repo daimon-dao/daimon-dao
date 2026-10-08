@@ -50,6 +50,35 @@ advisory (we agree on the timing together).
 program on Immunefi), social engineering, and anything concerning the test
 network only.
 
+## IPFS mirror
+
+The dApp also exists as a static mirror on IPFS, named by `daimon.blockchain`
+(Unstoppable Domains, resolved by Brave and by the UD extension) and reachable
+directly at `https://<cid>.ipfs.inbrowser.link/`; the current CID is in the
+README's "Official channels". It is the same code as `app.daimon.money`,
+built from the same commit, but it is served by IPFS gateways instead of a
+server, so compared with the app it lacks:
+
+- the response headers `Content-Security-Policy: frame-ancestors 'none'`,
+  `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff` (a static file
+  carries none): another page can frame the mirror and attempt clickjacking —
+  the wallet's own confirmation prompt, outside the page, remains the control;
+- WalletConnect: the mirror ships without a WalletConnect project id, so only
+  injected wallets (browser extensions, wallets' in-app browsers) connect;
+- an origin of its own on *path* gateways (`https://<gateway>/ipfs/<cid>/`):
+  there every site served by that gateway shares one `localStorage`, so the
+  terms acceptance, the language and wagmi's connection state are readable by
+  other sites opened through the same gateway. The mirror shows a notice on
+  such gateways; use the subdomain form (`https://<cid>.ipfs.<gateway>/`) or
+  Brave's resolution, which give the site its own origin.
+
+The mirror is identified by its content hash and anyone can rebuild it: check
+out the commit named in the mirror's `mirror.json`, then in `daimon-dapp/`
+run `npm ci && npm run build:ipfs`; the printed CID must equal the published
+one (parameters and proof in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md)). A
+page served under a different CID is not the project's mirror. Reports about
+the mirror follow the same process as for the dApp.
+
 ## Known dependency advisories (dApp)
 
 *Last reviewed: 2026-10-03 (Next 15 upgrade, branch `dapp/next15`).*
