@@ -27,9 +27,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(!html.includes("<base ") && !html.includes("ipfs-mirror"), "no mirror artefacts in the HTML (no <base>, no ipfs-mirror build id)");
   ok(html.includes("fonts") === false || true, "font self-hosted"); // informational
   const logo = await fetch(BASE + "/logo-ring.svg");
-  const served = createHash("sha256").update(Buffer.from(await logo.arrayBuffer())).digest("hex");
-  const brand = createHash("sha256").update(readFileSync(new URL("../../social-assets/brand/daimon-logo-ring.svg", import.meta.url))).digest("hex");
-  ok(logo.status === 200 && served === brand, "ring logo byte-identical to social-assets/brand/daimon-logo-ring.svg");
+  // Line endings normalised: git stores the SVG with LF (Vercel serves that), a Windows checkout has CRLF.
+  const lf = (b) => Buffer.from(Buffer.from(b).toString("utf8").replace(/\r\n/g, "\n"));
+  const served = createHash("sha256").update(lf(await logo.arrayBuffer())).digest("hex");
+  const brand = createHash("sha256").update(lf(readFileSync(new URL("../../social-assets/brand/daimon-logo-ring.svg", import.meta.url)))).digest("hex");
+  ok(logo.status === 200 && served === brand, "ring logo identical to social-assets/brand/daimon-logo-ring.svg (line endings normalised)");
   const terms = await (await fetch(BASE + "/terms")).text();
   ok(terms.includes("DISCLAIMER_TERMS_v0.3_EN.md"), "terms page is v0.3 (EN source link)");
   const termsIt = await (await fetch(BASE + "/terms/it")).text();
