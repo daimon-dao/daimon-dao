@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppLink } from "@/components/AppLink";
 import { ADDRESSES, SUPPLY_FLOOR, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { useFormat } from "@/hooks/useFormat";
 import { useI18n } from "@/components/LocaleProvider";
@@ -49,12 +49,12 @@ export function Footer() {
         </div>
         <p className="mt-6 text-xs text-secondario">
           {t("footer.tagline", { floor: f.compact(SUPPLY_FLOOR) })}{" "}
-          <Link
+          <AppLink
             href={locale === "it" ? "/terms/it" : "/terms"}
             className="underline underline-offset-2 hover:text-oro"
           >
             {t("terms.footerLink")}
-          </Link>
+          </AppLink>
         </p>
       </div>
     </footer>

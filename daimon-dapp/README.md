@@ -200,6 +200,23 @@ For mainnet: same procedure + `NEXT_PUBLIC_CHAIN_ID=56` in the environment
 (Production and/or Preview) that must run on chain 56. The variable is read at
 build time: after changing it, redeploy.
 
+## IPFS mirror (second build target)
+
+`npm run build:ipfs` produces a static export of the same source for the
+censorship-resistant mirror (`daimon.blockchain`), with no server at all:
+`out-ipfs/` (the site) and `release-ipfs/daimon-dapp.car` + `CID.txt` (what
+to pin, and the content hash anyone can recompute from the commit). The
+Vercel build is `npm run build`, unchanged; the two targets are selected by
+`DAPP_TARGET=ipfs` / `NEXT_PUBLIC_DAPP_TARGET=ipfs` (set by the build
+script, never on Vercel) and the code branches on one constant,
+[src/config/target.ts](src/config/target.ts). What differs on the mirror
+(language in `localStorage`, wallet state in `localStorage`, relative links
+and assets, the vendored font, no middleware and no security headers),
+its limits, how to rebuild and verify the CID, how to test it locally
+(`npm run serve:ipfs`, `e2e/`) and the publishing steps are in
+[docs/IPFS_MIRROR.md](../docs/IPFS_MIRROR.md). The build's environment is
+the committed `.env.ipfs`, not `.env.local`.
+
 ## Operational notes
 
 - The staking positions list scans locks by id (up to 400): on mainnet with

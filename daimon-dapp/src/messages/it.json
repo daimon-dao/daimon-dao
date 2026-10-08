@@ -304,5 +304,9 @@
     "accept": "Ho capito e accetto",
     "storage": "L'accettazione viene salvata solo in questo browser, con la versione delle condizioni: nessun cookie, nessun tracciamento, nulla viene inviato. Ti verrà richiesta di nuovo se le condizioni cambiano.",
     "footerLink": "Condizioni d'uso"
+  },
+  "mirror": {
+    "sharedOrigin": "Mirror IPFS su un percorso condiviso del gateway: ciò che questa pagina salva nel browser (termini, lingua, sessione del wallet) è visibile a ogni altro sito servito da questo gateway. Preferisci la dApp ufficiale o un gateway che dia al sito un indirizzo proprio.",
+    "official": "Apri app.daimon.money"
   }
 }

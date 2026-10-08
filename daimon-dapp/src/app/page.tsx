@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppLink } from "@/components/AppLink";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { ADDRESSES, INITIAL_SUPPLY, SUPPLY_FLOOR, explorerAddress, IS_TESTNET } from "@/config/contracts";
 import { daimonV2Abi } from "@/config/abis/daimonV2";
@@ -304,9 +304,9 @@ export default function Dashboard() {
               </p>
             </div>
           )}
-          <Link href="/staking" className="btn-outline mt-4 inline-block">
+          <AppLink href="/staking" className="btn-outline mt-4 inline-block">
             {t("dashboard.goStaking")}
-          </Link>
+          </AppLink>
         </div>
 
         <div className="card">
@@ -330,9 +330,9 @@ export default function Dashboard() {
               now={now}
             />
           )}
-          <Link href="/governance" className="btn-outline mt-4 inline-block">
+          <AppLink href="/governance" className="btn-outline mt-4 inline-block">
             {t("dashboard.goGovernance")}
-          </Link>
+          </AppLink>
         </div>
       </div>
     </div>

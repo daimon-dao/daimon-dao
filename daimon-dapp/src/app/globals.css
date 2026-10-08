@@ -74,6 +74,13 @@ html {
   }
 }
 
+/* IPFS mirror: an Italian-speaking visitor sees nothing until the language
+   chosen in the browser is applied right after hydration (LOCALE_PENDING_SCRIPT
+   in the root layout, LocaleProvider); the mark lifts itself after 4 s. */
+html[data-locale-pending] body {
+  visibility: hidden;
+}
+
 /* Terms gate hidden before hydration when this browser already accepted the
    current terms version (TERMS_ACCEPTED_SCRIPT in the root layout). */
 html[data-terms-accepted] .terms-gate {

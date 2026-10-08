@@ -1,0 +1,10 @@
+{
+  "name": "daimon-dapp-ipfs-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser checks of the IPFS mirror build against a local anvil fork with a mock wallet (docs/IPFS_MIRROR.md)",
+  "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}

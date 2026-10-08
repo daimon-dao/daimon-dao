@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { AppLink } from "@/components/AppLink";
+import { useRoutePath } from "@/lib/route";
 import {
   createContext,
   useCallback,
@@ -65,7 +65,7 @@ export function TermsProvider({ children }: { children: ReactNode }) {
   // null = localStorage not read yet (server render and first client render)
   const [accepted, setAccepted] = useState<boolean | null>(null);
   const [requested, setRequested] = useState(false);
-  const pathname = usePathname();
+  const pathname = useRoutePath();
   const appRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setAccepted(readAccepted()), []);
@@ -135,13 +135,13 @@ function TermsScreen({ onAccept }: { onAccept: () => void }) {
           </ul>
           <p className="mt-5 text-sm">
             {t("terms.fullTerms", { version: TERMS_VERSION })}{" "}
-            <Link href="/terms" target="_blank" className="text-oro underline underline-offset-2">
+            <AppLink href="/terms" target="_blank" className="text-oro underline underline-offset-2">
               English
-            </Link>
+            </AppLink>
             {" · "}
-            <Link href="/terms/it" target="_blank" className="text-oro underline underline-offset-2">
+            <AppLink href="/terms/it" target="_blank" className="text-oro underline underline-offset-2">
               Italiano
-            </Link>
+            </AppLink>
           </p>
           <p className="mt-1 text-xs text-secondario">{t("terms.authoritative")}</p>
           <button className="btn-oro mt-6 w-full py-3 text-base" onClick={onAccept}>

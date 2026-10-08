@@ -2,6 +2,7 @@ import { cookieStorage, createConfig, createStorage, fallback, http } from "wagm
 import { bsc, bscTestnet } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 import { ACTIVE_CHAIN, APP_URL, RPC_URLS } from "@/config/contracts";
+import { IS_IPFS_BUILD } from "@/config/target";
 import { inAppWallet } from "@/lib/injectedWallet";
 
 /*
@@ -16,7 +17,9 @@ const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 // What the wallet shows in the WalletConnect pairing prompt. The url is the
 // production domain even on a preview deployment: it is the name users must
-// learn to trust.
+// learn to trust. The IPFS mirror keeps it too: the wallet then reports a
+// mismatch with the gateway origin it is really pairing with, which is the
+// honest signal (docs/IPFS_MIRROR.md, "WalletConnect").
 const wcMetadata = {
   name: "Daimon DAO",
   description: "Daimon (DMN): 1:1 migration, vote-escrow staking and on-chain governance on BNB Chain.",
@@ -53,8 +56,12 @@ function createWagmiConfig() {
     //    server: the root layout passes it as initialState to the WagmiProvider
     //    (cookieToInitialState), so the connection is present from the first
     //    render and survives client-side navigations without a flash.
+    // IPFS mirror: the pages are prerendered (ssr: true still needed), but no
+    // server will ever read a cookie, so the state stays in wagmi's default
+    // store, this browser's localStorage, and the connection is restored
+    // after mount on every page load.
     ssr: true,
-    storage: createStorage({ storage: cookieStorage }),
+    storage: IS_IPFS_BUILD ? undefined : createStorage({ storage: cookieStorage }),
     connectors: [
       // Inside a wallet's in-app browser (mobile): one-tap connect to the
       // injected wallet, see src/lib/injectedWallet.ts.
