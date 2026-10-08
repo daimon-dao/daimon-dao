@@ -17,7 +17,14 @@ package and the record changes were prepared on 2026-10-06.
 | Public gateways | `https://<cid>.ipfs.inbrowser.link/` renders the dApp with live mainnet data (the gateway Brave uses). `4everland.io` answered 504 (not replicated there). |
 | `daimon.blockchain` (2026-10-08) | One `setMany` from the owner, the Brand account `0xA40e…a49E`, signed on a Ledger (`m/44'/60'/11'/0/0`): Polygon tx `0xf6d7d539e862c16bc26bd73a8fbb5157a2b518872288e6160fec646f1a23a08a`, block 95,138,326, status 1, 204,468 gas at 328.3 gwei = 0.0671 POL. Records read back from the registry and from the ProxyReader `0x91ED…0091` (what Brave reads): `dweb.ipfs.hash` and `ipfs.html.value` both `bafybeictizb6…mrki`, `crypto.BNB.version.BEP20.address` empty. Both keys were set because Brave reads `dweb.ipfs.hash` first and falls back to `ipfs.html.value`; CIDv1 because Brave 1.90.79+ builds `https://<cid>.ipfs.inbrowser.link/` and validates the CID by multibase. UD's public profile API still showed the old records right after the block (its indexer lags). |
 
-Rebuild-and-compare for this mirror: `git checkout 30fc8d9 && cd daimon-dapp && npm ci && npm run build:ipfs` must print the CID above — with `.env.ipfs` created by hand (it was not tracked at that commit) and **at the original build path** `C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`, because the client-entry chunk ids depend on the absolute path (see "How anyone can rebuild and compare").
+Rebuild-and-compare for this mirror: the published CID is the build of
+`30fc8d9` on the maintainer's Windows machine at
+`C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`, with `.env.ipfs`
+created by hand (not tracked at that commit). The client-entry chunk ids hash
+the absolute path of the checkout, so that CID reproduces only there. The
+container recipe below ("Reproducible build: the container") did not exist at
+`30fc8d9` and gives a different CID for that commit; from the next release
+on, the published CID is the container's, and anyone can reproduce it.
 
 ## What it is
 
@@ -124,11 +131,27 @@ every byte to be a function of the source. What the build fixes:
   re-adds the files with other parameters (1 MiB chunks are becoming a
   default elsewhere) reports a different CID for the same bytes.
 
-What is NOT fixed, hence part of "the same commit":
+What the source alone does NOT fix, and what the container fixes instead
+(`daimon-dapp/Dockerfile`, "Reproducible build: the container" below):
 
-- `package-lock.json` and Node's major version (`npm ci`, Node 24 here); a
-  different Next or wagmi version is different output;
-- the same post-processing, i.e. the same `scripts/`.
+- **the absolute path of the checkout.** Webpack's deterministic module ids
+  are hashes of the module request, and Next's client-entry loader puts the
+  ABSOLUTE paths of the client components into that request: the ten
+  client-entry chunks (`main-app-*.js`, `app/layout-*.js`, `app/*/page-*.js`,
+  `app/error-*.js`, 4 bytes in all) and, through their names, every page
+  change with the directory. Found on 2026-10-08: a fresh worktree of
+  `30fc8d9` in another directory gave
+  `bafybeiet32sjazz466wciglemryp2x7tfijsjtmhsz5moi6jhayoc7ci3m` instead of
+  the published CID, every other file identical. The container always builds
+  at `/build`;
+- **the toolchain**: Node and npm (the container pins Node 24.20.0 on Debian
+  bookworm, linux/amd64, by image digest) and the dependency tree, which
+  `npm ci` installs exactly as `package-lock.json` records it, integrity
+  hashes included (a different Next or wagmi version is different output);
+- **the working tree**: the container's context is `git archive` of the
+  commit, so uncommitted edits and the line-ending conversion of a Windows
+  checkout (`core.autocrlf`) cannot reach the build;
+- the same post-processing, i.e. the same `scripts/` (part of the commit).
 
 ### Proof (two clean builds)
 
@@ -149,53 +172,146 @@ on the same export then gave one CAR, SHA-256
 blocks, root as above. (That fix is the commit after `e746190`, which
 changes nothing in `out-ipfs/`, so the CID of this commit is the same.)
 
-### How anyone can rebuild and compare
+### Reproducible build: the container
+
+`daimon-dapp/Dockerfile` is the reference build of the mirror: whoever runs
+it, on any machine, gets the CID of the commit. It needs Docker (any recent
+Docker with BuildKit, i.e. Docker 23+ or Docker Desktop) and nothing else;
+it holds no secret, publishes nothing and pins nothing.
+
+How anyone rebuilds and compares:
 
 ```bash
 git clone https://github.com/daimon-dao/daimon-dao.git && cd daimon-dao
 git checkout <commit>            # the one in mirror.json of the published mirror
-cd daimon-dapp && npm ci && npm run build:ipfs
+git -c core.autocrlf=false archive --format=tar "HEAD:daimon-dapp" \
+  | docker build - \
+      --build-arg "SOURCE_COMMIT=$(git rev-parse HEAD)" \
+      --no-cache --progress=plain \
+      --output type=local,dest=release-ipfs
 cat release-ipfs/CID.txt         # must equal the published CID
 ```
 
-Caveat for the commits up to `3e9a25f` (including `30fc8d9`, the published
-mirror): the root `.gitignore` ignored `.env*`, so `daimon-dapp/.env.ipfs`
-was never committed although the docs said it was, and a fresh checkout of
-those commits fails with "no such file .env.ipfs". The fix (an exception in
-`.gitignore`, the file tracked) is the commit after `3e9a25f`. To rebuild an
-older commit, first create `daimon-dapp/.env.ipfs` with exactly these two
-lines (the file is git-ignored there, so the clean-tree check still passes):
+What the recipe fixes, line by line:
 
-```
-NEXT_PUBLIC_CHAIN_ID=56
-NEXT_PUBLIC_WC_PROJECT_ID=
-```
+- **the context is the commit, not the working tree**: `git archive` of
+  `daimon-dapp/` at `HEAD` contains tracked files only, byte for byte as git
+  stores them (`-c core.autocrlf=false` stops Git for Windows from converting
+  line endings on the way out). Uncommitted edits, a stray `.env.local`,
+  `node_modules` never enter the build. `daimon-dapp/.dockerignore` repeats
+  the exclusions for whoever uses the directory as the context instead;
+- **the image is pinned by digest**: `node:24.20.0-bookworm` (Node 24.20.0
+  with the npm it bundles, 11.19.0, on Debian bookworm), `linux/amd64`, index digest
+  `sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2`.
+  A new Node is a deliberate change of the Dockerfile, hence a new commit;
+- **the path is `/build`**: the one absolute path webpack's client-entry
+  module ids can hash;
+- **`npm ci`** installs the dependency tree exactly as `package-lock.json`
+  records it (versions and integrity hashes); it fails if `package.json` and
+  the lockfile disagree;
+- **`SOURCE_COMMIT`** (the full 40-hex hash, checked by the Dockerfile) is
+  what `scripts/build-ipfs.mjs` writes into `mirror.json`: there is no `.git`
+  inside the container, so the commit is stamped from the outside, and the
+  CID is tied to that exact commit. Pass the hash of the tree you archived;
+- **`--no-cache`** rebuilds every layer (the proof below is of two builds
+  that share nothing); without it Docker reuses the `npm ci` layer, which is
+  fine for a second local run;
+- **`--output type=local,dest=release-ipfs`** writes the last stage of the
+  Dockerfile (a `scratch` image) to that directory: `CID.txt`,
+  `daimon-dapp.car` (every block, root = the CID), `mirror.json`,
+  `SHA256SUMS` (of the CAR) and `site/` (the exported folder, for a
+  `diff -r` against another build). No image is kept. The CID is also
+  printed in the build log (`ipfs-mirror: CID …`, visible with
+  `--progress=plain`).
 
-**Second caveat, found on 2026-10-08: the build also depends on the absolute
-path of the checkout.** A fresh worktree of `30fc8d9` in another directory
-produced `bafybeiet32sjazz466wciglemryp2x7tfijsjtmhsz5moi6jhayoc7ci3m`
-instead of the published CID. Every file was identical except the App
-Router's client-entry chunks (`main-app-*.js`, `app/layout-*.js`,
-`app/*/page-*.js`, `app/error-*.js`, 4 bytes in all) and, through their
-names, the pages: webpack's deterministic module ids are hashes of the module
-request, and Next's client-entry loader puts the ABSOLUTE paths of the client
-components into that request, so the ids change with the directory. The
-published CID is therefore reproducible from commit `30fc8d9` **built at
-`C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`** (checked: the
-branch-head build at that path has exactly the published chunk names and
-differs from the published mirror only by the commit string in
-`mirror.json`). For anyone else, "same commit ⇒ same CID" needs a fixed
-build location: the clean way is a container (e.g. Node 24 with the
-repository at `/src`, `npm ci && npm run build:ipfs`), with the mirror built
-and verified inside it. That container recipe is not in the repository yet
-(Docker is not installed on the build machine); until it is, a verifier
-compares everything but the ten client-entry chunks and the pages' chunk
-references, or rebuilds at the path above.
+The same command runs in GitHub Actions, `.github/workflows/ipfs-mirror.yml`
+("IPFS mirror"): on every tag push, on a manual trigger (Actions tab, "Run
+workflow", any branch or tag; GitHub offers it once the file exists on
+`master`) and on any push that changes the recipe itself (the Dockerfile,
+its ignore file, the two build scripts, the lockfile or the workflow, on any
+branch, so a change to the recipe proves itself before it is merged),
+**two** jobs on separate runners build the
+commit in the container and a third job fails unless both give the same CID,
+the same CAR (SHA-256) and the same `site/` (`diff -r`). Each run prints the
+CID in the log and in the run summary and uploads
+`ipfs-mirror-<commit>-build-<1|2>` (the CAR, `CID.txt`, `mirror.json`,
+`SHA256SUMS`, `site/`) as a run artifact, kept 90 days. The workflow has
+`contents: read` only, uses no secret, pins its actions by commit and never
+uploads to a pinning service or touches `daimon.blockchain`: a CID becomes
+*the* mirror only through the update procedure below. To check a published
+CID without trusting the maintainer's machine, read the commit in the
+mirror's `mirror.json`, run the workflow on it (or the recipe above) and
+compare.
+
+#### Proof (workflow, 2026-10-08)
+
+Commit `621129d` (the branch `ci/ipfs-mirror-reproducible`, two commits on
+top of `master` at `2c024f4`), run
+[37842179534](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534):
+attempt 1 (triggered by the push) and attempt 2 (a re-run, fresh runners),
+each with its two independent builds, so four builds on four runners, each
+`--no-cache`:
+
+| Attempt / build | CID | CAR SHA-256 | Files / bytes |
+|---|---|---|---|
+| [1 / 1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534019544) | `bafybeigiohbfulfa3conds2xcby477ywhhftffaspcskmxyczavm7mog6a` | `6d0fadc9a3dcf149778ce16f233ec2df5a4998b78b1ceb8329cc1b4e80014136` | 112 / 3,535,862 |
+| [1 / 2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534019784) | same | same | same |
+| [2 / 1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535172307) | same | same | same |
+| [2 / 2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535172745) | same | same | same |
+
+The compare job of each attempt
+([1](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113534859879),
+[2](https://github.com/daimon-dao/daimon-dao/actions/runs/37842179534/job/113535951576))
+found the two CIDs, the two CARs and the two `site/` folders identical. That
+CID is the container CID of commit `621129d`; it differs from the published
+mirror (`30fc8d9`, 114 files) because the code is newer (the terms-acceptance
+head script of `2c024f4`) and because of the path dependency above, and it
+was **not** uploaded anywhere: `daimon.blockchain` still points at
+`bafybeictizb6…mrki`. A local container build could not be run on the
+maintainer's machine (no Docker, Podman or WSL there; nothing was installed
+for this), which is the point of the recipe: the proof does not depend on
+that machine. What was checked there: the artifact of attempt 2 / build 1
+downloaded, its CAR's SHA-256 equal to `SHA256SUMS`, and the CID recomputed
+from its `site/` with `scripts/ipfs-cid.mjs` on Windows equal to `CID.txt`
+(the CID computation itself is machine-independent; only `next build` was
+not).
+
+Note on merge commits: `mirror.json` names the commit, so the CID of a
+branch head is not the CID of the merge commit that lands it on `master`
+(same bytes except that string). The CID to publish is the one of the
+tagged `master` commit, which is what the tag push builds.
+
+Older commits:
+
+- commits up to `3e9a25f` (including `30fc8d9`, the published mirror of
+  2026-10-08): the root `.gitignore` ignored `.env*`, so
+  `daimon-dapp/.env.ipfs` was never committed although the docs said it was,
+  and `git archive` of those commits has no `.env.ipfs`: the build fails
+  with "no such file .env.ipfs". The fix (an exception in `.gitignore`, the
+  file tracked) is the commit after `3e9a25f`. To rebuild an older commit,
+  use the directory as the context (`docker build daimon-dapp …` from a
+  clean checkout) after creating `daimon-dapp/.env.ipfs` with exactly these
+  two lines:
+
+  ```
+  NEXT_PUBLIC_CHAIN_ID=56
+  NEXT_PUBLIC_WC_PROJECT_ID=
+  ```
+
+- the published mirror (`30fc8d9`, CID `bafybeictizb6…mrki`) was built
+  before the container existed, on Windows at
+  `C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`: the container's
+  build of `30fc8d9` differs from it in the ten client-entry chunks and the
+  pages' references to them (the absolute-path dependency above), so it
+  cannot reproduce that CID. A verifier of *that* mirror compares everything
+  but those files, or rebuilds at that path. The next published CID is a
+  container CID.
 
 Independent check of the CID itself, with any IPFS node (kubo), on the
-exported folder: `ipfs add -r -Q --cid-version 1 out-ipfs` (kubo ≥ 0.40:
-the `unixfs-v1-2025` profile uses 1 MiB chunks and would print a different
-CID; do not apply it). The parameters are also written in `mirror.json`.
+exported folder: `ipfs add -r -Q --cid-version 1 release-ipfs/site` (kubo
+≥ 0.40: the `unixfs-v1-2025` profile uses 1 MiB chunks and would print a
+different CID; do not apply it). The parameters are also written in
+`mirror.json`.
 
 To compare a published mirror with a local build without trusting any
 gateway: fetch `https://<cid>.ipfs.<gw>/mirror.json`, rebuild that commit,
@@ -445,11 +561,18 @@ target anyone could be tricked into using). The Filebase and Lighthouse
 accounts hold the pins (credentials outside the repository, under
 `C:\Users\Utente\daimon-ipfs\`, never in a file of the repo).
 
-1. Merge the release into `master`; from the release commit, in
-   `daimon-dapp/`: `npm ci && npm run build:ipfs` twice from a clean tree
-   (the dirty-tree check refuses otherwise); both must print the same CID.
-   Note that `mirror.json` names the commit, so the CID is tied to that exact
-   commit: record commit and CID together.
+1. Merge the release into `master` and tag the release commit
+   (`ipfs-mirror-v<N>`). The tag push runs the "IPFS mirror" workflow
+   (`.github/workflows/ipfs-mirror.yml`): two container builds on separate
+   runners, compared; it can also be started by hand from the Actions tab on
+   that commit. The run summary shows the CID; the artifact
+   `ipfs-mirror-<commit>-build-1` holds `daimon-dapp.car`, `CID.txt`,
+   `mirror.json` and `SHA256SUMS`. With Docker at hand, the local recipe
+   ("Reproducible build: the container") on the same commit must give the
+   same CID. A plain `npm run build:ipfs` on a developer machine is a working
+   build but not the reference: its CID depends on the checkout path and the
+   toolchain. `mirror.json` names the commit, so the CID is tied to that
+   exact commit: record commit and CID together.
 2. Filebase: import `release-ipfs/daimon-dapp.car` into the bucket
    `daimon-dapp-mirror` through the S3 API with `--metadata import=car`
    (console uploads re-chunk and change the CID); `head-object` must return

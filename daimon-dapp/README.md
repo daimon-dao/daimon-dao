@@ -215,7 +215,12 @@ and assets, the vendored font, no middleware and no security headers),
 its limits, how to rebuild and verify the CID, how to test it locally
 (`npm run serve:ipfs`, `e2e/`) and the publishing steps are in
 [docs/IPFS_MIRROR.md](../docs/IPFS_MIRROR.md). The build's environment is
-the committed `.env.ipfs`, not `.env.local`.
+the committed `.env.ipfs`, not `.env.local`. The reference build is the
+container ([Dockerfile](Dockerfile), run twice and compared by
+`.github/workflows/ipfs-mirror.yml`): a local `npm run build:ipfs` is the
+same build, but its CID depends on the checkout path (Next hashes the
+absolute paths of the client components into the client-entry chunk ids),
+so only the container's CID is published and compared.
 
 ## Operational notes
 
