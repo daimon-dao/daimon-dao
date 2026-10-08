@@ -1,0 +1,107 @@
+# The IPFS mirror of the dApp, built twice in the pinned container
+# (daimon-dapp/Dockerfile) and compared: same commit, same CID, same CAR.
+# docs/IPFS_MIRROR.md, "Reproducible build: the container".
+#
+# Runs on a manual trigger and on every tag. It prints the CID in the log
+# and in the run summary, and uploads the CAR as a run artifact. It holds no
+# secret, publishes nothing, pins nothing and touches no domain: publishing
+# a CID is the manual procedure in the docs.
+name: IPFS mirror
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["*"]
+
+permissions:
+  contents: read
+
+env:
+  DOCKER_BUILDKIT: "1"
+
+jobs:
+  build:
+    name: Build ${{ matrix.build }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [1, 2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the mirror in the container (Node 24.20.0 by digest, path /build)
+        run: |
+          set -euo pipefail
+          # The context is the committed tree of daimon-dapp/ at this commit,
+          # exactly as git stores it: no working-tree state, no line-ending
+          # conversion. SOURCE_COMMIT goes into mirror.json.
+          git -c core.autocrlf=false archive --format=tar "${GITHUB_SHA}:daimon-dapp" \
+            | docker build - \
+                --build-arg "SOURCE_COMMIT=${GITHUB_SHA}" \
+                --no-cache --progress=plain \
+                --output type=local,dest=release-ipfs
+
+      - name: CID
+        run: |
+          set -euo pipefail
+          cid="$(cat release-ipfs/CID.txt)"
+          car_sha="$(cut -d' ' -f1 release-ipfs/SHA256SUMS)"
+          echo "commit     ${GITHUB_SHA}"
+          echo "CID        ${cid}"
+          echo "CAR sha256 ${car_sha}"
+          cat release-ipfs/mirror.json
+          {
+            echo "## IPFS mirror, build ${{ matrix.build }}"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| CID | \`${cid}\` |"
+            echo "| CAR sha256 | \`${car_sha}\` |"
+            echo "| files in site/ | $(find release-ipfs/site -type f | wc -l) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the CAR (and the exported site) as a run artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ipfs-mirror-${{ github.sha }}-build-${{ matrix.build }}
+          path: release-ipfs/
+          if-no-files-found: error
+          retention-days: 90
+
+  compare:
+    name: Same CID from both builds
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download both builds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ipfs-mirror-${{ github.sha }}-build-*
+          path: builds
+
+      - name: Compare
+        run: |
+          set -euo pipefail
+          b1="builds/ipfs-mirror-${GITHUB_SHA}-build-1"
+          b2="builds/ipfs-mirror-${GITHUB_SHA}-build-2"
+          c1="$(cat "$b1/CID.txt")"; c2="$(cat "$b2/CID.txt")"
+          s1="$(sha256sum "$b1/daimon-dapp.car" | cut -d' ' -f1)"
+          s2="$(sha256sum "$b2/daimon-dapp.car" | cut -d' ' -f1)"
+          echo "build 1: CID ${c1}  CAR sha256 ${s1}"
+          echo "build 2: CID ${c2}  CAR sha256 ${s2}"
+          status=ok
+          [ "$c1" = "$c2" ] || { echo "::error::CID differs between the two builds"; status=DIFFERENT; }
+          [ "$s1" = "$s2" ] || { echo "::error::CAR differs between the two builds"; status=DIFFERENT; }
+          diff -r "$b1/site" "$b2/site" || { echo "::error::site/ differs between the two builds"; status=DIFFERENT; }
+          {
+            echo "## Same commit, same CID: ${status}"
+            echo
+            echo "| build | CID | CAR sha256 |"
+            echo "|---|---|---|"
+            echo "| 1 | \`${c1}\` | \`${s1}\` |"
+            echo "| 2 | \`${c2}\` | \`${s2}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = ok ]

@@ -1,0 +1,17 @@
+# Context of the IPFS mirror build (Dockerfile). The reference context is
+# `git archive HEAD:daimon-dapp`, which contains tracked files only; this
+# file keeps the build honest when a directory is used as the context instead.
+node_modules
+e2e/node_modules
+.next
+out
+out-ipfs
+release-ipfs
+*.tsbuildinfo
+next-env.d.ts
+# Only the committed, public .env.ipfs may shape the bytes.
+.env*
+!.env.ipfs
+!.env.example
+Dockerfile
+.dockerignore

@@ -73,9 +73,12 @@ server, so compared with the app it lacks:
   Brave's resolution, which give the site its own origin.
 
 The mirror is identified by its content hash and anyone can rebuild it: check
-out the commit named in the mirror's `mirror.json`, then in `daimon-dapp/`
-run `npm ci && npm run build:ipfs`; the printed CID must equal the published
-one (parameters and proof in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md)). A
+out the commit named in the mirror's `mirror.json` and run the container
+build (`daimon-dapp/Dockerfile`; the recipe, the pinned image and the proof
+are in [docs/IPFS_MIRROR.md](docs/IPFS_MIRROR.md), "Reproducible build: the
+container"); the printed CID must equal the published one. The mirror
+published on 2026-10-08 (commit `30fc8d9`) predates the container and
+reproduces only at its original build path, as that section explains. A
 page served under a different CID is not the project's mirror. Reports about
 the mirror follow the same process as for the dApp.
 
