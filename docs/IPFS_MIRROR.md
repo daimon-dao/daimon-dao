@@ -225,8 +225,12 @@ What the recipe fixes, line by line:
   `--progress=plain`).
 
 The same command runs in GitHub Actions, `.github/workflows/ipfs-mirror.yml`
-("IPFS mirror"): on every tag push and on a manual trigger (Actions tab, "Run
-workflow", any branch or tag), **two** jobs on separate runners build the
+("IPFS mirror"): on every tag push, on a manual trigger (Actions tab, "Run
+workflow", any branch or tag; GitHub offers it once the file exists on
+`master`) and on any push that changes the recipe itself (the Dockerfile,
+its ignore file, the two build scripts, the lockfile or the workflow, on any
+branch, so a change to the recipe proves itself before it is merged),
+**two** jobs on separate runners build the
 commit in the container and a third job fails unless both give the same CID,
 the same CAR (SHA-256) and the same `site/` (`diff -r`). Each run prints the
 CID in the log and in the run summary and uploads

@@ -2,16 +2,30 @@
 # (daimon-dapp/Dockerfile) and compared: same commit, same CID, same CAR.
 # docs/IPFS_MIRROR.md, "Reproducible build: the container".
 #
-# Runs on a manual trigger and on every tag. It prints the CID in the log
-# and in the run summary, and uploads the CAR as a run artifact. It holds no
+# Runs on a manual trigger, on every tag, and on a push (any branch) that
+# changes the recipe itself: the Dockerfile, its ignore file, the build
+# scripts, the lockfile or this workflow. It prints the CID in the log and
+# in the run summary, and uploads the CAR as a run artifact. It holds no
 # secret, publishes nothing, pins nothing and touches no domain: publishing
 # a CID is the manual procedure in the docs.
+#
+# (A manual trigger is only offered by GitHub once the workflow file exists
+# on the default branch; the push trigger is what lets a branch prove the
+# recipe before it is merged. Path filters do not apply to tag pushes.)
 name: IPFS mirror
 
 on:
   workflow_dispatch:
   push:
     tags: ["*"]
+    branches: ["**"]
+    paths:
+      - daimon-dapp/Dockerfile
+      - daimon-dapp/.dockerignore
+      - daimon-dapp/package-lock.json
+      - daimon-dapp/scripts/build-ipfs.mjs
+      - daimon-dapp/scripts/ipfs-cid.mjs
+      - .github/workflows/ipfs-mirror.yml
 
 permissions:
   contents: read
@@ -70,6 +84,9 @@ jobs:
           path: release-ipfs/
           if-no-files-found: error
           retention-days: 90
+          # A re-run of the same run (another attempt, fresh runners) replaces
+          # the previous attempt's artifact instead of failing on the name.
+          overwrite: true
 
   compare:
     name: Same CID from both builds
