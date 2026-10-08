@@ -3,6 +3,9 @@ cache/
 broadcast/
 .env*
 !.env.example
+# The IPFS mirror build's fixed, public environment (docs/IPFS_MIRROR.md):
+# committed on purpose, it holds no secret.
+!.env.ipfs
 *.key
 *.pem
 ks*.txt

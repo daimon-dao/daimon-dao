@@ -17,7 +17,7 @@ package and the record changes were prepared on 2026-10-06.
 | Public gateways | `https://<cid>.ipfs.inbrowser.link/` renders the dApp with live mainnet data (the gateway Brave uses). `4everland.io` answered 504 (not replicated there). |
 | `daimon.blockchain` (2026-10-08) | One `setMany` from the owner, the Brand account `0xA40e…a49E`, signed on a Ledger (`m/44'/60'/11'/0/0`): Polygon tx `0xf6d7d539e862c16bc26bd73a8fbb5157a2b518872288e6160fec646f1a23a08a`, block 95,138,326, status 1, 204,468 gas at 328.3 gwei = 0.0671 POL. Records read back from the registry and from the ProxyReader `0x91ED…0091` (what Brave reads): `dweb.ipfs.hash` and `ipfs.html.value` both `bafybeictizb6…mrki`, `crypto.BNB.version.BEP20.address` empty. Both keys were set because Brave reads `dweb.ipfs.hash` first and falls back to `ipfs.html.value`; CIDv1 because Brave 1.90.79+ builds `https://<cid>.ipfs.inbrowser.link/` and validates the CID by multibase. UD's public profile API still showed the old records right after the block (its indexer lags). |
 
-Rebuild-and-compare for this mirror: `git checkout 30fc8d9 && cd daimon-dapp && npm ci && npm run build:ipfs` must print the CID above.
+Rebuild-and-compare for this mirror: `git checkout 30fc8d9 && cd daimon-dapp && npm ci && npm run build:ipfs` must print the CID above — with `.env.ipfs` created by hand (it was not tracked at that commit) and **at the original build path** `C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`, because the client-entry chunk ids depend on the absolute path (see "How anyone can rebuild and compare").
 
 ## What it is
 
@@ -157,6 +157,40 @@ git checkout <commit>            # the one in mirror.json of the published mirro
 cd daimon-dapp && npm ci && npm run build:ipfs
 cat release-ipfs/CID.txt         # must equal the published CID
 ```
+
+Caveat for the commits up to `3e9a25f` (including `30fc8d9`, the published
+mirror): the root `.gitignore` ignored `.env*`, so `daimon-dapp/.env.ipfs`
+was never committed although the docs said it was, and a fresh checkout of
+those commits fails with "no such file .env.ipfs". The fix (an exception in
+`.gitignore`, the file tracked) is the commit after `3e9a25f`. To rebuild an
+older commit, first create `daimon-dapp/.env.ipfs` with exactly these two
+lines (the file is git-ignored there, so the clean-tree check still passes):
+
+```
+NEXT_PUBLIC_CHAIN_ID=56
+NEXT_PUBLIC_WC_PROJECT_ID=
+```
+
+**Second caveat, found on 2026-10-08: the build also depends on the absolute
+path of the checkout.** A fresh worktree of `30fc8d9` in another directory
+produced `bafybeiet32sjazz466wciglemryp2x7tfijsjtmhsz5moi6jhayoc7ci3m`
+instead of the published CID. Every file was identical except the App
+Router's client-entry chunks (`main-app-*.js`, `app/layout-*.js`,
+`app/*/page-*.js`, `app/error-*.js`, 4 bytes in all) and, through their
+names, the pages: webpack's deterministic module ids are hashes of the module
+request, and Next's client-entry loader puts the ABSOLUTE paths of the client
+components into that request, so the ids change with the directory. The
+published CID is therefore reproducible from commit `30fc8d9` **built at
+`C:\Users\Utente\Desktop\daimon-dapp-ipfs\daimon-dapp`** (checked: the
+branch-head build at that path has exactly the published chunk names and
+differs from the published mirror only by the commit string in
+`mirror.json`). For anyone else, "same commit ⇒ same CID" needs a fixed
+build location: the clean way is a container (e.g. Node 24 with the
+repository at `/src`, `npm ci && npm run build:ipfs`), with the mirror built
+and verified inside it. That container recipe is not in the repository yet
+(Docker is not installed on the build machine); until it is, a verifier
+compares everything but the ten client-entry chunks and the pages' chunk
+references, or rebuilds at the path above.
 
 Independent check of the CID itself, with any IPFS node (kubo), on the
 exported folder: `ipfs add -r -Q --cid-version 1 out-ipfs` (kubo ≥ 0.40:
