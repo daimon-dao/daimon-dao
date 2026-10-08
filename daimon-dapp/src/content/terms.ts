@@ -8,6 +8,23 @@ export type TermsBlock =
 
 export const TERMS_VERSION = "0.3";
 
+/*
+ * Acceptance marker read before paint (src/components/TermsGate.tsx). This
+ * module has no "use client": the layout inlines TERMS_ACCEPTED_SCRIPT in
+ * <head>, and a value imported from a client module would reach the RSC
+ * payload as a client reference instead of the literal string (React
+ * replays the suspended <head>, intermittent #418 on fresh loads).
+ */
+export const TERMS_STORAGE_KEY = "daimon-terms";
+export const TERMS_ACCEPTED_ATTR = "data-terms-accepted";
+
+export const TERMS_ACCEPTED_SCRIPT = `
+try {
+  var a = JSON.parse(localStorage.getItem('${TERMS_STORAGE_KEY}') || 'null');
+  if (a && a.version === '${TERMS_VERSION}') document.documentElement.setAttribute('${TERMS_ACCEPTED_ATTR}', '');
+} catch (e) {}
+`;
+
 export const TERMS: Record<"en" | "it", { source: string; blocks: TermsBlock[] }> = {
   "en": {
     "source": "docs/DISCLAIMER_TERMS_v0.3_EN.md",

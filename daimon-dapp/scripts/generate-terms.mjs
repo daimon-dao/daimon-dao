@@ -102,6 +102,21 @@ const body =
   `  | { type: "ul"; items: TermsRun[][] }\n` +
   `  | { type: "hr" };\n\n` +
   `export const TERMS_VERSION = ${JSON.stringify(TERMS_VERSION)};\n\n` +
+  `/*\n` +
+  ` * Acceptance marker read before paint (src/components/TermsGate.tsx). This\n` +
+  ` * module has no "use client": the layout inlines TERMS_ACCEPTED_SCRIPT in\n` +
+  ` * <head>, and a value imported from a client module would reach the RSC\n` +
+  ` * payload as a client reference instead of the literal string (React\n` +
+  ` * replays the suspended <head>, intermittent #418 on fresh loads).\n` +
+  ` */\n` +
+  `export const TERMS_STORAGE_KEY = "daimon-terms";\n` +
+  `export const TERMS_ACCEPTED_ATTR = "data-terms-accepted";\n\n` +
+  `export const TERMS_ACCEPTED_SCRIPT = \`\n` +
+  `try {\n` +
+  `  var a = JSON.parse(localStorage.getItem('\${TERMS_STORAGE_KEY}') || 'null');\n` +
+  `  if (a && a.version === '\${TERMS_VERSION}') document.documentElement.setAttribute('\${TERMS_ACCEPTED_ATTR}', '');\n` +
+  `} catch (e) {}\n` +
+  `\`;\n\n` +
   `export const TERMS: Record<"en" | "it", { source: string; blocks: TermsBlock[] }> = ${JSON.stringify(terms, null, 2)};\n`;
 
 mkdirSync(dirname(outFile), { recursive: true });
