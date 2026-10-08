@@ -11,7 +11,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { TERMS_VERSION } from "@/content/terms";
+import {
+  TERMS_ACCEPTED_ATTR,
+  TERMS_STORAGE_KEY,
+  TERMS_VERSION,
+} from "@/content/terms";
 import { useI18n } from "@/components/LocaleProvider";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { Logo } from "@/components/Logo";
@@ -24,18 +28,12 @@ import { Logo } from "@/components/Logo";
  * new TERMS_VERSION (npm run terms) invalidates every stored acceptance.
  *
  * No flash either way: the gate is in the server HTML, and TERMS_ACCEPTED_SCRIPT
- * (run in <head> before paint, like the theme) marks <html> when the stored
- * version matches, which hides the gate by CSS until React takes over.
+ * (src/content/terms.ts, run in <head> before paint, like the theme) marks
+ * <html> when the stored version matches, which hides the gate by CSS until
+ * React takes over. The script, key and attribute live in that server-safe
+ * module, not here: this file is "use client", and a client export inlined in
+ * <head> by the layout becomes a client reference in the RSC payload.
  */
-export const TERMS_STORAGE_KEY = "daimon-terms";
-export const TERMS_ACCEPTED_ATTR = "data-terms-accepted";
-
-export const TERMS_ACCEPTED_SCRIPT = `
-try {
-  var a = JSON.parse(localStorage.getItem('${TERMS_STORAGE_KEY}') || 'null');
-  if (a && a.version === '${TERMS_VERSION}') document.documentElement.setAttribute('${TERMS_ACCEPTED_ATTR}', '');
-} catch (e) {}
-`;
 
 function readAccepted(): boolean {
   try {

@@ -14,7 +14,8 @@ import { RpcHealthBanner } from "@/components/RpcHealthBanner";
 import { TestnetBanner } from "@/components/TestnetBanner";
 import { GatewayNotice } from "@/components/GatewayNotice";
 import { GlobalErrorGuard } from "@/components/GlobalErrorGuard";
-import { TermsProvider, TERMS_ACCEPTED_SCRIPT } from "@/components/TermsGate";
+import { TermsProvider } from "@/components/TermsGate";
+import { TERMS_ACCEPTED_SCRIPT } from "@/content/terms";
 import { IS_TESTNET } from "@/config/contracts";
 import { IS_IPFS_BUILD } from "@/config/target";
 import {
