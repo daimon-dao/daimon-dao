@@ -8,7 +8,8 @@ launch had to satisfy. It was executed through
 section of [docs/MAINNET_LAUNCH_RECORD.md][rec] where it was done and read
 back from mined state. **SKIPPED** marks a launch step that was not run,
 with the reason. **In force** marks a duty that runs past the launch.
-**OPEN** marks an item the launch did not close.
+**OPEN** marks an item the launch did not close. **ON HOLD** marks an
+item paused by decision, with the date and the reason.
 
 To be executed **only after** the professional audit, on the range frozen at
 tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final)
@@ -493,10 +494,12 @@ input initializes the pool at the wrong price.
       read from `daimonV2.uniswapV2Pair()`).
       Done: production on chain 56 at app.daimon.money -- record:
       [Status][r-status], [Remaining][r-rem].
-- [ ] Re-enable Deployment Protection if the URL must stay private on staging;
+- [x] Re-enable Deployment Protection if the URL must stay private on staging;
       for the public launch, official domain + WalletConnect allowlist.
-      Official domain done: app.daimon.money ([Status][r-status]). **OPEN**:
-      the WalletConnect allowlist is not in the launch record -- to confirm.
+      Done: official domain app.daimon.money ([Status][r-status]);
+      app.daimon.money is on the WalletConnect/Reown allowlist -- a
+      WalletConnect connection to app.daimon.money from a phone succeeded
+      on 2026-10-03.
 
 ## Fee automation (post-fix Zenith #1)
 
@@ -539,13 +542,21 @@ input initializes the pool at the wrong price.
 - [x] Set `NEXT_PUBLIC_CHAIN_ID=56` (this alone removes the noindex tag and
       the testnet banner).
       Done -- record: [Status][r-status].
-- [ ] Add the new domain to the WalletConnect/Reown allowlist.
-      **OPEN**: not in the launch record -- to confirm.
+- [x] Add the new domain to the WalletConnect/Reown allowlist.
+      Done: app.daimon.money is on the allowlist -- a WalletConnect
+      connection from a phone succeeded on 2026-10-03.
 - [ ] Update every link: README, org profile, protocol paper, social channels.
       README done (`de50a49`, 2026-09-30: mainnet status, address table,
-      daimon.money and app.daimon.money as official channels). **OPEN**: org
-      profile, protocol paper and social channels -- not in the launch
-      record, to confirm.
+      daimon.money and app.daimon.money as official channels). Social
+      channels done (checked 2026-10-09): the X profile (bio and website
+      field) and the descriptions of the three Telegram channels/groups name
+      daimon.money and app.daimon.money. **OPEN** (checked 2026-10-09):
+      the GitHub org profile README (`daimon-dao/.github`) still describes
+      the testnet status and the audit as "in preparation", links whitepaper
+      v0.1 and lists no daimon.money link; the org "website" field is empty
+      and the repository "homepage" field still points at
+      daimon-dao.vercel.app; the protocol paper (v0.2) names only the
+      repository, not daimon.money or app.daimon.money.
 - [x] Announce the official domain explicitly and repeatedly: at launch,
       clone sites will appear.
       Done at launch: the 2026-09-30 announcement names daimon.money and
@@ -554,16 +565,37 @@ input initializes the pool at the wrong price.
 
 **Mirror — decentralised, censorship-resistant**
 
-**OPEN**: none of the mirror was built at launch.
+Built after launch: the mirror is documented in docs/IPFS_MIRROR.md; the
+current version is v2 (tag `mirror-v2`, commit `1cccf9d`, published
+2026-10-09).
 
-- [ ] Register a blockchain domain (Unstoppable Domains: .crypto, .x)
-- [ ] Export the dApp as a static site and publish it to IPFS
-- [ ] Pin the content (Pinata, Web3.Storage or equivalent) — unpinned IPFS
+- [x] Register a blockchain domain (Unstoppable Domains: .crypto, .x)
+      Done: `daimon.blockchain` (Unstoppable Domains, owned by the Brand
+      account) -- docs/IPFS_MIRROR.md, "Unstoppable Domains".
+- [x] Export the dApp as a static site and publish it to IPFS
+      Done: static build target `npm run build:ipfs`, built in a container
+      so that anyone can reproduce the CID; v2 = tag `mirror-v2`, CID
+      `bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq` --
+      docs/IPFS_MIRROR.md, "Mirror v2" and "Reproducible build".
+- [x] Pin the content (Pinata, Web3.Storage or equivalent) — unpinned IPFS
       content becomes unavailable
-- [ ] Point the blockchain domain to the IPFS hash
-- [ ] Verify the static export does not break: the i18n cookie and the wagmi
+      Done: pinned on Filebase and on Lighthouse (CAR imports, CID
+      preserved); v1 stays pinned as the previous version --
+      docs/IPFS_MIRROR.md, "Mirror v2" and "Pinning".
+- [x] Point the blockchain domain to the IPFS hash
+      Done: `dweb.ipfs.hash` and `ipfs.html.value` of `daimon.blockchain`
+      set to the v2 CID, Polygon tx `0x38d1fa67…eac149` (2026-10-09), read
+      back from the registry and resolved in Brave -- docs/IPFS_MIRROR.md,
+      "Mirror v2".
+- [x] Verify the static export does not break: the i18n cookie and the wagmi
       SSR state currently rely on server-side rendering, which a static
       export removes
+      Done: the locale cookie is replaced by the browser's stored choice
+      applied after hydration, the wagmi cookie store by its default
+      `localStorage` store with reconnect after mount; checked in the
+      browser against a local fork with a mock wallet (`daimon-dapp/e2e`)
+      and on the published CID -- docs/IPFS_MIRROR.md, "What a server used
+      to do" and "Testing locally".
 
 **Why both**
 
@@ -581,20 +613,29 @@ and a statement of intent, not the main channel.
 
 ## Legal (before mainnet)
 
-**OPEN**: not covered by the launch record. These items stay unticked here
-until their status is recorded.
+**ON HOLD** (note of 2026-10-09). A crypto-specialised lawyer was consulted
+in August 2026; the legal front at launch is the worldwide disclaimer
+(DISCLAIMER_TERMS v0.3: docs/DISCLAIMER_TERMS_v0.3_EN.md, authoritative,
+with the Italian courtesy translation) and the public team holdings
+statement (docs/TEAM_HOLDINGS.md). The entity structure is deferred by
+decision of 2026-09-12, among the last steps; the treasury accumulates
+untouched meanwhile. A MiCA opinion was requested from an external law firm
+on 2026-08-24 and no reply has been received; it is on hold together with
+the entity, as is the tax review. The four items below stay unticked until
+the entity question is reopened.
 
-- [ ] Consult a crypto-specialised lawyer before mainnet deployment — not to
-      incorporate, but to understand exposure, obligations and token
-      classification under local and EU regulation (MiCA)
-- [ ] Revisit the question of a legal structure once the protocol is live and
-      the treasury can fund it. A structure decided by DAO vote and paid from
-      protocol revenue is more coherent with the project than one funded
-      personally in advance.
-- [ ] Confirm the protocol paper disclaimer (Section 14) is adequate for the
-      jurisdictions where the interface is accessible
-- [ ] Review tax obligations arising from protocol operations and treasury
-      holdings
+- [ ] **ON HOLD** — Consult a crypto-specialised lawyer before mainnet
+      deployment — not to incorporate, but to understand exposure,
+      obligations and token classification under local and EU regulation
+      (MiCA)
+- [ ] **ON HOLD** — Revisit the question of a legal structure once the
+      protocol is live and the treasury can fund it. A structure decided by
+      DAO vote and paid from protocol revenue is more coherent with the
+      project than one funded personally in advance.
+- [ ] **ON HOLD** — Confirm the protocol paper disclaimer (Section 14) is
+      adequate for the jurisdictions where the interface is accessible
+- [ ] **ON HOLD** — Review tax obligations arising from protocol operations
+      and treasury holdings
 
 Contracts requiring an identifiable counterparty — audits, listings, service
 agreements — are signed by an individual member of the DAO. That is normal
