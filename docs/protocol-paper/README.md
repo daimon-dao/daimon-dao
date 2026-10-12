@@ -59,5 +59,14 @@ the files for web preview. Rebuilding an existing release from its tag must
 reproduce the released content page for page; a change in wording is a new
 version, never a silent rebuild.
 
+From v0.3 the release PDFs are built by the GitHub Actions workflow
+[`.github/workflows/protocol-paper.yml`](../../.github/workflows/protocol-paper.yml)
+on a clean `ubuntu-24.04` runner, so that the toolchain is the same for
+every release and recorded here: Python 3.12, `reportlab` 5.0.1, `pikepdf`
+10.17.0, `Pillow` 12.3.0, and the DejaVu fonts from Debian's
+`fonts-dejavu-core`. The workflow prints the SHA-256 of both PDFs in its log
+and uploads them as an artifact; the maintainer downloads the artifact and
+commits the files by hand. The workflow commits nothing and uses no secret.
+
 See [CHANGELOG.md](CHANGELOG.md) for the release history and what changed in
 each version.
