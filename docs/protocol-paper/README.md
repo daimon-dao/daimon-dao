@@ -1,16 +1,19 @@
 # Daimon DAO — Protocol paper
 
-**Current version: v0.2** (post-audit release, 2026-09-11). Up to v0.1 the
+**Current version: v0.3** (mainnet release, 2026-10-12). Up to v0.1 the
 document was published as the *whitepaper*; the name changed, the document
 and its history did not. The **English edition is the primary document**;
 the Italian edition is a translation. If the two ever diverge, the English
 text prevails.
 
-- [Daimon_Protocol_Paper_EN_v0.2.pdf](Daimon_Protocol_Paper_EN_v0.2.pdf) — English (primary)
-- [Daimon_Protocol_Paper_IT_v0.2.pdf](Daimon_Protocol_Paper_IT_v0.2.pdf) — Italiano
+- [Daimon_Protocol_Paper_EN_v0.3.pdf](Daimon_Protocol_Paper_EN_v0.3.pdf) — English (primary)
+- [Daimon_Protocol_Paper_IT_v0.3.pdf](Daimon_Protocol_Paper_IT_v0.3.pdf) — Italiano
 
 Previous versions, kept exactly as released:
 
+- v0.2 (2026-09-11, post-audit release, tag `protocol-paper-v0.2`):
+  [Daimon_Protocol_Paper_EN_v0.2.pdf](Daimon_Protocol_Paper_EN_v0.2.pdf) ·
+  [Daimon_Protocol_Paper_IT_v0.2.pdf](Daimon_Protocol_Paper_IT_v0.2.pdf)
 - v0.1 (2026-07-27, draft pending the external audit, tag `whitepaper-v0.1`):
   [Daimon_Whitepaper_EN_v0.1.pdf](Daimon_Whitepaper_EN_v0.1.pdf) ·
   [Daimon_Whitepaper_IT_v0.1.pdf](Daimon_Whitepaper_IT_v0.1.pdf)
@@ -35,7 +38,12 @@ Previous versions, kept exactly as released:
 
   (the `-M` and the two paths are needed across the v0.1 → v0.2 rename;
   `git log --follow -- docs/protocol-paper/protocol_paper_EN.md` walks the
-  whole history of the file.)
+  whole history of the file.) Between two releases under the current name
+  the plain form is enough:
+
+  ```sh
+  git diff protocol-paper-v0.2 protocol-paper-v0.3 -- docs/protocol-paper/protocol_paper_EN.md
+  ```
 
 ## Building the PDFs
 
@@ -50,6 +58,15 @@ The script writes both editions, sets the document metadata, and linearizes
 the files for web preview. Rebuilding an existing release from its tag must
 reproduce the released content page for page; a change in wording is a new
 version, never a silent rebuild.
+
+From v0.3 the release PDFs are built by the GitHub Actions workflow
+[`.github/workflows/protocol-paper.yml`](../../.github/workflows/protocol-paper.yml)
+on a clean `ubuntu-24.04` runner, so that the toolchain is the same for
+every release and recorded here: Python 3.12, `reportlab` 5.0.1, `pikepdf`
+10.17.0, `Pillow` 12.3.0, and the DejaVu fonts from Debian's
+`fonts-dejavu-core`. The workflow prints the SHA-256 of both PDFs in its log
+and uploads them as an artifact; the maintainer downloads the artifact and
+commits the files by hand. The workflow commits nothing and uses no secret.
 
 See [CHANGELOG.md](CHANGELOG.md) for the release history and what changed in
 each version.

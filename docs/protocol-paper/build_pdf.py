@@ -31,12 +31,12 @@ from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, ListFlowable
 from reportlab.platypus.tableofcontents import TableOfContents
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VERSION = "v0.2"
+VERSION = "v0.3"
 
 EDITIONS = {
     "EN": {
         "source": "protocol_paper_EN.md",
-        "output": "Daimon_Protocol_Paper_EN_v0.2.pdf",
+        "output": "Daimon_Protocol_Paper_EN_v0.3.pdf",
         "title": "Daimon (DMN) — Protocol paper",
         "subject": "An ownerless, DAO-governed deflationary protocol on BNB Chain",
         "subtitle": ["An ownerless, DAO-governed deflationary", "protocol on BNB Chain"],
@@ -48,7 +48,7 @@ EDITIONS = {
     },
     "IT": {
         "source": "protocol_paper_IT.md",
-        "output": "Daimon_Protocol_Paper_IT_v0.2.pdf",
+        "output": "Daimon_Protocol_Paper_IT_v0.3.pdf",
         "title": "Daimon (DMN) — Protocol paper (versione italiana)",
         "subject": "Protocollo deflazionario senza proprietario, governato da una DAO, su BNB Chain",
         "subtitle": ["Un protocollo deflazionario senza proprietario,", "governato da una DAO, su BNB Chain"],

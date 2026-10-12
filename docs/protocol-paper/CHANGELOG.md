@@ -7,12 +7,88 @@ any statement can be cited against an immutable snapshot.
 
 ---
 
-## [Unreleased] — for v0.3
+## [0.3] — 2026-10-12
 
-Source changes only: the released v0.2 PDFs are not regenerated, and the
-`.md` sources run ahead of them until v0.3 is built and tagged.
+**Mainnet release.** The audited code was deployed to BNB Smart Chain
+mainnet on 2026-09-29 (`docs/MAINNET_LAUNCH_RECORD.md`); this version brings
+the document to the present. Every statement about the launch is a fact
+with its block, time and transaction hash; every present-day figure is dated
+and read from the chain (block 127,195,880 of 2026-10-12 unless stated) or
+from a named file. The v0.1 and v0.2 PDFs are untouched; the v0.3 PDFs are
+rebuilt from the `.md` sources by `build_pdf.py`. Nothing changes in the
+roadmap beyond §12.1, and the document adds no price, yield or treasury
+return figure.
 
-- **§4.4 and §11.3, §11.5, the project's own tokens** (EN and IT): "neither
+### Changes, section by section (EN and IT)
+
+- **Title, header, footer.** "v0.2 — post-audit release" becomes "v0.3 —
+  mainnet release"; the footer gains the mainnet line (chain id 56, since
+  2026-09-29, addresses in §5.4, launch record).
+- **§1 abstract.** Four post-audit rehearsals, the mainnet deployment of
+  2026-09-29, the migration window open until 2026-12-28.
+- **§4.1.1, §4.1.2, §4.1.4 — the predecessor today.** DMX's transaction cap
+  raised to the entire supply by its owner on 2026-09-29 (tx
+  `0xfaef2123…b47b`) so that any holding can migrate in one transaction;
+  the dead-address table gains a second, dated column; `owner()` re-read at
+  block 127,195,880; the two owner actions that opened the window (the cap,
+  the fee exemption of the timelock, tx `0x8aaac289…d54d`) and the owner-key
+  rule for the whole window.
+- **§4.2, §6.3 — the 4% as a fact.** Set in phase 2 on 2026-09-29 (tx
+  `0x0e486b53…bcca`) before any trade existed, read back since, verified to
+  the wei on the first buy and the first sell; no mainnet proposal yet.
+- **§4.3, §4.4 — the window.** 90 days, `migrationDeadline` 1798420124 =
+  2026-12-28 01:08:44 UTC; claims possible from 2026-09-29 20:06:24 UTC; a
+  dated progress figure (341.31 B DMX migrated on the thirteenth day); the
+  project wallets' one claim as a fact.
+- **§5.2, §10.1 — the deployment as it happened.** 36 of 36 invariants (not
+  34) at block 124,627,634; the post-launch mode with a 37th check; the
+  deployer's roles re-read on 2026-10-12: none.
+- **§5.3, §8.6, §10.1 — the guardian.** The mainnet Safe `0x37F4…c7a8`
+  (three signers, threshold two); the expiry as a date, 2029-09-28 01:08:32
+  UTC, timestamp 1885252112, read identical from the three contracts.
+- **§5.4 — new: the deployed contracts.** The address table (token proxy
+  and implementation, migration, staking, governor, timelock, pair, guardian
+  Safe, DMX, dead address), the source verification, and the instruction to
+  verify on chain.
+- **§6.5 — the cycle's first run.** Steps 1–3 ran on 2026-09-29 at 05:04:08
+  UTC; step 4 waits for 1 BNB; no burn yet.
+- **§10.2.** 203 tests: the 180 of `audit-final` plus 23 for the launch
+  tooling (the liquidity seeder and the predecessor's cap).
+- **§10.4 — known limitations.** The least-proven path has now run on
+  mainnet. **New limitation, the dust stake placed just before a reward
+  notification**: the launch-day transaction `0xa1238092…d048` (block
+  124,657,486), reconstructed from its receipt, with both figures (0.054165
+  BNB notified and claimed; about 0.033 BNB net after the flash loan), why
+  the #35 reserve does not cover it, why the exposure is bounded to the
+  empty-staking period and is now closed, and the exact proposal threshold
+  (1,000 × 10^18 units of voting power).
+- **§10.5 — the interface today.** `app.daimon.money`, `daimon.money`, the
+  IPFS mirror (`daimon.blockchain`, CID `bafybeidmjrqs5…kvyq`, reproducible
+  container build, `docs/IPFS_MIRROR.md`), and the monitor (read-only,
+  private alert channel, `docs/SPEC_MONITOR.md`).
+- **§10.6 — four rehearsals and the mainnet record.** Chapel campaign 2b
+  (2026-09-14 to 28, the 60/40 proposal run end to end as its proposal 0)
+  and the mainnet-fork rehearsal against the real DMX added. New **Mainnet**
+  subsection: the launch sequence (phases, verification, initial liquidity,
+  first conversion, window opening) with blocks, times and hashes, the two
+  skipped runbook steps, and the state read at block 127,195,880.
+- **§10.7.** The audited code deployed untouched; the commitment status
+  brought to the present; the bug bounty as `SECURITY.md` states it
+  (treasury-funded, to be proposed to governance).
+- **§11.1, §11.3, §11.4, §11.5, §11.7 — the treasury as it is.** The
+  treasury pointer read from the chain; the claim and the seed as facts
+  (`0x39b44eab…9549`, `0xdc8dd206…dfa4`, `LiquiditySeeder` `0x21ab…e062`,
+  97,828.093 LP tokens minted to the timelock); G1 written and not yet
+  proposed, with the published order of the first votes; custody wording
+  aligned to TREASURY_POLICY v1.2 §2; the timelock not fee-exempt until the
+  second vote; the policy's version and tag; the dated holdings of the
+  project wallets; `docs/TEAM_HOLDINGS.md` referenced for personal holdings.
+- **§12.1.** Phase 1 is live; what remains is the first proposals, then the
+  sweep and the continuity burn.
+- **§13, §14.** "public and deployed, at the addresses of Section 5.4";
+  `DISCLAIMER_TERMS` cited with its version (0.3).
+- **§4.4 and §11.3, §11.5, the project's own tokens** (EN and IT; queued in
+  the sources since 2026-09-28, released here): "neither
   will ever claim" is amended. The project wallets claim ONLY the
   initial-liquidity quota, before the migration window opens, and the LP
   tokens of that liquidity go to the timelock in a published transaction;
@@ -23,6 +99,16 @@ Source changes only: the released v0.2 PDFs are not regenerated, and the
   cap-exempt on DMX -- can claim exactly 1:1 before the window opens
   (Chapel campaign 2b, docs/CHAPEL_2B_RESULTS.md, H1.10-H1.14; same
   amendment in docs/TREASURY_POLICY_v1.0.md v1.2, §2 and §6b).
+
+| File | Role |
+|---|---|
+| `Daimon_Protocol_Paper_EN_v0.3.pdf` | English edition (primary) |
+| `Daimon_Protocol_Paper_IT_v0.3.pdf` | Italian edition (translation) |
+| `protocol_paper_EN.md` | English source |
+| `protocol_paper_IT.md` | Italian source |
+| `build_pdf.py` | builds both PDFs from the sources |
+
+Git tag: `protocol-paper-v0.3`.
 
 ---
 

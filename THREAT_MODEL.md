@@ -205,8 +205,14 @@ The DAO is powerful but **bound by non-bypassable hardcoded limits**:
    on the unclaimed residual (benign: it ends up in the treasury at the
    sweep).
 4. **BNB rewards and dust.** The reward accumulator (1e27 scale) can leave
-   undistributed fractions; BNB sent with no stakers is queued and
-   redistributed at the first useful notify.
+   undistributed fractions. BNB notified while `totalVotingPower == 0` goes
+   to `zeroStakerReserve` and is never merged into a later distribution
+   (#35): it can be moved only by governance, through
+   `transferZeroStakerReserve`. A notify that arrives when the voting power
+   is near zero rather than zero is distributed pro rata to whoever holds
+   it: the launch-day transaction in the launch record (a 1-wei stake placed
+   just before the first conversion) is the case, bounded to the
+   empty-staking period.
 5. **Dependency on the PancakeSwap router.** The swaps rely on the external V2
    router; a malfunction of it degrades fees/buyback (handled with try/catch,
    does not block transfers).

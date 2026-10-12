@@ -5,13 +5,14 @@ sentinella, cosa succede se. Nessuna proposta parte prima che quella
 che la abilita sia eseguita. Ciclo per proposta: 5 giorni di voto +
 7 di timelock = ~13 giorni (queue ed execute manuali, da chiunque).*
 
-Legenda indirizzi (mainnet, da compilare al deploy):
+Legenda indirizzi (mainnet, chainId 56, deploy del 29 settembre 2026 —
+docs/MAINNET_LAUNCH_RECORD.md):
 ```
-TOKEN     DaimonV2 proxy        0x…
-TIMELOCK  treasury              0x…
-GOVERNOR                        0x…
-STAKING                         0x…
-MIGRATION                       0x…
+TOKEN     DaimonV2 proxy        0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a
+TIMELOCK  treasury              0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891
+GOVERNOR                        0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De
+STAKING                         0xBb596e7308D6C5AED55cEC597D372840Cbe575b1
+MIGRATION                       0x76368b60514b145617385847aCFF7b7EA9764725
 DEAD      0x000000000000000000000000000000000000dEaD
 ```
 

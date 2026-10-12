@@ -1,0 +1,83 @@
+# Builds the protocol paper PDFs from the Markdown sources, on a clean
+# runner, with every tool pinned, and publishes them as a workflow artifact
+# together with two rendered pages of the English edition. Nothing is
+# committed by the workflow: the maintainer downloads the artifact, checks
+# the hashes printed in the log, and commits the PDFs by hand.
+#
+# No secrets are used. The token has read access to the repository only.
+
+name: Protocol paper PDFs
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "docs/protocol-paper/**"
+      - ".github/workflows/protocol-paper.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: DejaVu fonts and poppler (pdftoppm, pdftotext, pdfinfo)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core poppler-utils
+          dpkg-query -W -f='${Package} ${Version}\n' fonts-dejavu-core poppler-utils
+
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Python libraries, pinned
+        run: |
+          python -m pip install --no-cache-dir --disable-pip-version-check \
+            reportlab==5.0.1 pikepdf==10.17.0 Pillow==12.3.0
+          python -m pip freeze
+
+      - name: Build both editions
+        working-directory: docs/protocol-paper
+        run: |
+          mkdir -p "$RUNNER_TEMP/paper"
+          python build_pdf.py --fonts /usr/share/fonts/truetype/dejavu --out "$RUNNER_TEMP/paper"
+          ls -l "$RUNNER_TEMP/paper"
+
+      - name: Page counts, and the cover and section 5.4 of the EN edition as PNG (150 dpi)
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/paper"
+          en="$out/Daimon_Protocol_Paper_EN_v0.3.pdf"
+          it="$out/Daimon_Protocol_Paper_IT_v0.3.pdf"
+          pages=$(pdfinfo "$en" | awk '/^Pages:/{print $2}')
+          # The table of contents also names section 5.4; the body page is the
+          # last page where the heading appears.
+          p54=""
+          for p in $(seq 1 "$pages"); do
+            if pdftotext -f "$p" -l "$p" "$en" - | grep -q 'The deployed contracts'; then p54="$p"; fi
+          done
+          test -n "$p54"
+          echo "EN: $pages pages; section 5.4 on page $p54"
+          echo "IT: $(pdfinfo "$it" | awk '/^Pages:/{print $2}') pages"
+          pdftoppm -r 150 -png -f 1 -l 1 -singlefile "$en" "$out/EN_v0.3_page1_cover"
+          pdftoppm -r 150 -png -f "$p54" -l "$p54" -singlefile "$en" "$out/EN_v0.3_page${p54}_section5.4"
+          ls -l "$out"
+
+      - name: SHA-256 of the PDFs
+        run: sha256sum "$RUNNER_TEMP"/paper/*.pdf
+
+      - name: Upload the PDFs and the PNGs as one artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protocol-paper-v0.3
+          path: ${{ runner.temp }}/paper/
+          retention-days: 90
+          if-no-files-found: error
