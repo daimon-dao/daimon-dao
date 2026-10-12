@@ -57,6 +57,14 @@ from the Migration contract to the Timelock by `sweepUnclaimed()`; the
 formula already excludes them there, so the circulating figure does not
 jump on the sweep.
 
+**The project's own legacy tokens are already out of the figure.** The
+two legacy project wallets on DMX (see [TEAM_HOLDINGS.md](TEAM_HOLDINGS.md)
+and the [protocol paper v0.3](protocol-paper/protocol_paper_EN.md), §11.5)
+do not claim, apart from the initial-liquidity quota exchanged before the
+migration window opened: their DMN stay in the Migration contract and
+reach the Timelock at the sweep, two balances the formula subtracts. They
+are never counted as circulating, before or after the deadline.
+
 ## Recompute it yourself
 
 One command, with [Foundry](https://getfoundry.sh/)'s `cast` and `awk`.
