@@ -545,18 +545,20 @@ input initializes the pool at the wrong price.
 - [x] Add the new domain to the WalletConnect/Reown allowlist.
       Done: app.daimon.money is on the allowlist -- a WalletConnect
       connection from a phone succeeded on 2026-10-03.
-- [ ] Update every link: README, org profile, protocol paper, social channels.
+- [x] Update every link: README, org profile, protocol paper, social channels.
       README done (`de50a49`, 2026-09-30: mainnet status, address table,
       daimon.money and app.daimon.money as official channels). Social
       channels done (checked 2026-10-09): the X profile (bio and website
       field) and the descriptions of the three Telegram channels/groups name
-      daimon.money and app.daimon.money. **OPEN** (checked 2026-10-09):
-      the GitHub org profile README (`daimon-dao/.github`) still describes
-      the testnet status and the audit as "in preparation", links whitepaper
-      v0.1 and lists no daimon.money link; the org "website" field is empty
-      and the repository "homepage" field still points at
-      daimon-dao.vercel.app; the protocol paper (v0.2) names only the
-      repository, not daimon.money or app.daimon.money.
+      daimon.money and app.daimon.money. Org profile done: the GitHub org
+      profile README (`daimon-dao/.github`) was rewritten on 2026-10-10
+      (mainnet status, Zenith audit, migration window, mirror, daimon.money
+      and app.daimon.money) and pointed at protocol paper v0.3 on 2026-10-12
+      (commit `a8d64bd`); the org "website" field and the repository
+      "homepage" field read daimon.money (checked 2026-10-12). Protocol paper
+      done: v0.3, the mainnet release of 2026-10-12 (tag
+      `protocol-paper-v0.3`), names daimon.money and app.daimon.money in
+      section 10.5. Closed 2026-10-12.
 - [x] Announce the official domain explicitly and repeatedly: at launch,
       clone sites will appear.
       Done at launch: the 2026-09-30 announcement names daimon.money and
