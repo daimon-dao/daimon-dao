@@ -133,7 +133,9 @@ precedence, and the deployed code takes precedence over all of them:
   on the live testnet
 - [AUDIT_BRIEF.md](AUDIT_BRIEF.md) — orientation for the auditor (frozen scope
   tag)
-- [DEPLOY.md](DEPLOY.md) — deploy procedure
+- [DEPLOY.md](DEPLOY.md) — the testnet deploy procedure (BSC testnet, chain id 97);
+  the mainnet deployment of 2026-09-29 is recorded in
+  [docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md)
 - [daimon-dapp/](daimon-dapp/) — the official dApp (Next.js + wagmi), with its
   own [README](daimon-dapp/README.md)
 

@@ -32,8 +32,9 @@ HEARTBEAT      il bot dice "sono vivo" ogni 6 ore. Senza, non si
 
 ## FASE 1 — SICUREZZA
 
-Debutta sul testnet Chapel con gli indirizzi di prova. Al mainnet si
-cambiano solo RPC e indirizzi.
+Ha debuttato sul testnet Chapel con gli indirizzi di prova; al mainnet
+sono cambiati solo RPC e indirizzi. Dal 2026-09-29 il monitor gira sul
+mainnet BSC (chain id 56), sugli indirizzi del lancio.
 
 Indirizzi da osservare: DaimonV2 (token), DaimonStaking,
 DaimonGovernor, DaimonTimelock (è anche la treasury),

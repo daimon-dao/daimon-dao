@@ -204,7 +204,7 @@ monitor identified the cause. Everything happened in ONE atomic transaction:
 |---|---|
 | tx | `0xa1238092425b7c1cc0840568d1ce9fe7534f842e584555049df353363f2ed048` |
 | block / time | 124657486, **2026-09-29 05:04:08 UTC** (1h18m after the seed, 16 min after the pause snapshot) |
-| actor | contract `0x818fF7dbfF345390F27E7C6EA209D3b1be8bf900` (3,247 bytes), called by the EOA `0xfc3facd67138966ab0c841e905b0c4bca1abe92f` (EIP-7702-delegated, nonce 749 at the time) |
+| actor | contract `0x818fF7dbFf345390f27e7c6eA209d3b1bE8bF900` (3,247 bytes), called by the EOA `0xfc3facd67138966ab0c841e905b0c4bca1abe92f` (EIP-7702-delegated, nonce 749 at the time) |
 | gas | 1,104,173 at 0.05 gwei; tx index 188 |
 
 The sequence, from the 40 logs of the receipt:

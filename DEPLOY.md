@@ -4,6 +4,12 @@ Step-by-step guide to deploy the entire stack (DaimonV2 token + staking +
 governor + timelock + migration + mock of the old Daimon) on BSC testnet
 (chain id 97) with Foundry.
 
+> **Scope: testnet.** This is the procedure that was used on BSC testnet
+> (Chapel, chain id 97). The mainnet deployment of 2026-09-29 is recorded,
+> transaction by transaction, in
+> [docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md); the launch
+> order it followed is [CHECKLIST_MAINNET.md](CHECKLIST_MAINNET.md).
+
 ## What the scripts do
 
 The deploy is **two separate broadcasts**, run one after the other. The
