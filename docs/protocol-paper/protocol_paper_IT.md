@@ -1,9 +1,11 @@
 # DAIMON (DMN)
 ## Un protocollo deflazionario senza proprietario, governato da una DAO, su BNB Chain
 
-**Protocol paper — v0.2**
-*Versione post-audit. Pubblicato in precedenza come "Whitepaper — Bozza
-v0.1". Traduzione italiana: la versione inglese è quella di riferimento.*
+**Protocol paper — v0.3**
+*Versione mainnet. Pubblicato in precedenza come "Protocol paper — v0.2"
+(versione post-audit, 11 settembre 2026) e, prima ancora, come "Whitepaper —
+Bozza v0.1". Traduzione italiana: la versione inglese è quella di
+riferimento.*
 
 ---
 
@@ -45,10 +47,11 @@ potrà superare.
 
 I contratti sono stati auditati in modo indipendente. Il report è pubblico,
 e ognuno dei suoi finding è stato corretto nel codice oppure accettato con
-motivazione scritta (Sezione 10.7). Il codice auditato è stato da allora
-deployato altre due volte con gli script di mainnet, la seconda su una
-chain pubblica in tempo reale, prima di qualsiasi deploy su mainnet
-(Sezione 10.6).
+motivazione scritta (Sezione 10.7). Il codice auditato è stato provato
+altre quattro volte con gli script di mainnet, due delle quali su una chain
+pubblica in tempo reale, ed è stato deployato intatto sulla mainnet di BNB
+Smart Chain il 29 settembre 2026 (Sezione 10.6). La finestra di migrazione è
+aperta fino al 28 dicembre 2026 (Sezione 4.3).
 
 Il protocollo non promette rendimenti. Garantisce regole: una scarsità che non
 può essere diluita, decisioni che non possono essere prese in privato, e un
@@ -321,11 +324,15 @@ ritardo, nessun annuncio. Il proprietario poteva impostare qualsiasi fee a
 qualsiasi valore, incluso il 100%, con effetto dalla transazione successiva.
 
 Lo stesso vale per la dimensione massima delle transazioni. Deployata allo
-0,3% della supply, oggi è allo 0,15% — 1,5 miliardi di DMX, letti on-chain
-l'11 settembre 2026 — il proprietario l'ha dimezzata a un certo punto usando
-un setter senza limite inferiore. Nulla nel codice
-impediva di portarla a un wei, il che avrebbe reso il token di fatto
-intrasferibile.
+0,3% della supply, era allo 0,15% — 1,5 miliardi di DMX — quando è stata
+letta on-chain l'11 settembre 2026: il proprietario l'aveva dimezzata a un
+certo punto usando un setter senza limite inferiore. Il 29 settembre 2026,
+perché qualsiasi posizione potesse migrare in una sola transazione, il
+proprietario l'ha portata all'intera supply (transazione
+`0xfaef2123e54dd4d5054b9195284d43576e35c5161e178ae5e8b810f9b620b47b`,
+18:53:34 UTC; valore riletto al blocco 127.195.880 il 12 ottobre 2026). Lo
+stesso setter avrebbe potuto portarla a un wei, il che avrebbe reso il token
+di fatto intrasferibile. Nulla nel codice impediva né l'una né l'altra cosa.
 
 ### 4.1.2 Il burn che non bruciava
 
@@ -335,14 +342,14 @@ mercato e li inviava all'indirizzo morto `0x…dEaD`.
 La distinzione non è semantica. I token inviati a un indirizzo non spendibile
 sono economicamente distrutti ma restano nella contabilità:
 
-| | DMX, on-chain (26 luglio 2026) |
-|---|---|
-| `totalSupply()` | 1.000.000.000.000 — invariata dal deploy |
-| Detenuti dall'indirizzo morto | 30.058.718.442 (3,0058%) |
-| Circolante | 969.941.281.557 |
+| | DMX, on-chain (26 luglio 2026) | DMX, on-chain (12 ottobre 2026, blocco 127.195.880) |
+|---|---|---|
+| `totalSupply()` | 1.000.000.000.000 — invariata dal deploy | 1.000.000.000.000 — ancora invariata |
+| Detenuti dall'indirizzo morto | 30.058.718.442 (3,0058%) | 30.961.537.947 (3,0962%) |
+| Circolante | 969.941.281.557 | 969.038.462.053 |
 
 Il saldo dell'indirizzo morto continua a crescere, perché il meccanismo di
-buyback è tuttora attivo; la cifra sopra è una fotografia. La supply totale
+buyback è tuttora attivo; entrambe le letture sono fotografie. La supply totale
 non è una fotografia — non è mai diminuita di un solo wei. Qualsiasi metrica derivata da
 `totalSupply()` — la capitalizzazione di mercato tra queste — era calcolata su
 una cifra che sovrastimava i token esistenti.
@@ -404,7 +411,8 @@ Un ultimo dettaglio completa il quadro. DMX invia la fee marketing a **due**
 wallet. `marketingAddress1` è il proprietario stesso:
 `0xF8EC459CAEaF1052b64B38BDD67290B0c132B0Ae`, un account esterno senza
 codice, la cui ownership non è mai stata rinunciata — `owner()` lo
-restituisce ancora, riletto l'11 settembre 2026 al blocco 121.166.526.
+restituisce ancora, letto l'11 settembre 2026 al blocco 121.166.526 e di
+nuovo il 12 ottobre 2026 al blocco 127.195.880.
 `marketingAddress2` è `0x41B533AF0Db427dc97988B47f86383f42372f395`. Il 7%
 di ogni trasferimento che non va in reflection è diviso in settantesimi: 25
 a ciascun wallet marketing e 20 al buyback — il 2,5% a ciascun wallet, il 2%
@@ -413,6 +421,17 @@ delle entrate che controlla. Nulla di questo era nascosto — è visibile
 on-chain a chiunque guardi — ma è esattamente la concentrazione che la nuova
 architettura è progettata per eliminare. Entrambi i wallet detengono DMX;
 cosa ne sarà di quei token è dichiarato nella Sezione 11.5.
+
+Il 29 settembre 2026 il proprietario ha usato due di queste funzioni
+amministrative un'ultima volta, per aprire la migrazione: ha alzato il
+limite per transazione all'intera supply (4.1.1), e ha escluso la tesoreria
+della migrazione — il timelock, Sezione 11 — dalla fee di DMX (transazione
+`0x8aaac289174a13a61040a68503550d79b31cdc25e1884686e8a42632f04cd54d`,
+20:06:24 UTC), le due impostazioni senza le quali un claim 1:1 non può
+essere esatto (Sezione 4.3). Per l'intera finestra di migrazione il
+proprietario è vincolato a non revocare nessuna delle due, né a bloccare,
+rinunciare o trasferire l'ownership che le tiene in vigore; il registro di
+lancio dichiara la regola.
 
 ### 4.1.5 Su come si è arrivati a questo
 
@@ -462,11 +481,16 @@ modificate da qualsiasi progetto in qualsiasi momento; un numero più basso non
 dimostra nulla su come ci si sia arrivati. Ciò che conta è dove vive il
 numero e chi può toccarlo. Il codice auditato inizializza le fee a 10/20/20
 — reflection 1%, buyback 2%, marketing 2%, un totale del 5%. La
-configurazione di lancio le porta a 10/10/20 — il 4% qui sopra — nella fase
-2 del deploy, attraverso il ruolo di governance temporaneo che il deployer
-detiene durante la configurazione, prima che quel ruolo venga consegnato al
-timelock e revocato; un'asserzione post-broadcast rilegge i tre valori dalla
-chain minata. Da quel momento nessun singolo account può cambiarle di nuovo:
+configurazione di lancio le ha portate a 10/10/20 — il 4% qui sopra — nella
+fase 2 del deploy su mainnet, il 29 settembre 2026 (transazione
+`0x0e486b53cf9f2b65f34ec78a150e9f814e32c8e2044b1849943e336af102bcca`),
+attraverso il ruolo di governance temporaneo che il deployer deteneva
+durante la configurazione, prima che quel ruolo venisse consegnato al
+timelock e revocato; la verifica post-broadcast ha riletto i tre valori
+dalla chain minata, e al blocco 127.195.880, il 12 ottobre 2026, leggevano
+lo stesso. Nessuno scambio era ancora avvenuto: la pool ha ricevuto la sua
+liquidità due ore e mezza più tardi.
+Da quel momento nessun singolo account può cambiarle di nuovo:
 l'unica via è un voto pubblico seguito da un timelock di sette giorni. La
 prima volta che quella via è stata percorsa — la proposta #0, su testnet,
 che ha portato le fee dal 5% al 4% — è documentata con ogni hash di
@@ -488,7 +512,14 @@ floor e non oltre. La supply riportata è la supply.
 ## 4.3 Come funziona la migrazione
 
 La migrazione è uno scambio 1:1 senza fee e senza pressione temporale oltre
-una finestra prefissata.
+una finestra prefissata. Su mainnet la finestra è di 90 giorni dal deploy
+del contratto di migrazione: `migrationDeadline` è 1798420124 — il 28
+dicembre 2026 alle 01:08:44 UTC — un valore immutabile letto dal contratto.
+I claim sono diventati possibili il 29 settembre 2026 alle 20:06:24 UTC,
+quando il proprietario di DMX ha escluso la tesoreria della migrazione dalla
+fee di DMX (Sezione 4.1.4), quindi la finestra effettiva è di poche ore
+inferiore ai 90 giorni. Una pausa del guardian, se mai avverrà, estende la
+scadenza esattamente del tempo di pausa (Sezione 8.6).
 
 Al deploy, l'intera supply iniziale di 1.000 miliardi di DMN viene creata
 dentro il contratto di migrazione. Non in un wallet del team, non in una
@@ -509,7 +540,11 @@ Il processo per chi detiene è in tre passaggi:
 
 Ogni claim è un trasferimento di token che esistevano già. Nulla viene
 emesso. La supply totale di DMN non cambia di un solo wei durante l'intera
-migrazione, e questo è verificabile on-chain in qualsiasi momento.
+migrazione, e questo è verificabile on-chain in qualsiasi momento. Al
+blocco 127.195.880 (12 ottobre 2026), al tredicesimo giorno della finestra,
+`totalMigrated` leggeva 341.306.088.146,86 DMX — il 34,1% della vecchia
+supply, inclusa la quota della liquidità iniziale della Sezione 11.5 — e la
+supply totale di DMN leggeva esattamente 1.000.000.000.000.
 
 ## 4.4 Cosa succede ai token mai riscattati
 
@@ -543,13 +578,15 @@ del resto — alla DAO, deciso dal voto.
 
 Due posizioni resteranno quasi per intero non riscattate, per decisione e non
 per caso: i token legacy del progetto stesso, detenuti nei due wallet
-marketing di DMX descritti in 4.1.4 — circa il 42% della vecchia supply. I
-wallet del progetto riscattano solo la quota della liquidità iniziale, prima
-che si apra la finestra di migrazione, e i token LP di quella liquidità vanno
-al timelock in una transazione pubblicata. Tutto il resto resta non
-riscattato: i DMN corrispondenti raggiungono la tesoreria attraverso
-`sweepUnclaimed()` come ogni altro token non riscattato, e non votano. La
-Sezione 11.5 dichiara l'impegno per intero.
+marketing di DMX descritti in 4.1.4 — circa il 42% della vecchia supply
+prima del lancio, il 39,7% dopo l'unico claim che hanno fatto (11.5 dà le
+cifre datate). I wallet del progetto hanno riscattato solo la quota della
+liquidità iniziale, prima che si aprisse la finestra di migrazione, e i
+token LP di quella liquidità sono andati al timelock in una transazione
+pubblicata. Tutto il resto resta non riscattato: i DMN corrispondenti
+raggiungono la tesoreria attraverso `sweepUnclaimed()` come ogni altro token
+non riscattato, e non votano. La Sezione 11.5 dichiara l'impegno, e ciò che
+è stato fatto, per intero.
 
 ## 4.5 Perché una migrazione invece di rinunciare all'ownership
 
@@ -620,14 +657,19 @@ GOVERNANCE_ROLE  →  detenuto da DaimonTimelock, e da nient'altro
 ```
 
 Chi ha fatto il deploy non detiene alcun ruolo. Non è una questione di
-intenzioni: il deploy avviene in due fasi, e i suoi script rinunciano a ogni
-ruolo che detengono temporaneamente durante la configurazione, poi verificano
-— con trenta controlli separati distribuiti sulle due fasi, ognuno dei
-quali interrompe il deploy se fallisce — che nessun account esterno mantenga
-autorità su alcun contratto. Poiché un'asserzione dentro uno script di deploy
-prova lo stato simulato e non quello minato, una verifica autonoma rilegge
-poi trentaquattro invarianti dalla chain viva. Se un solo controllo fallisce, il
-lancio non procede.
+intenzioni: il deploy è avvenuto in due fasi il 29 settembre 2026, e i suoi
+script hanno rinunciato a ogni ruolo detenuto temporaneamente durante la
+configurazione, poi hanno verificato — con trenta controlli separati
+distribuiti sulle due fasi, ognuno dei quali avrebbe interrotto il deploy —
+che nessun account esterno mantenesse autorità su alcun contratto. Poiché
+un'asserzione dentro uno script di deploy prova lo stato simulato e non
+quello minato, una verifica autonoma ha poi riletto trentasei invarianti
+dalla chain viva: 36 su 36 superati al blocco 124.627.634, prima che
+esistesse qualsiasi liquidità (Sezione 10.6). Lo stesso script, in una
+modalità post-lancio con un trentasettesimo controllo per la finestra
+aperta, può essere rieseguito da chiunque contro la chain viva; i ruoli del
+deployer sono stati riletti il 12 ottobre 2026 al blocco 127.224.280 —
+nessuno, su alcun contratto.
 
 Di conseguenza, cambiare le fee, cambiare il wallet marketing, cambiare il
 contratto di staking, aggiungere un'opzione di lock, trasferire i token di
@@ -655,9 +697,11 @@ cambiati da nessuno — né da chi ha fatto il deploy, né dalla governance, né
 un aggiornamento. Alcune destinazioni non dovrebbero essere reindirizzabili,
 nemmeno da una maggioranza.
 
-**Il guardian.** Un account — un multisig 2-di-3 le cui tre chiavi sono
-detenute da persone diverse — detiene un insieme ristretto di poteri
-difensivi, fuori dal ciclo di governance. Tre, precisamente. Può mettere in
+**Il guardian.** Un account — su mainnet un multisig Safe,
+`0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8`, con tre firmatari e una
+soglia di due, le chiavi detenute da persone diverse — detiene un insieme
+ristretto di poteri difensivi, fuori dal ciclo di governance. Tre,
+precisamente. Può mettere in
 pausa il token in caso di emergenza, per al massimo quattordici giorni per
 attivazione, dopo i quali la pausa decade da sola. Può annullare una
 proposta di governance in corso attraverso il governor, il che annulla
@@ -670,11 +714,13 @@ mai un motore. Esiste perché nella prima fase di vita di un protocollo
 sette giorni di timelock sono una risposta troppo lenta a un exploit in
 corso.
 
-Ogni potere del guardian scade nello stesso istante, 36 mesi dopo il lancio.
-Non è un impegno a rinunciarvi; è un unico timestamp, calcolato dal token
-al momento del deploy e copiato tale e quale nel governor e nel timelock
-nella seconda fase del deploy, che nessuno, governance inclusa, può
-rimuovere o posticipare. Dopo quella data la pausa ed entrambe le vie di
+Ogni potere del guardian scade nello stesso istante, 36 mesi dopo il lancio:
+timestamp 1885252112, il 28 settembre 2029 alle 01:08:32 UTC. Non è un
+impegno a rinunciarvi; è un unico valore, calcolato dal token al momento del
+deploy e copiato tale e quale nel governor e nel timelock nella seconda fase
+del deploy — letto identico dai tre contratti al blocco 127.195.880 — che
+nessuno, governance inclusa, può rimuovere o posticipare. Dopo quella data
+la pausa ed entrambe le vie di
 annullamento del guardian smettono di funzionare, e qualsiasi pausa ancora
 armata è già decaduta. Resta esattamente un modo per annullare
 un'operazione in coda: il timelock che annulla una propria operazione, e
@@ -683,6 +729,34 @@ governance eseguita, mai una singola parte. La decentralizzazione si
 completa senza la collaborazione di nessuno.
 
 La Sezione 8.6 descrive i vincoli del guardian per intero.
+
+## 5.4 I contratti deployati
+
+BNB Smart Chain, chain id 56. I contratti sono stati deployati il 29
+settembre 2026 da un deployer che non detiene alcun ruolo; ogni transazione
+di deploy, con il suo blocco e la sua rilettura, è nel registro di lancio
+(Sezione 10.6). Verificate un indirizzo on-chain prima di interagirvi: un
+documento si può copiare, un contratto no.
+
+| Contratto | Indirizzo |
+|---|---|
+| DMN — il token (`DaimonV2`, proxy UUPS) | `0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a` |
+| Implementazione di DMN dietro il proxy | `0xA7bC2D4D35e49bdfC8329e3673d7De520832941c` |
+| `DaimonMigration` — da DMX a DMN, 1:1 | `0x76368b60514b145617385847aCFF7b7EA9764725` |
+| `DaimonStaking` | `0xBb596e7308D6C5AED55cEC597D372840Cbe575b1` |
+| `DaimonGovernor` | `0x1397a7d25595B718BE6FEEDd42ed5E60F66E16De` |
+| `DaimonTimelock` — la tesoreria; detiene i token LP | `0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891` |
+| Pair PancakeSwap v2 DMN/WBNB — la pool di lancio | `0x40A97Ae210a44057603186B4BE92BAe719342AFA` |
+| Guardian — multisig Safe, 2 di 3, fino al 28 settembre 2029 | `0x37F45839765AD3418E29c97d5D92407Ddbf5c7a8` |
+| DMX — il predecessore (Sezione 4.1) | `0x36EbA94407B53c631eE822C219e94580fadd67c7` |
+| Indirizzo morto — destinazione dei token bruciati | `0x000000000000000000000000000000000000dEaD` |
+
+I sette contratti del deploy — il proxy del token, la sua implementazione,
+il contratto di migrazione, il contratto di staking, il governor, il
+timelock, e il seeder di liquidità monouso della Sezione 11.3 — sono stati
+verificati su Sourcify e BscScan il giorno del lancio, corrispondenza esatta
+del bytecode di creazione e di runtime; l'intervallo auditato `audit-final`
+e il sorgente deployato sono lo stesso codice (Sezione 10.7).
 
 ---
 
@@ -752,7 +826,7 @@ di codice.
 
 ## 6.3 Fee sulle transazioni
 
-Ogni trasferimento applica una fee, attualmente il 4% dell'importo trasferito,
+Ogni trasferimento applica una fee, il 4% dell'importo trasferito dal lancio,
 suddivisa in tre componenti:
 
 | Componente | Quota | Destinazione |
@@ -771,11 +845,15 @@ aspetterebbe il timelock, e poi fallirebbe all'esecuzione. La governance è
 limitata dal codice che governa.
 
 **Chi può cambiarle.** Solo il timelock, ovvero solo l'esito di un ciclo di
-governance completato. Il 4% è la configurazione di lancio, impostata nella
-seconda fase del deploy prima che il ruolo temporaneo del deployer venga
-revocato (Sezione 4.2). Il primo ciclo di governance nella storia di Daimon
-ha portato le fee dal 5% del codice auditato a questo stesso 4%, su testnet,
-e il suo registro completo compare nella Sezione 9.
+governance completato. Il 4% è la configurazione di lancio, impostata il
+29 settembre 2026 nella seconda fase del deploy, prima che il ruolo
+temporaneo del deployer venisse revocato (Sezione 4.2), e in vigore dal
+primo scambio: il registro di lancio la verifica al wei sul primo acquisto e
+sulla prima vendita che la pool abbia mai visto. Il primo ciclo di
+governance nella storia di Daimon ha portato le fee dal 5% del codice
+auditato a questo stesso 4%, su testnet, e il suo registro completo compare
+nella Sezione 9. Su mainnet nessuna proposta era stata creata al blocco
+127.195.880 (12 ottobre 2026).
 
 **Zero è legale — ed è un cambio di modello, non una regolazione.**
 L'intervallo ha un tetto e nessun minimo: la governance può portare ogni fee
@@ -881,6 +959,15 @@ protetti da un limite di slippage e incapsulati in modo che uno swap fallito
 non possa bloccare i trasferimenti: se le condizioni di mercato rendono uno
 swap sfavorevole, viene saltato e ritentato all'innesco successivo invece di
 far fallire la transazione del chiamante.
+
+Su mainnet i passaggi da 1 a 3 sono girati per la prima volta il 29
+settembre 2026, alle 05:04:08 UTC, dentro la transazione descritta nella
+Sezione 10.4: 200.000.000 DMN di inventario di fee sono stati venduti per
+0,081248 BNB, due terzi notificati al contratto di staking e un terzo
+trattenuto per il buyback. Il passaggio 4 attende che i BNB trattenuti
+superino 1 BNB, e ogni innesco ne spende poi il 5%; al blocco 127.195.880
+(12 ottobre 2026) non era ancora scattato, e l'indirizzo morto deteneva
+0 DMN. Il passaggio 5 non ha quindi avuto finora nulla da rimuovere.
 
 ## 6.6 Cosa succede al floor
 
@@ -1151,9 +1238,10 @@ possa essere visto arrivare.
 ## 8.6 Il guardian
 
 Un account detiene un piccolo insieme di poteri fuori dal ciclo di
-governance, tutti difensivi. Il guardian è un multisig 2-di-3: tre chiavi
-detenute da persone diverse, due delle quali devono firmare. Detiene
-esattamente tre autorità. Può **mettere in pausa il contratto**. Può
+governance, tutti difensivi. Il guardian è un multisig 2-di-3 — su mainnet
+il Safe della Sezione 5.4: tre chiavi detenute da persone diverse, due delle
+quali devono firmare. Detiene esattamente tre autorità. Può **mettere in
+pausa il contratto**. Può
 **annullare una proposta di governance attraverso il governor** — un
 annullamento incrociato atomico che invalida anche l'operazione nel
 timelock di una proposta già in coda. E può **annullare un'operazione
@@ -1182,12 +1270,14 @@ finestra, e ogni rinnovo è un atto pubblico e visibile. Una chiave persa o
 un guardian silente non possono lasciare il protocollo congelato.
 
 **Tutto scade, in un solo istante.** Tutte e tre le autorità — la pausa ed
-entrambi i percorsi di annullamento — terminano 36 mesi dopo il lancio. La
-scadenza è un timestamp che il token calcola al deploy; il governor e il
-timelock, deployati in una seconda fase, ricevono quello stesso valore
-riletto dalla chain, quindi le tre copie sono identiche per costruzione —
-riverificate on-chain dopo il deploy, e modificabili da nessuno, governance
-inclusa. Dopo di essa, nuove pause ed entrambi i percorsi di annullamento
+entrambi i percorsi di annullamento — terminano 36 mesi dopo il lancio: il
+28 settembre 2029 alle 01:08:32 UTC, timestamp 1885252112. La scadenza è un
+timestamp che il token ha calcolato al deploy; il governor e il timelock,
+deployati in una seconda fase, hanno ricevuto quello stesso valore riletto
+dalla chain, quindi le tre copie sono identiche per costruzione —
+riverificate on-chain dopo il deploy, lette di nuovo identiche al blocco
+127.195.880, e modificabili da nessuno, governance inclusa. Dopo di essa,
+nuove pause ed entrambi i percorsi di annullamento
 del guardian vengono rifiutati, e qualsiasi pausa ancora armata è già
 decaduta. Da quel momento una sola cosa può annullare un'operazione in
 coda: il timelock stesso, con una chiamata a sé stesso — vale a dire una
@@ -1396,7 +1486,7 @@ il 10% o il timelock sotto i sette giorni, non può reindirizzare l'indirizzo
 morto o la tesoreria della migrazione. Il protocollo limita la propria stessa
 governance.
 
-**Il guardian** — un multisig 2-di-3. Può mettere in pausa il contratto in
+**Il guardian** — un multisig 2-di-3 (Sezione 5.4). Può mettere in pausa il contratto in
 finestre di quattordici giorni che decadono da sole, annullare una proposta
 attraverso il governor, e annullare un'operazione in coda direttamente nel
 timelock. Non può toccare fondi, parametri o esecuzione — e ognuno di questi
@@ -1404,21 +1494,28 @@ poteri termina alla stessa scadenza di 36 mesi, dopo la quale qualsiasi
 pausa ancora armata è già decaduta e solo una chiamata della governance a sé
 stessa può annullare.
 
-**Chi ha fatto il deploy.** Può deployare i contratti e pagare il gas.
-Detiene un ruolo di governance temporaneo durante la seconda fase del
+**Chi ha fatto il deploy.** Poteva deployare i contratti e pagare il gas.
+Ha detenuto un ruolo di governance temporaneo durante la seconda fase del
 deploy, usato per la configurazione di lancio e revocato nello stesso
-broadcast. Non detiene alcun ruolo in seguito: gli script di deploy
-rinunciano a ogni permesso temporaneo e poi verificano, con trenta
+broadcast. Non detiene alcun ruolo in seguito: gli script di deploy hanno
+rinunciato a ogni permesso temporaneo e poi verificato, con trenta
 asserzioni distribuite sulle due fasi del deploy e una verifica di
-trentaquattro controlli riletti dalla chain viva, che nessun account esterno
-mantenga autorità in alcun punto del sistema.
+trentasei controlli riletti dalla chain viva, che nessun account esterno
+mantenesse autorità in alcun punto del sistema. Su mainnet l'ultima
+transazione del deployer è stata il contratto monouso di seeding della
+liquidità della Sezione 11.3; da allora non ha firmato nulla, e al blocco
+127.224.280 (12 ottobre 2026) non deteneva alcun ruolo su alcun contratto.
 
 Il modello di minaccia completo, incluso il ragionamento dietro ogni
 conclusione, è pubblicato come `THREAT_MODEL.md` nel repository.
 
 ## 10.2 Cosa è stato testato
 
-Il protocollo porta 180 test automatici, tutti superati, in sei categorie.
+Il protocollo porta 203 test automatici, tutti superati: i 180
+dell'intervallo auditato `audit-final`, nelle sei categorie qui sotto, e 23
+aggiunti dopo l'audit per gli strumenti di lancio fuori da quell'intervallo
+— il contratto monouso di seeding della liquidità della Sezione 11.3 e il
+limite per transazione del predecessore come lo incontra la migrazione.
 
 **I test unitari** coprono le singole funzioni e i loro limiti.
 
@@ -1507,15 +1604,71 @@ prosciugata, il meccanismo di swap degraderebbe. Gli swap sono incapsulati in
 modo che un fallimento non possa bloccare i trasferimenti ordinari.
 
 **Il percorso meno provato.** La sequenza accumulo fee → swap in BNB →
-distribuzione → buyback automatico è stata esercitata solo su testnet: nella
-campagna di luglio su una pool con liquidità minima, e di nuovo nella prova
-di livello 2 di agosto–settembre su un router reale con gas reale, dove le
-prime conversioni hanno mosso pesantemente una pool di dimensioni da
-testnet. Non ha mai girato sotto volumi da mainnet, slippage reale o
-condizioni avversariali, e non potrà farlo prima del mainnet. La
-consideriamo la superficie meno provata del protocollo; è stata segnalata
+distribuzione → buyback automatico è stata esercitata, fino al lancio, solo
+su testnet: nella campagna di luglio su una pool con liquidità minima, nella
+prova di livello 2 di agosto–settembre su un router reale con gas reale,
+dove le prime conversioni hanno mosso pesantemente una pool di dimensioni
+da testnet, e nella campagna di settembre sulla configurazione di lancio. La
+consideravamo la superficie meno provata del protocollo; è stata segnalata
 come tale all'auditor, e due finding dell'audit (#1 e #28) ne hanno cambiato
-l'innesco — la Sezione 6.5 descrive il risultato.
+l'innesco — la Sezione 6.5 descrive il risultato. Su mainnet i primi tre
+passaggi sono girati il 29 settembre 2026, in condizioni avversariali dal
+primo minuto: la transazione descritta qui sotto ha convertito i primi
+200.000.000 DMN di inventario di fee in 0,081248 BNB e la ripartizione li ha
+distribuiti come progettato. Il buyback automatico non era scattato al
+blocco 127.195.880 (12 ottobre 2026); attende che i BNB trattenuti superino
+la sua soglia. Da qui in avanti il registro di questo percorso è la chain,
+non un test.
+
+**Uno stake minuscolo piazzato subito prima di una notifica di reward.**
+Trovato il giorno del lancio, 29 settembre 2026: quando il runbook di lancio
+è ripreso alle 17:12 UTC, i valori che si aspettava non reggevano più, e la
+sentinella del protocollo (Sezione 10.5) ne ha identificato la causa. Una
+transazione,
+`0xa1238092425b7c1cc0840568d1ce9fe7534f842e584555049df353363f2ed048`
+(blocco 124.657.486, 05:04:08 UTC — un'ora e diciotto minuti dopo l'aggiunta
+della liquidità, prima che chiunque avesse messo in staking), ha fatto
+quanto segue in un'unica sequenza atomica: ha preso in prestito 0,022 BNB
+con un flash loan; ha comprato DMN dalla pool di lancio; ne ha messo in
+staking un wei per trenta giorni, il che ha reso il suo potere di voto
+l'intero `totalVotingPower`, fino ad allora zero; ha donato 48.438.526,78
+DMN al contratto del token, portando l'inventario di fee oltre la soglia di
+swap di 200.000.000; ha venduto i DMN che ancora deteneva; poi ha inviato un
+wei di DMN alla pair, l'innesco pubblico della Sezione 6.5. Il contratto ha
+venduto 200.000.000 DMN per 0,081248 BNB e ha notificato la quota dello
+staking — due terzi, 0,054165 BNB — al contratto di staking, dove un unico
+staker con un wei di potere di voto ne deteneva il 100%; la stessa
+transazione l'ha riscossa. Di questo evento circolano due cifre ed entrambe
+sono giuste: 0,054165 BNB è la quota dello staking catturata, letta dagli
+eventi `RewardNotified` e `RewardClaimed` della ricevuta; circa 0,033 BNB è
+ciò che il mittente ha tenuto dopo aver restituito il flash loan (0,022055
+BNB) e aggiunto la sua piccola vendita (0,000699 BNB) — la differenza sono
+i DMN che ha comprato e regalato per armare l'innesco.
+
+Cos'è, esattamente. La correzione #35 dell'audit (Sezione 7.2) protegge i
+BNB che arrivano mentre nessuno è in staking: vanno in una riserva che solo
+la governance può muovere. Non protegge i BNB che arrivano quando il potere
+di voto totale è quasi zero invece che zero: una volta che esiste un
+qualsiasi potere, una notifica è distribuita pro quota, e un wei contro un
+wei è tutto. L'innesco è pubblico per progetto, e una donazione al contratto
+del token può armarlo. Non avevamo previsto la combinazione. L'esposizione è
+strutturale al periodo di staking vuoto e si chiude da sola non appena
+esistono posizioni reali, perché uno stake non può uscire per trenta giorni
+e una posizione minuscola riceve una quota minuscola di qualsiasi cosa
+notificata in seguito. Quel periodo è finito: al blocco 127.195.880 (12
+ottobre 2026) il contratto di staking deteneva 255,23 miliardi di DMN in
+circa 170 lock, con un potere di voto totale di 1,0028 × 10^30. Ciò che la
+transazione ha preso è stata la quota dello staking della prima
+conversione, in un momento in cui nessun altro era in staking per
+riceverla. La transazione non ha toccato né la custodia della migrazione né
+i token LP della pool, e non ha dato al mittente alcun potere di governance:
+un wei è molto al di sotto della soglia di proposta, che il governor legge
+come 1.000 × 10^18 unità di potere di voto — il potere di 1.000 DMN
+bloccati per trenta giorni al moltiplicatore 1× (letto al blocco
+127.226.547, 12 ottobre 2026). La fee del 4% della Sezione 6.3 è stata
+verificata al wei sull'acquisto e sulla vendita di questa stessa
+transazione. La ricostruzione dai quaranta log della ricevuta è nel registro
+di lancio (Sezione 10.6).
 
 ## 10.5 L'interfaccia non è il protocollo
 
@@ -1540,6 +1693,28 @@ l'interfaccia esistesse.
 È una conseguenza deliberata dell'architettura, non un caso fortunato: il
 protocollo sono i contratti, e l'interfaccia è una comodità posta davanti a
 essi. Qualsiasi cosa si possa fare attraverso l'interfaccia si può fare senza.
+
+L'interfaccia è pubblicata su `app.daimon.money`; il sito del progetto è
+`daimon.money`. Dall'8 ottobre 2026 (versione corrente dal 9 ottobre)
+l'interfaccia ha una seconda casa, indirizzata dal contenuto: una build
+statica su IPFS, raggiungibile attraverso il nome `daimon.blockchain` (un
+nome Unstoppable Domains i cui record vivono su Polygon) e identificata dal
+suo hash di contenuto —
+`bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq` per la
+versione corrente, tag `mirror-v2`. La build è riproducibile: una ricetta
+container fissata nel repository produce lo stesso hash dal commit taggato,
+così chiunque può ricostruirla e confrontare. Un hash diverso è un sito
+diverso, chiunque lo serva. La procedura, i pin e il record del nome sono
+in `docs/IPFS_MIRROR.md`.
+
+Un servizio separato, la sentinella, osserva i contratti e riporta ciò che
+vede su un canale di allerta privato del progetto. È in sola lettura: non
+detiene alcuna chiave che possa muovere fondi o firmare una transazione; i
+suoi unici segreti sono le proprie credenziali di allerta e dei fornitori di
+dati. La sua specifica è `docs/SPEC_MONITOR.md`. Gira su mainnet dal giorno
+del lancio; quando, quel giorno, lo stato non corrispondeva più alle attese
+del runbook, è ciò che ha identificato come causa la transazione della
+Sezione 10.4.
 
 Lo stesso ragionamento vale per le dipendenze software dell'interfaccia. Le
 vulnerabilità note che le riguardano sono documentate in `SECURITY.md`,
@@ -1575,9 +1750,10 @@ sette giorni, con la supply totale invariata al wei.
 Il registro completo è pubblicato come
 [`TESTNET_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TESTNET_RESULTS.md).
 
-**Due prove generali del lancio stesso.** Dopo l'audit, il codice auditato è
-stato deployato altre due volte con gli script di mainnet, su due livelli.
-Il livello 1, su un fork locale dove il tempo può essere spostato, ha
+**Quattro prove generali del lancio stesso.** Dopo l'audit, il codice
+auditato è stato deployato altre quattro volte con gli script di mainnet, a
+fedeltà crescente. Il livello 1, su un fork locale dove il tempo può essere
+spostato, ha
 provato le sequenze logiche: l'ordine di lancio, i percorsi di
 annullamento, la pausa e la sua scadenza, e la deviazione che ha
 trasformato il deploy in due fasi (uno script a broadcast singolo fissa la
@@ -1588,13 +1764,56 @@ provato ciò che un nodo locale non può: nonce reali, gas reale, 34 controlli
 post-broadcast su 34 letti dallo stato minato, la scadenza del guardian
 identica nei tre contratti, e un ciclo di governance completo su un orologio
 reale — proposta, voto, coda, sette giorni reali di timelock, esecuzione —
-con ogni transazione firmata da un keystore cifrato e registrata. Entrambi i
-diari sono pubblici:
+con ogni transazione firmata da un keystore cifrato e registrata. Una terza
+campagna, sulla stessa testnet dal 14 al 28 settembre 2026, ha provato la
+configurazione di lancio come infine decisa — il 4% impostato al deploy, il
+timelock come destinazione delle fee, il passaggio di seeding della
+liquidità, due ulteriori controlli di verifica (da 34 a 36) — e ha eseguito
+la prima proposta di mainnet, la ripartizione 60/40 della Sezione 11.3, da
+cima a fondo su un orologio reale come sua proposta 0. La quarta prova
+generale ha eseguito il giorno del lancio passo per passo su un fork locale
+della mainnet di BNB Smart Chain contro il contratto DMX reale, la pool DMX
+reale e il router reale, al prezzo del gas reale, così che le cifre di
+finanziamento del lancio fossero le cifre della prova. Tutti i diari sono
+pubblici:
 [`TESTNET_L1_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TESTNET_L1_RESULTS.md)
 (con il seguito
-[`TWO_PHASE_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TWO_PHASE_RESULTS.md))
+[`TWO_PHASE_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/TWO_PHASE_RESULTS.md)),
+[`CHAPEL_L2_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/CHAPEL_L2_RESULTS.md),
+[`CHAPEL_2B_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/docs/CHAPEL_2B_RESULTS.md)
 e
-[`CHAPEL_L2_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/CHAPEL_L2_RESULTS.md).
+[`MAINNET_FORK_RESULTS.md`](https://github.com/daimon-dao/daimon-dao/blob/master/docs/MAINNET_FORK_RESULTS.md).
+
+**Mainnet.** Il 29 settembre 2026 il codice auditato è stato deployato su
+BNB Smart Chain, chain id 56, intatto: `src/` al commit del deploy non
+differiva da `audit-final` di nulla, e non ne differisce al commit che
+rilascia questo documento. La sequenza, tutti gli orari in UTC:
+
+| Passo | Blocco | Ora | Cosa è successo |
+|---|---|---|---|
+| Fase 1 | 124.626.062 – 124.626.108 | 01:08:24 – 01:08:44 | deployati l'implementazione del token, il proxy del token (DMN) e il contratto di migrazione; la scadenza della migrazione fissata, immutabilmente, a 1798420124 |
+| Fase 2 | 124.626.867 – 124.627.202 | 01:14:26 – 01:16:57 | deployati timelock, staking e governor; ruoli concessi al timelock e al guardian; fee impostate a 10/10/20 e quota degli staker a 1000; ogni ruolo temporaneo revocato — sedici transazioni, `All decentralization asserts passed` |
+| Verifica | 124.627.634 | | 36 invarianti su 36 riletti dallo stato minato |
+| Verifica dei sorgenti | | | i sette contratti del deploy verificati su Sourcify e BscScan, corrispondenza esatta |
+| Liquidità iniziale | 124.642.589 → 124.647.068 | 03:12:23 → 03:45:59 | il proprietario di DMX ha scambiato 4.999.548.574,36 DMX in DMN 1:1 (`0x39b44eab12057cd2396cbc1200e45bc89f9b2bd9623cc717a4c5557af4889549`); un contratto di seeding monouso ha poi aggiunto 4.799.566.631,39 DMN e 1,994 BNB alla pair e inviato i 97.828,093 token LP al timelock, in una sola transazione (`0xdc8dd206e10e5293e7380163d13d3f4bb5575662d0eddef99f9bddd7f7b8dfa4`; Sezione 11.3) |
+| Prima conversione | 124.657.486 | 05:04:08 | il ciclo delle fee della Sezione 6.5 è girato per la prima volta, dentro la transazione della Sezione 10.4 |
+| Finestra aperta | 124.767.991 → 124.777.699 | 18:53:34 → 20:06:24 | il proprietario di DMX ha alzato il limite per transazione di DMX all'intera supply (`0xfaef2123e54dd4d5054b9195284d43576e35c5161e178ae5e8b810f9b620b47b`), poi ha escluso la tesoreria della migrazione dalla fee di DMX (`0x8aaac289174a13a61040a68503550d79b31cdc25e1884686e8a42632f04cd54d`); da quel blocco qualsiasi possessore di DMX può fare il claim |
+
+Due passi del runbook sono stati saltati per decisione: uno swap di prova
+del proprietario, perché la fee del 4% era già stata verificata al wei
+sull'acquisto e sulla vendita della transazione della prima conversione, e
+un primo innesco manuale dello swap delle fee, perché la prima conversione
+era già avvenuta. Ogni transazione, ogni rilettura, le otto deviazioni dal
+runbook e la ricostruzione dell'incidente sono nel registro di lancio,
+[`docs/MAINNET_LAUNCH_RECORD.md`](https://github.com/daimon-dao/daimon-dao/blob/master/docs/MAINNET_LAUNCH_RECORD.md).
+
+Letto al blocco 127.195.880, 12 ottobre 2026: 341.306.088.146,86 DMX
+migrati (il 34,1% della vecchia supply, inclusa la quota della liquidità
+iniziale); 255,23 miliardi di DMN in staking; nessuna proposta ancora nel
+governor; il token mai messo in pausa; il timelock che detiene esattamente i
+97.828,093 token LP emessi al seed, nessun BNB, e 341.401.083.142,59 DMX in
+custodia; il deployer senza alcun ruolo in alcun punto; i tre valori di
+scadenza del guardian identici.
 
 ## 10.7 Audit esterno
 
@@ -1611,26 +1830,29 @@ Registra 37 finding: 1 critico, 1 alto, 7 medi, 12 bassi e 16 informativi.
 29 sono stati corretti nel codice; 8 sono stati accettati, ciascuno con
 motivazione scritta. L'esatto intervallo di codice che il report descrive è
 congelato per sempre al tag `audit-final`. Ogni prova generale da allora ha
-eseguito quel codice intatto, e così farà il deploy su mainnet: al commit
-che rilascia questo documento, `src/` non differisce da `audit-final` di
-nulla.
+eseguito quel codice intatto, e così ha fatto il deploy su mainnet del 29
+settembre 2026: `src/` non differiva da `audit-final` di nulla al commit del
+deploy, e non ne differisce al commit che rilascia questo documento.
 
 Tre impegni erano stati presi prima dell'audit. Il loro stato:
 
 **Il report è pubblicato integralmente** — mantenuto, al link qui sopra.
 
 **Non faremo il deploy su mainnet prima che sia completato** — mantenuto.
-L'audit è completo; nessuna data di lancio è stata annunciata, e nessuna lo
-sarà finché la checklist di mainnet pubblicata non sarà verde dalla prima
-riga all'ultima.
+L'audit era completo e il suo report pubblico nell'agosto 2026; il deploy su
+mainnet è seguito il 29 settembre, dopo le quattro prove generali della
+Sezione 10.6 e la checklist di mainnet pubblicata, che segna come tali le
+voci lasciate aperte al lancio.
 
 **L'auditor ha ricevuto la nostra stessa lista di preoccupazioni**, incluso
 il percorso meno provato descritto in 10.4. Due finding (#1 e #28) sono
 usciti da quella superficie. Un audit serve a trovare quello che ci è
 sfuggito, non a confermare quello che già sappiamo.
 
-Un bug bounty pubblico è previsto dopo il lancio, così che l'incentivo a
-segnalare una vulnerabilità superi permanentemente l'incentivo a sfruttarla.
+Un bug bounty finanziato dalla tesoreria sarà proposto alla governance, così
+che l'incentivo a segnalare una vulnerabilità superi permanentemente
+l'incentivo a sfruttarla. Fino ad allora, la divulgazione responsabile è
+benvenuta e sarà riconosciuta pubblicamente (`SECURITY.md`).
 
 ---
 
@@ -1649,11 +1871,13 @@ voto può annullare.
 
 Il puntatore `treasury` del contratto di migrazione è l'indirizzo del
 timelock, legato come `immutable` nel suo costruttore e derivato al deploy
-invece che digitato: la fase 1 lo lega all'indirizzo del timelock che la
-fase 2 creerà, la fase 2 verifica che la previsione si sia avverata, e la
-verifica post-broadcast lo rilegge dalla chain viva. I token legacy raccolti
-da ogni claim, e i DMN non riscattati trasferiti dopo la scadenza, atterrano
-quindi nello stesso contratto governato di tutto il resto.
+invece che digitato: la fase 1 lo ha legato all'indirizzo del timelock che
+la fase 2 avrebbe creato, la fase 2 ha verificato che la previsione si fosse
+avverata, e la verifica post-broadcast lo ha riletto dalla chain viva; al
+blocco 127.195.880 legge `0xCdaa1CFe783a4DE642ca3Ed98A38bFdC16f30891`
+(Sezione 5.4). I token legacy raccolti da ogni claim, e i DMN non riscattati
+trasferiti dopo la scadenza, atterrano quindi nello stesso contratto
+governato di tutto il resto.
 
 ## 11.2 Perché non esiste un wallet operativo
 
@@ -1675,35 +1899,60 @@ pagamento per lavoro svolto per il protocollo è una proposta come le altre.
 
 ## 11.3 Cosa entra, e quando
 
-**Al lancio, nulla dalle fee.** `marketingWallet` è impostato al timelock al
-deploy, e la quota della fee marketing indirizzata agli staker è impostata a
-1000 punti base — tutta — nella seconda fase del deploy. L'aritmetica rende
-l'importo che raggiungerebbe la tesoreria esattamente zero, e nessuna
-transazione verso quell'indirizzo parte. La verifica post-broadcast
-asserisce la quota dallo stato minato.
+**Al lancio, nulla dalle fee.** `marketingWallet` è stato impostato al
+timelock al deploy, e la quota della fee marketing indirizzata agli staker è
+stata impostata a 1000 punti base — tutta — nella seconda fase del deploy.
+L'aritmetica rende l'importo che raggiungerebbe la tesoreria esattamente
+zero, e nessuna transazione verso quell'indirizzo parte. La verifica
+post-broadcast ha asserito la quota dallo stato minato; al blocco
+127.195.880 (12 ottobre 2026) la quota leggeva ancora 1000 e il timelock non
+deteneva BNB.
 
 **Dal primo voto, il 40%.** La prima proposta su mainnet imposta la
 ripartizione a 60% staker / 40% tesoreria — il 60/40 con cui il codice è
 stato scritto, ora puntato a un contratto invece che a un wallet. Da quel
 voto in poi la quota della tesoreria si accumula in BNB, intoccata da
-chiunque, finché un ulteriore voto non la spende.
+chiunque, finché un ulteriore voto non la spende. La proposta è scritta:
+`docs/G1_PROPOSAL.md` ne dà la calldata esatta, la cronologia e la prova su
+un fork di mainnet, e la stessa chiamata è stata eseguita da cima a fondo
+sulla testnet pubblica come proposta 0 della campagna sulla configurazione
+di lancio (Sezione 10.6). Al blocco 127.195.880 non era stata creata: il
+contatore delle proposte del governor leggeva zero. L'ordine dei primi voti
+— la ripartizione; l'esenzione dalla fee della tesoreria; un primo, piccolo
+deposito; dopo la chiusura della finestra, lo sweep e il burn di continuità
+di 11.6; il primo budget di un'entità legale, se ne verrà costituita una — è
+pubblicato nella politica della tesoreria (sezione 7) e, proposta per
+proposta, in `docs/CALENDARIO_GOVERNANCE_Q1.md`.
 
 **Tre entrate che il codice fornisce da solo.**
 
 - *I token legacy.* I DMX di ogni possessore che migra vengono trasferiti
-  alla tesoreria, dove restano in custodia non circolante per l'intera
-  finestra di claim — un requisito dell'audit (finding #6), ora proprietà di
-  un contratto e non promessa di firmatari: nulla può muoverli prima di un
-  voto.
+  alla tesoreria, dove restano in custodia non circolante finché lo sweep
+  dei DMN non riscattati non è stato eseguito — la scadenza effettiva,
+  credito di pausa incluso — un requisito dell'audit (finding #6), ora
+  proprietà di un contratto e non promessa di firmatari: nulla può muoverli
+  prima di un voto. Al blocco 127.195.880 il timelock deteneva
+  341.401.083.142,59 DMX.
 - *I DMN non riscattati.* Dopo la scadenza, la governance trasferisce alla
   tesoreria tutti i DMN rimasti nel contratto di migrazione (Sezione 4.4).
-- *La pool stessa.* I token LP della liquidità iniziale DMN/WBNB vengono
-  trasferiti da chi fornisce la liquidità — il proprietario di DMX, che
-  riscatta solo quella quota (11.5) — al timelock subito dopo l'aggiunta
-  della liquidità, in una transazione pubblicata, e il registro di lancio
-  asserisce dallo stato minato che nessun wallet del progetto ne detiene. La
-  pool non può più essere ritirata se non per voto, e la posizione della
-  tesoreria in essa cresce con la fee di ogni swap.
+- *La pool stessa.* I token LP della liquidità iniziale DMN/WBNB sono stati
+  emessi direttamente al timelock. Il 29 settembre 2026 chi ha fornito la
+  liquidità — il proprietario di DMX, che ha riscattato solo quella quota
+  (11.5) — ha approvato un contratto di seeding monouso, `LiquiditySeeder`
+  all'indirizzo `0x21ab79825b86137CF1b04884FCFC4e4b717ce062`, e il contratto
+  ha aggiunto 4.799.566.631,39 DMN e 1,994 BNB alla pair e ha inviato i
+  97.828,093 token LP ricevuti al timelock nella stessa transazione
+  (`0xdc8dd206e10e5293e7380163d13d3f4bb5575662d0eddef99f9bddd7f7b8dfa4`,
+  blocco 124.647.068, 03:45:59 UTC). I 4.999.548.574,36 DMN che il
+  proprietario aveva riscattato sono diventati 4.799.566.631,39 nella pool
+  perché il trasferimento di seeding ha pagato la fee del 4% come ogni
+  altro; la sua parte non riflessa del 3%, circa 150 milioni di DMN, è stata
+  il primo inventario di fee del protocollo. Il registro di lancio asserisce
+  dallo stato minato che né il proprietario né il deployer detenevano alcun
+  token LP in seguito; al blocco 127.195.880 il saldo del timelock era
+  ancora pari all'intera supply emessa meno la liquidità minima della pair
+  stessa. La pool non può essere ritirata se non per voto, e la posizione
+  della tesoreria in essa cresce con la fee di ogni swap.
 
 **E, in futuro, le fee di qualsiasi modulo di servizio che la DAO aggiunga.**
 
@@ -1714,6 +1963,13 @@ sono impostati da funzioni riservate alla governance: la DAO può
 reindirizzare quel flusso in qualsiasi momento, con un voto. Ogni uscita è
 una proposta; non esiste un budget permanente dentro il protocollo e nessuno
 è autorizzato a spendere senza un voto.
+
+Il timelock non è esente dalla fee di trasferimento. Al lancio è stato
+lasciato deliberatamente un possessore ordinario, quindi qualsiasi DMN che
+ne esca — per il burn di continuità, per la liquidità, per un pagamento —
+paga il 4% come chiunque altro finché un voto non lo esenta, la seconda
+proposta dell'ordine pubblicato (11.3). Al blocco 127.195.880 non era
+esente; il contratto di staking, al contrario, lo è (Sezione 7.5).
 
 Due *destinazioni* sono fissate permanentemente, oltre il potere di
 reindirizzo persino della governance: l'indirizzo morto che riceve i token
@@ -1727,18 +1983,34 @@ puntare in silenzio uno dei due flussi altrove.
 ## 11.5 I token del progetto stesso
 
 I due wallet marketing di DMX descritti in 4.1.4 — quello del proprietario e
-il secondo — detengono circa il 42% della vecchia supply. Riscattano solo la
-quota della liquidità iniziale, prima che si apra la finestra di migrazione,
-e i token LP di quella liquidità vanno al timelock in una transazione
-pubblicata (11.3). Tutto il resto resta nel contratto di migrazione e
+il secondo — detenevano circa il 42% della vecchia supply prima del lancio,
+e 396.610.400.010,00 DMX al blocco 127.195.880 (12 ottobre 2026): il 39,7%
+della supply totale, circa il 41% della supply fuori dall'indirizzo morto.
+Hanno riscattato solo la quota della liquidità iniziale, prima che si
+aprisse la finestra di migrazione: il 29 settembre 2026 il proprietario ha
+scambiato 4.999.548.574,36 DMX nello stesso numero di DMN
+(`0x39b44eab12057cd2396cbc1200e45bc89f9b2bd9623cc717a4c5557af4889549`,
+blocco 124.642.589, 03:12:23 UTC), e tutti sono finiti nella pool, con i
+token LP di quella liquidità nel timelock (11.3); il saldo di DMN del
+proprietario era zero alla fine del giorno del lancio, e il registro di
+lancio lo asserisce. Tutto il resto resta nel contratto di migrazione e
 raggiunge la tesoreria attraverso `sweepUnclaimed()` dopo la scadenza, senza
 un trasferimento, senza una fee, e senza passare per le mani di alcuna
 persona, e non vota. I token del progetto diventano del protocollo: la
 governance è decisa da chi i propri token li ha comprati, team incluso. A
 cosa servono è deciso uso per uso, con un voto pubblico; a cosa non servono
-è scritto nella politica della tesoreria — nessun burn per decisione,
-nessuna distribuzione a possessori, staker o chiunque non abbia svolto
-lavoro per il protocollo, nessuna lotteria.
+è scritto nella politica della tesoreria (versione 1.2, tag
+`treasury-policy-v1.2`) — nessun burn per decisione, nessuna distribuzione
+a possessori, staker o chiunque non abbia svolto lavoro per il protocollo,
+nessuna lotteria.
+
+Le posizioni personali delle persone che costruiscono il protocollo sono
+una questione separata, dichiarata in `docs/TEAM_HOLDINGS.md`: DMX comprati
+con fondi propri dal 2022, o ricevuti come pagamento per lavoro svolto; un
+impegno di condotta — nessuna vendita senza trenta giorni di preavviso
+pubblico e una versione emendata di quel documento prima committata nel
+repository — datato dalla storia del repository e che non vincola nessuno
+per legge. Migrano come chiunque altro, 1:1.
 
 ## 11.6 Il burn di continuità
 
@@ -1759,7 +2031,10 @@ sue spese sono rendicontabili on-chain perché ogni transazione che effettua è
 visibile per costruzione. La sua politica — cosa detiene, cosa può fare,
 cosa non farà mai — è pubblicata come
 [`docs/TREASURY_POLICY_v1.0.md`](https://github.com/daimon-dao/daimon-dao/blob/master/docs/TREASURY_POLICY_v1.0.md)
-e può essere modificata solo con lo stesso processo che muove i fondi. Non ci
+— versione 1.2 al momento di questo rilascio, congelata al tag
+`treasury-policy-v1.2` e in vigore dall'esecuzione della prima proposta; il
+nome del file conserva "v1.0" perché i link restino stabili — e può essere
+modificata solo con lo stesso processo che muove i fondi. Non ci
 sono firmatari da nominare, perché non c'è nessuno di cui fidarsi.
 
 ---
@@ -1776,15 +2051,19 @@ Ed è anche, per costruzione, incompleta. La Sezione 12.4 spiega perché.
 
 Il protocollo descritto in questo documento: token, staking, governance,
 timelock, migrazione. Auditato, con il report pubblicato e l'intervallo
-auditato congelato al tag `audit-final`; deployato ed esercitato tre volte
-— la campagna di luglio su testnet, poi le due prove generali post-audit
-dell'ordine di lancio con gli script di mainnet, su un fork locale e sulla
-testnet pubblica (Sezione 10.6).
+auditato congelato al tag `audit-final`; provato cinque volte — la campagna
+di luglio su testnet, poi le quattro prove generali post-audit dell'ordine
+di lancio con gli script di mainnet (Sezione 10.6); in funzione sulla
+mainnet di BNB Smart Chain dal 29 settembre 2026 (Sezione 5.4), con la
+finestra di migrazione aperta fino al 28 dicembre 2026 alle 01:08:44 UTC, la
+liquidità iniziale predisposta con i suoi token LP in tesoreria, e
+l'interfaccia pubblicata con un mirror riproducibile (Sezione 10.5).
 
-Cosa resta di questa fase: il deploy su mainnet attraverso la checklist
-pubblicata, la finestra di migrazione aperta, la liquidità iniziale
-predisposta con i suoi token LP in tesoreria, e le prime proposte di
-governance della politica della tesoreria. Nessuna data viene data.
+Cosa resta di questa fase: le prime proposte di governance della politica
+della tesoreria, nell'ordine pubblicato (Sezione 11.3), a cominciare dalla
+ripartizione 60/40; poi, una volta chiusa la finestra, lo sweep dei token
+non riscattati e il burn di continuità (Sezione 11.6). Nessuna data viene
+data.
 
 ## 12.2 Fase 2 — Daimon come protocollo DeFi
 
@@ -1979,8 +2258,9 @@ come un consiglio ad acquisire, detenere o mettere in staking alcunché.
 **Non siamo neutrali.** Questo documento è stato scritto dalle persone che
 hanno costruito il protocollo. Ci crediamo, il che è una ragione per leggere
 le nostre affermazioni criticamente invece di accettarle. Tutto ciò che viene
-qui affermato corrisponde a codice pubblico e deployato. La risposta
-appropriata a questo documento non è fidarsi. È verificare.
+qui affermato corrisponde a codice pubblico e deployato, agli indirizzi
+della Sezione 5.4. La risposta appropriata a questo documento non è
+fidarsi. È verificare.
 
 ---
 
@@ -2022,12 +2302,14 @@ parametri e dettagli tecnici dovrebbero essere verificati direttamente
 on-chain, che resta in ogni caso la fonte autorevole.
 
 Le avvertenze legali complete e i termini d'uso sono pubblicati nel
-repository come `DISCLAIMER_TERMS`; il testo inglese è quello autorevole.
+repository come `DISCLAIMER_TERMS` (versione 0.3,
+`docs/DISCLAIMER_TERMS_v0.3_EN.md`); il testo inglese è quello autorevole.
 
 ---
 
 **Repository:** `github.com/daimon-dao/daimon-dao`
 **Riferimento auditato:** tag `audit-final` (scope consegnato al tag `audit-scope-v2`)
 **Report dell'audit:** [Zenith, agosto 2026](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)
+**Mainnet:** BNB Smart Chain, chain id 56, dal 29 settembre 2026 — indirizzi nella Sezione 5.4, registro di lancio in `docs/MAINNET_LAUNCH_RECORD.md`
 
-*v0.2 — versione post-audit.*
+*v0.3 — versione mainnet.*

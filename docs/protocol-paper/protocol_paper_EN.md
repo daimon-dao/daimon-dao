@@ -1605,8 +1605,9 @@ placed in front of them. Anything that can be done through the interface can
 be done without it.
 
 The interface is published at `app.daimon.money`; the project's site is
-`daimon.money`. Since 9 October 2026 the interface has a second,
-content-addressed home: a static build on IPFS, reachable through the name
+`daimon.money`. Since 8 October 2026 (current version since 9 October) the
+interface has a second, content-addressed home: a static build on IPFS,
+reachable through the name
 `daimon.blockchain` (an Unstoppable Domains name whose records live on
 Polygon) and identified by its content hash —
 `bafybeidmjrqs56gw4vqlnqptv4fungoayec6do7oojstfmoxjzidd6kvyq` for the
@@ -1617,9 +1618,10 @@ different site, whoever serves it. The procedure, the pins and the name
 record are in `docs/IPFS_MIRROR.md`.
 
 A separate service, the monitor, watches the contracts and reports what it
-sees on a public channel. It is read-only: it holds no key, signs nothing
-and can move nothing; if its server were compromised, public data is all
-there is to read. Its specification is `docs/SPEC_MONITOR.md`. It has run
+sees on a private alert channel of the project. It is read-only: it holds no
+key that can move funds or sign a transaction; its only secrets are its own
+alert and data-provider credentials. Its specification is
+`docs/SPEC_MONITOR.md`. It has run
 on mainnet since launch day; when, on that day, the state no longer matched
 the runbook's expectations, it is what identified the transaction of
 Section 10.4 as the cause.
@@ -1754,8 +1756,8 @@ we already know.
 
 A bug bounty funded by the treasury will be proposed to governance, so that
 the incentive to report a vulnerability permanently exceeds the incentive to
-exploit it. Until it exists, responsible disclosure is credited publicly;
-`SECURITY.md` gives the channel.
+exploit it. Until then, responsible disclosure is welcome and will be
+credited publicly (`SECURITY.md`).
 
 ---
 

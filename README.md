@@ -6,7 +6,7 @@
 
 **No owner. No mint. Floor 21B. — DAO on BNB Chain**
 
-**[📄 Protocol paper v0.2 (EN)](docs/protocol-paper/Daimon_Protocol_Paper_EN_v0.2.pdf)** · [versione italiana](docs/protocol-paper/Daimon_Protocol_Paper_IT_v0.2.pdf) · [changelog](docs/protocol-paper/CHANGELOG.md) · [v0.1 release](https://github.com/daimon-dao/daimon-dao/releases/tag/whitepaper-v0.1)
+**[📄 Protocol paper v0.3 (EN)](docs/protocol-paper/Daimon_Protocol_Paper_EN_v0.3.pdf)** · [versione italiana](docs/protocol-paper/Daimon_Protocol_Paper_IT_v0.3.pdf) · [changelog](docs/protocol-paper/CHANGELOG.md) · [previous versions](docs/protocol-paper/README.md)
 
 **[🛡️ Zenith Audit Report (Aug 2026)](https://github.com/zenith-security/reports/blob/main/reports/Daimon%20DAO%20-%20Zenith%20Audit%20Report.pdf)** — full report published: 37 findings, all resolved (29 fixed in code, 8 accepted with rationale). Audited reference frozen at tag [`audit-final`](https://github.com/daimon-dao/daimon-dao/releases/tag/audit-final).
 
@@ -89,9 +89,10 @@ proxy are in the [launch record](docs/MAINNET_LAUNCH_RECORD.md).
 
 ## Status of decisions
 
-The protocol paper is **v0.2**, the post-audit release of 2026-09-11 (the
-document was called the whitepaper up to v0.1), and it incorporates the
-decisions below. The decision documents remain the detailed record: where
+The protocol paper is **v0.3**, the mainnet release of 2026-10-12 (v0.2 was
+the post-audit release of 2026-09-11; the document was called the whitepaper
+up to v0.1), and it incorporates the decisions below. The decision documents
+remain the detailed record: where
 the paper and a decision document differ, the decision document takes
 precedence, and the deployed code takes precedence over all of them:
 
