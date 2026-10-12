@@ -122,6 +122,9 @@ precedence, and the deployed code takes precedence over all of them:
 - [docs/MAINNET_LAUNCH_RECORD.md](docs/MAINNET_LAUNCH_RECORD.md) — the
   mainnet launch journal: every step, every transaction, the deviations and
   the incident, the migration window
+- [docs/SUPPLY.md](docs/SUPPLY.md) — DMN total and circulating supply: the
+  formula, the excluded addresses, one command that recomputes both from
+  the chain
 - [docs/protocol-paper/](docs/protocol-paper/) — the protocol paper (EN
   primary, IT translation), with versioning policy, changelog and the PDF
   build script
