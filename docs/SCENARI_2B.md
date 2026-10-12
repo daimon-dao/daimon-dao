@@ -139,7 +139,7 @@ H4.1  Pausa: alert simulato nel gruppo → F1 propone setPaused(true) in
 H4.2  Unpause: stessa coreografia, F3 propone, F1 conferma
 H4.3  Pausa lasciata scadere: NON si prova sull'orologio reale (14
       giorni — decisione del 28/8); si documenta il riferimento a E2
-H4.4  "Psy irraggiungibile": F2 propone, F3 conferma ed esegue — Psy
+H4.4  "F1 irraggiungibile": F2 propone, F3 conferma ed esegue — F1
       non tocca nulla. Cronometro.
 H4.5  Cancellazione via Governor: proposta di prova messa in coda →
       guardian (Safe) chiama Governor.cancel(id) → ATTESO: cancellazione
