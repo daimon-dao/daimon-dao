@@ -12,6 +12,7 @@ in the project derives from it.
 | `daimon-logo-32.png`, `-256.png`, `-512.png` | Rasters of `daimon-logo.svg`, transparent corners. |
 | `daimon-logo-ring.svg` | The logo with its gold edge ring, as daimon.money shows it, `viewBox="0 0 512 512"`. The paths of `daimon-logo.svg`, untouched, plus one circle. |
 | `daimon-logo-ring-32.png`, `-256.png`, `-512.png`, `-1024.png` | Rasters of `daimon-logo-ring.svg`, transparent corners. The 512 one is byte-identical to `../logo-512.png`. |
+| `daimon-logo-ring-200.png` | `daimon-logo-ring-1024.png` scaled down to 200 × 200 (bicubic, alpha kept; 12 October 2026), for the token-listing forms that ask for 200 × 200 (CoinGecko, CoinMarketCap). A scale of the raster, not a render of the SVG: `scripts/brand.mjs` does not write it. |
 
 ## Which file to use where
 
@@ -20,6 +21,7 @@ in the project derives from it.
 | Anything vector: print, editing, a new format to derive | `daimon-logo.svg` |
 | The logo as daimon.money shows it: avatars and profile pictures (GitHub organization, X), favicons and app icons, link previews, the logo alone on a dark background (where the navy disc would melt into it) | `daimon-logo-ring.svg`, or the `daimon-logo-ring-*.png` at the size needed (1024 for anything that asks for a large upload) |
 | A token-logo form that asks for a 32 × 32 SVG | `daimon-logo-32.svg` |
+| A token-listing form that asks for a 200 × 200 or 256 × 256 PNG (CoinGecko, CoinMarketCap) | `daimon-logo-ring-200.png`, `daimon-logo-ring-256.png` |
 | A raster of the logo as drawn in the .ai, with no ring: a light background, or a platform that frames the logo itself | `daimon-logo-256.png` / `-512.png` (`-32.png` for tiny slots) |
 | The Illustrator original, for a designer | `Logo_DMN_Official.ai` |
 
