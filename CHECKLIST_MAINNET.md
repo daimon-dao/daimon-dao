@@ -613,6 +613,22 @@ Blockchain domains do not resolve in Chrome or Safari without an extension or
 a gateway. A portion of users will not reach it directly. It is a fallback
 and a statement of intent, not the main channel.
 
+## Listings
+
+- [ ] CoinGecko: submitted 2026-10-13 via the New Coin Listing form, Regular
+      Pass (free), request ID `CL1310260036`. Categories: Governance,
+      Decentralized Finance (DeFi). Figures read at BNB Smart Chain block
+      127,416,550 (method: [docs/SUPPLY.md](docs/SUPPLY.md)). Public
+      verification posted on Telegram and X the same day
+      ([docs/REGISTRO_POST.md](docs/REGISTRO_POST.md)). Expected review:
+      10–20 working days. **Status: pending.**
+- [ ] After approval, verify the CoinGecko page: name "Daimon DAO", contract
+      address, circulating-supply method, links.
+- [ ] After the first burn, add the burned wallet through the CoinGecko
+      update form.
+- [ ] **ON HOLD** (2026-10-13) — CoinMarketCap: deferred until a project
+      identity exists.
+
 ## Legal (before mainnet)
 
 **ON HOLD** (note of 2026-10-09). A crypto-specialised lawyer was consulted
