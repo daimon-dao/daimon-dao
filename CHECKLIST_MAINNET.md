@@ -507,6 +507,9 @@ input initializes the pool at the wrong price.
       `balanceOf(DaimonV2)` is the fee inventory not yet converted.
       **In force**: the monitor runs on mainnet and reported the incident --
       record: [Status][r-status].
+- [x] Sentinel: history `eth_getLogs` endpoint moved from 48.club to
+      bloXroute on 2026-10-15 (daimon-monitor PR #1, merge `8971060`,
+      deployed and restarted on the server the same day).
 - [x] Once it exceeds `minimumTokensBeforeSwap`, a **1-wei DMN transfer to
       the pair**, from any address, triggers the conversion (at most one
       fee-swap chunk and one buyback slice per block: #28 budgets). The
@@ -598,6 +601,8 @@ current version is v2 (tag `mirror-v2`, commit `1cccf9d`, published
       browser against a local fork with a mock wallet (`daimon-dapp/e2e`)
       and on the published CID -- docs/IPFS_MIRROR.md, "What a server used
       to do" and "Testing locally".
+- [ ] IPFS mirror: half-yearly check around April 2027 (CID still pinned on
+      both providers, domain record unchanged).
 
 **Why both**
 
@@ -621,13 +626,30 @@ and a statement of intent, not the main channel.
       127,416,550 (method: [docs/SUPPLY.md](docs/SUPPLY.md)). Public
       verification posted on Telegram and X the same day
       ([docs/REGISTRO_POST.md](docs/REGISTRO_POST.md)). Expected review:
-      10–20 working days. **Status: pending.**
-- [ ] After approval, verify the CoinGecko page: name "Daimon DAO", contract
-      address, circulating-supply method, links.
-- [ ] After the first burn, add the burned wallet through the CoinGecko
-      update form.
+      10–20 working days. **Status: Rejected 2026-10-15.** Stated reason:
+      lack of organic attention (liquidity, volume, social sentiment);
+      resubmission allowed after 14 days or once traction grows. Decision:
+      resubmit after G4c (liquidity from the legacy DMX pool moves to the
+      DMN pool), not before; never Fast Pass, never paid promotion, never
+      team buys to create volume.
+- [ ] After approval of the new submission, verify the CoinGecko page: name
+      "Daimon DAO", contract address, circulating-supply method, links.
+- [ ] After the first burn, once the new submission is approved, add the
+      burned wallet through the CoinGecko update form.
 - [ ] **ON HOLD** (2026-10-13) — CoinMarketCap: deferred until a project
       identity exists.
+
+## Post-launch maintenance
+
+- [ ] BscScan: after the migration closes (2026-12-28), request an updated
+      token description (migration closed, fee share after G1), then
+      contract name tags for Timelock, Governor, Staking, Migration and the
+      pair.
+- [ ] Site: `/stato` page (figures read from the chain) and `/blog` (posts
+      made permanent), planned after mainnet, not started.
+- [ ] dApp and site: Tailwind 4 upgrade at the next major maintenance
+      (closes the dev-only audit findings).
+- [ ] Bug bounty: after the legal entity exists (see Legal below).
 
 ## Legal (before mainnet)
 
