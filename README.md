@@ -125,6 +125,9 @@ precedence, and the deployed code takes precedence over all of them:
 - [docs/SUPPLY.md](docs/SUPPLY.md) — DMN total and circulating supply: the
   formula, the excluded addresses, one command that recomputes both from
   the chain
+- [docs/STAKING_STATS.md](docs/STAKING_STATS.md) — DMN staked by lock
+  period: locks, amounts and voting power shares, checked against the
+  contract's counters, one script that recomputes them at any block
 - [docs/protocol-paper/](docs/protocol-paper/) — the protocol paper (EN
   primary, IT translation), with versioning policy, changelog and the PDF
   build script
