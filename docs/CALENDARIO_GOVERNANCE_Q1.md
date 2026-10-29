@@ -31,9 +31,18 @@ post-broadcast lo confermano). Resta da votare solo la quota.
 G1   target TOKEN   setStakingRewardShareBps(600)
 ```
 
+**Data** (stato al 2026-10-29, blocco 130515281): proposta creata
+lunedì 2026-11-16 alle 12:00 UTC (snapshot = il blocco precedente a
+quello della propose: gli stake vanno minati prima); voto dal
+2026-11-17 12:00 al 2026-11-22 12:00 UTC; esecuzione al più presto il
+2026-11-29 12:00:01 UTC. Dettagli in `docs/G1_PROPOSAL.md`.
+
 **Esito atteso**: `stakingRewardShareBps() == 600`;
-`marketingWallet() == TIMELOCK` (invariato dal deploy); un poke dopo
-l'esecuzione mostra BNB che entrano nel Timelock: il ramo marketing
+`marketingWallet() == TIMELOCK` (invariato dal deploy); alla prima
+conversione delle fee successiva all'esecuzione (non necessariamente il
+giorno stesso: l'inventario fee del token è 0.168 B DMN al blocco
+130515281, sotto la soglia di 0.2 B, quindi il poke post-esecuzione
+oggi non è garantito) BNB entrano nel Timelock: il ramo marketing
 versa 60% allo staking e 40% al Timelock (evento Transfer BNB interno
 / saldo del Timelock che sale). È la prima esecuzione reale del ramo
 marketing verso il Timelock — da provare su Chapel prima.
