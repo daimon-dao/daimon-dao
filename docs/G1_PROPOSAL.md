@@ -1,5 +1,76 @@
 # G1 -- the 60/40 split (the first mainnet proposal)
 
+## Status 2026-10-29 (block 130515281)
+
+Still **not proposed**: `proposalCount` is 0. The sections below this
+one were written on 2026-10-01 and are kept as dated history; their
+figures (block 125008614: 278.25 B of voting power, 20 owners, a fee
+inventory of 0.268 B) are those of that day, not of today.
+
+**Dates.** The proposal is created on **Monday 2026-11-16 at 12:00
+UTC**. From there the Governor's clock runs by itself:
+
+| step | when (UTC) |
+|---|---|
+| snapshot of voting power | the block before the propose block |
+| proposal created (T) | Monday 2026-11-16, 12:00 |
+| voting | 2026-11-17 12:00 to 2026-11-22 12:00 (inclusive) |
+| `queue(id)`, by anyone | from 2026-11-22 12:00:01, if quorum and For > Against |
+| earliest `execute(id)`, by anyone | **2026-11-29 12:00:01** (queue time + 7 days) |
+| migration deadline, for context | 2026-12-28 01:08:44 |
+
+A propose transaction mined a few seconds after 12:00 shifts every
+later time by the same few seconds.
+
+**Snapshot: stake before the proposal.** The snapshot is the block
+before the propose block, `DaimonGovernor.sol:200`:
+
+```solidity
+uint256 snapshotBlock = block.number - 1;
+```
+
+A stake must be mined before the propose block to count. A stake mined
+in the propose block or later has no voting power for G1, and a wallet
+with no power at the snapshot cannot vote (`castVote` reverts
+`InsufficientVotingPower`).
+
+**Quorum.** For + Abstain >= 10 % of the total voting power at the
+snapshot, and For > Against. Figures at block 130515281:
+
+| | |
+|---|---|
+| total voting power | 1,266.34 B |
+| staking owners | 104 |
+| locks | 267 |
+| quorum at today's total | 126.63 B (For + Abstain) |
+
+The snapshot's total is read when the proposal is created; the figure
+above is today's, as a reference.
+
+**First BNB in the treasury: at the next fee conversion, not at
+execution.** The token's fee inventory is 0.168 B DMN, below the 0.2 B
+`minimumTokensBeforeSwap`. A conversion runs only when the inventory
+has reached 0.2 B and a direct transfer to the pair occurs. So the
+first BNB reaches the Timelock at the first fee conversion after
+execution, whenever that is; a conversion on execution day is not
+guaranteed (on 2026-10-01 the inventory was 0.268 B and a 1-wei poke
+converted at once on the fork; that was that day's state).
+
+**Proposer.** The rule is unchanged: a staking wallet with live voting
+power of at least `proposalThreshold` (1000 DMN). No address is
+published. The proposer's lock must not be withdrawn before the
+proposal is created: `propose` reads the proposer's live voting power
+at that moment.
+
+**Calldata and description: unchanged.** Re-verified on 2026-10-29
+with `cast`: the 740-byte calldata below hashes to
+`0xf171c8aee6fdbab2bea8b58281f65f9ea79227c97ae28492a3a8e198f0e58e6a`
+and the 455-byte description to
+`0x959bae3ee5b4ab07bb5ac9a3a14a2b29985311571294b54e4c30dc9fcdd70058`,
+the values recorded on 2026-10-01; `cast calldata-decode` of the
+calldata returns the target, value `0`, `setStakingRewardShareBps(600)`
+and the description byte for byte.
+
 *Prepared 2026-10-01. **Not proposed** as of this commit: the Governor's
 `proposalCount` was 0 at block 125008614. When G1 is created, its id,
 transaction and block are added here. Where this text and the deployed
