@@ -45,3 +45,16 @@ The 2026-10-03 message is pinned in all three; the old pinned message in the
 Italian group (https://t.me/Daimon_Official_Italian_Group/389, July) was
 unpinned, not deleted. The channel and group descriptions were updated on
 2026-10-02 with the official sites.
+
+## Metrics
+
+Measured on 2026-11-08 (maturity), read by hand from X post analytics and from the Telegram view counters. X: the first tweet of each post. Telegram groups show no view counts; their reactions were between 1 and 3 on each of these posts. "n/r": not reported.
+
+| post | X impressions | X engagements | X detail expands | X profile visits | X link clicks | X likes / reposts / replies | TG channel EN views | TG channel EN reactions |
+|---|---:|---:|---:|---:|---:|---|---:|---:|
+| 2026-10-13 CoinGecko request | 175 | 48 | 3 | 7 | n/r | 17 / 3 / 4 | 44 | 2 |
+| 2026-10-16 Paper §10.4 | 168 | 29 | 5 | 1 | n/r | 13 / 2 / 6 | 41 | 3 |
+| 2026-10-20 75 % in 365-day locks | 160 | 34 | 8 | 4 | n/r | 13 / 1 / 6 | 30 | 3 |
+| 2026-10-30 G1 announcement | 96 | 27 | 3 | 1 | n/r | 15 / 1 / 7 | 18 | 3 |
+
+Reading: between 13 and 30 October reach fell on both channels (X 175 → 96 impressions, Telegram channel 44 → 18 views) while the X engagement rate stayed between 17 % and 28 %: a small, attentive audience. The G1 announcement had the lowest reach of the four; the next posts need wider distribution (reposts by the team and active holders, replies in the first hours), not more frequency.
