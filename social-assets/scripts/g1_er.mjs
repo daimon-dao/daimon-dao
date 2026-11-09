@@ -2,12 +2,13 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { coin, render } from "./lib.mjs";
 
-// G1 "Myth of Er" cards (Friday 13 Nov 2026), version 3: "the cosmos of Er"
-// (Plato, Republic X) as a generative particle composition, the same language
-// as the particle engine of daimon.money (seeded mulberry32, small round dots,
-// nothing but dots). Same toolchain as g1_reminder.mjs (resvg + Inter from
-// fonts/use); the logo comes from ../brand/daimon-logo.svg through lib.mjs,
-// untouched.
+// G1 "Myth of Er" cards (Friday 13 Nov 2026), version 4: the scene of v3,
+// "the cosmos of Er" (Plato, Republic X) as a generative particle composition
+// in the language of the particle engine of daimon.money (seeded mulberry32,
+// small round dots, nothing but dots), unchanged (same seed, same parameters,
+// same position), with a new text block: a small kicker, the headline, the
+// date. Same toolchain as g1_reminder.mjs (resvg + Inter from fonts/use); the
+// logo comes from ../brand/daimon-logo.svg through lib.mjs, untouched.
 //
 //   node g1_er.mjs   -> out/g1_er_X_en.png  (1600 x 900)
 //                       out/g1_er_TG_en.png (1200 x 1200)
@@ -246,10 +247,47 @@ export function scene(cx, cy) {
 const head = (w, h) =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
 
+/* ============ The text block: kicker, headline, date ============ */
+// The headline is broken where it reads naturally; the X card (narrower
+// column, 640 px between x = 860 and the 100 px margin) takes three lines,
+// the Telegram cards two. Rendered ink widths (Inter Bold, resvg):
+//   X  68 px: "The choice comes" 602, "before the river" 507, "of forgetting." 430
+//   TG 72 px: "The choice comes before" 884, "the river of forgetting." 769
+//             "La scelta viene prima" 736, "del fiume dell'oblio." 683
+// Both fit at the v3 sizes (68 / 72), so no step down was needed.
 const TEXT = {
-  en: { big: ["The choice comes", "before the river."], date: "16 Nov · 12:00 UTC" },
-  it: { big: ["La scelta viene", "prima del fiume."], date: "16 nov · 13:00 · ora italiana" },
+  en: {
+    kicker: "THE MYTH OF ER · PLATO",
+    x: ["The choice comes", "before the river", "of forgetting."],
+    tg: ["The choice comes before", "the river of forgetting."],
+    date: "16 Nov · 12:00 UTC",
+  },
+  it: {
+    kicker: "IL MITO DI ER · PLATONE",
+    tg: ["La scelta viene prima", "del fiume dell'oblio."],
+    date: "16 nov · 13:00 · ora italiana",
+  },
 };
+
+// Ink metrics of Inter as resvg renders it (measured): the block is centred on
+// its ink, from the top of the kicker's capitals to the date's baseline (the
+// dates have no descenders).
+const KICKER = { size: 24, weight: 600, spacing: 3, cap: 18 }; // uppercase, letter-spaced, cap height 18 px
+const DATE = { size: 50, weight: 700 }; // unchanged from v3
+const GAP_KICKER = 26; // kicker baseline -> top of the headline's ascenders, px
+const GAP_DATE = 88; // last headline baseline -> date baseline, px (as in v3)
+const ascent = (size) => Math.round(size * 0.78); // top of the ascenders above the baseline
+const pitch = (size) => size + 14; // headline line pitch: 68 -> 82, 72 -> 86
+
+function textBlock(x, centreY, t, lines, size, anchor) {
+  const n = lines.length;
+  const height = KICKER.cap + GAP_KICKER + ascent(size) + pitch(size) * (n - 1) + GAP_DATE;
+  const kickerY = Math.round(centreY - height / 2 + KICKER.cap);
+  const first = kickerY + GAP_KICKER + ascent(size);
+  let s = T(x, kickerY, t.kicker, { size: KICKER.size, weight: KICKER.weight, fill: SECONDARY, anchor, spacing: KICKER.spacing });
+  lines.forEach((line, i) => { s += T(x, first + i * pitch(size), line, { size, weight: 700, fill: CREAM, anchor }); });
+  return s + T(x, first + (n - 1) * pitch(size) + GAP_DATE, t.date, { size: DATE.size, weight: DATE.weight, fill: GOLD, anchor });
+}
 
 /* ============ X card 1600×900: scene left, text right (left-aligned) ============ */
 function xCard(lang) {
@@ -262,9 +300,7 @@ function xCard(lang) {
     coin(70, 70, 96, { coinFill: CARD }) +
     T(1530, 128, "daimon-dao", { size: 26, weight: 500, fill: SECONDARY, anchor: "end" }) +
     scene(420, cy) +
-    T(tx, 389, t.big[0], { size: 68, weight: 700, fill: CREAM }) +
-    T(tx, 473, t.big[1], { size: 68, weight: 700, fill: CREAM }) +
-    T(tx, 561, t.date, { size: 50, weight: 700, fill: GOLD }) +
+    textBlock(tx, 450, t, t.x, 68, "start") + // vertically centred on the card
     `</svg>`;
 }
 
@@ -275,14 +311,14 @@ function tgCard(lang) {
   const groupTop = 226;
   const cy = f2(groupTop - box.top);
   const cx = 600;
+  const sceneBottom = groupTop + (box.bottom - box.top); // 664
+  const margin = 1100; // the 100 px bottom margin
   return head(1200, 1200) +
     `<rect width="1200" height="1200" fill="${NAVY}"/>` +
     coin(60, 60, 96, { coinFill: CARD }) +
     T(1140, 118, "daimon-dao", { size: 26, weight: 500, fill: SECONDARY, anchor: "end" }) +
     scene(cx, cy) +
-    T(cx, 800, t.big[0], { size: 72, weight: 700, fill: CREAM, anchor: "middle" }) +
-    T(cx, 886, t.big[1], { size: 72, weight: 700, fill: CREAM, anchor: "middle" }) +
-    T(cx, 976, t.date, { size: 50, weight: 700, fill: GOLD, anchor: "middle" }) +
+    textBlock(cx, (sceneBottom + margin) / 2, t, t.tg, 72, "middle") + // centred in the free space under the scene
     `</svg>`;
 }
 
