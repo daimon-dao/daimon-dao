@@ -2,12 +2,14 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { coin, render } from "./lib.mjs";
 
-// G1 "Myth of Er" cards (Friday 13 Nov 2026), version 4: the scene of v3,
+// G1 "Myth of Er" cards (Friday 13 Nov 2026), version 4.1: the scene of v3,
 // "the cosmos of Er" (Plato, Republic X) as a generative particle composition
 // in the language of the particle engine of daimon.money (seeded mulberry32,
 // small round dots, nothing but dots), unchanged (same seed, same parameters,
-// same position), with a new text block: a small kicker, the headline, the
-// date. Same toolchain as g1_reminder.mjs (resvg + Inter from fonts/use); the
+// same position), with the text block of v4: a small kicker, the headline, the
+// date. v4.1 enlarges the kicker (24 -> 32 px, letter-spacing scaled 3 -> 4)
+// and gives the Italian headline the typographic apostrophe (U+2019); nothing
+// else moves. Same toolchain as g1_reminder.mjs (resvg + Inter from fonts/use); the
 // logo comes from ../brand/daimon-logo.svg through lib.mjs, untouched.
 //
 //   node g1_er.mjs   -> out/g1_er_X_en.png  (1600 x 900)
@@ -253,7 +255,7 @@ const head = (w, h) =>
 // the Telegram cards two. Rendered ink widths (Inter Bold, resvg):
 //   X  68 px: "The choice comes" 602, "before the river" 507, "of forgetting." 430
 //   TG 72 px: "The choice comes before" 884, "the river of forgetting." 769
-//             "La scelta viene prima" 736, "del fiume dell'oblio." 683
+//             "La scelta viene prima" 736, "del fiume dell’oblio." 678
 // Both fit at the v3 sizes (68 / 72), so no step down was needed.
 const TEXT = {
   en: {
@@ -264,7 +266,7 @@ const TEXT = {
   },
   it: {
     kicker: "IL MITO DI ER · PLATONE",
-    tg: ["La scelta viene prima", "del fiume dell'oblio."],
+    tg: ["La scelta viene prima", "del fiume dell’oblio."],
     date: "16 nov · 13:00 · ora italiana",
   },
 };
@@ -272,7 +274,7 @@ const TEXT = {
 // Ink metrics of Inter as resvg renders it (measured): the block is centred on
 // its ink, from the top of the kicker's capitals to the date's baseline (the
 // dates have no descenders).
-const KICKER = { size: 24, weight: 600, spacing: 3, cap: 18 }; // uppercase, letter-spaced, cap height 18 px
+const KICKER = { size: 32, weight: 600, spacing: 4, cap: 24 }; // uppercase, letter-spaced, cap height 24 px (measured; v4 was 24 / 3 / 18)
 const DATE = { size: 50, weight: 700 }; // unchanged from v3
 const GAP_KICKER = 26; // kicker baseline -> top of the headline's ascenders, px
 const GAP_DATE = 88; // last headline baseline -> date baseline, px (as in v3)
