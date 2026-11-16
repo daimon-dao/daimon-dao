@@ -23,6 +23,15 @@ SVG rebuild.
 | `quote-verificate.png` | 1600×900 | X post — "Don't trust us. Verify." |
 | `g1_announce_X_en.png` | 1600×900 | X post — G1 announcement: "60 / 40", proposal created Mon 16 Nov 2026 12:00 UTC, stake before it to vote, voting 17–22 Nov, 7-day Timelock. Rendered by `scripts/g1.mjs`. |
 | `g1_announce_TG_en.png`, `g1_announce_TG_it.png` | 1200×1200 | Telegram — the same G1 announcement, English and Italian. Rendered by `scripts/g1.mjs`. |
+| `g1_er_X_en.png` | 1600×900 | X post — "The Myth of Er" (Plato): "The choice comes before the river of forgetting.", the G1 date 16 Nov · 12:00 UTC, over a generative particle scene (seeded, dots only). Rendered by `scripts/g1_er.mjs`. |
+| `g1_er_TG_en.png` | 1200×1200 | Telegram — the same Myth of Er card, English. Rendered by `scripts/g1_er.mjs`. |
+| `g1_er_TG_it.png` | 1200×1200 | Telegram — the same Myth of Er card, Italian ("La scelta viene prima del fiume dell’oblio.", 16 nov · 13:00 · ora italiana). Rendered by `scripts/g1_er.mjs`. |
+| `g1_reminder_X_en.png` | 1600×900 | X post — G1 reminder: "16 Nov · 12:00 UTC" as the giant figure, stake before the proposal to vote on G1. Rendered by `scripts/g1_reminder.mjs`. |
+| `g1_reminder_TG_en.png` | 1200×1200 | Telegram — the same reminder, English. Rendered by `scripts/g1_reminder.mjs`. |
+| `g1_reminder_TG_it.png` | 1200×1200 | Telegram — the same reminder, Italian ("16 nov · 13:00", "ora italiana"). Rendered by `scripts/g1_reminder.mjs`. |
+| `g1_live_X_en.png` | 1600×900 | X post — "G1 · on chain": voting opens 17 Nov · 12:00 UTC, closes 22 Nov, earliest execution 29 Nov. Rendered by `scripts/g1_live.mjs`. |
+| `g1_live_TG_en.png` | 1200×1200 | Telegram — the same "G1 · on chain" card, English. Rendered by `scripts/g1_live.mjs`. |
+| `g1_live_TG_it.png` | 1200×1200 | Telegram — the same card, Italian: title "G1 · on chain", "Il voto apre il 17 nov · 13:00", "ora italiana · chiude il 22 nov · esecuzione dal 29 nov". Rendered by `scripts/g1_live.mjs`. |
 | `github-preview.png` | 1280×640 | Repository social preview (Settings → Social preview). |
 | `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header, the GitHub organization avatar and daimon.money. Same bytes as `brand/daimon-logo-ring-512.png`. Rendered by `scripts/brand.mjs`. |
 | `brand/` | — | The logo's source of truth (`Logo_DMN_Official.ai`), its SVG rebuild, the gold-ring version (`daimon-logo-ring.svg`) and their PNGs. Which file to use where: [brand/README.md](brand/README.md). |

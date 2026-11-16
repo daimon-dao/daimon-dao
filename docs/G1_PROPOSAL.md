@@ -1,5 +1,46 @@
 # G1 -- the 60/40 split (the first mainnet proposal)
 
+## Status 2026-11-16: proposed
+
+G1 is on chain. The values below were read from the transaction
+receipt, the `ProposalCreated` log and `proposals(0)` on 2026-11-16
+(block 133924285) and are the ones the Governor now runs on. The
+sections below this one are kept as dated history.
+
+| | |
+|---|---|
+| transaction | [`0x363af93ff874dc3fc0f0dd8030eb69e602e07005705d316559222f3ac770f892`](https://bscscan.com/tx/0x363af93ff874dc3fc0f0dd8030eb69e602e07005705d316559222f3ac770f892) |
+| block | 133923857, 2026-11-16 12:00:17 UTC |
+| proposal id | 0 |
+| snapshot block | 133923856 (the block before the propose block) |
+| vote start | 2026-11-17 12:00:17 UTC |
+| vote end | 2026-11-22 12:00:17 UTC (inclusive) |
+| total voting power at the snapshot | 1,505.499395 B |
+| quorum | 150.549940 B (For + Abstain), and For > Against |
+| earliest `queue(0)`, by anyone | 2026-11-22 12:00:18 UTC |
+| earliest `execute(0)`, by anyone | the queue block's timestamp + 604,800 s: 2026-11-29 12:00:18 UTC if queued at the earliest |
+| gas used | 701,175 at 0.05 gwei (0.000035 BNB) |
+
+The transaction input is byte-identical to the 740-byte calldata
+below (keccak `0xf171c8ae…8e6a`); the stored target, value, data and
+description are those bytes, verbatim (description keccak
+`0x959bae3e…0058`). `proposalCount` is 1 and `state(0)` is Pending
+until the vote opens.
+
+**Dress rehearsal of 2026-11-15** (a mainnet fork at block 133762406,
+the committed `script/g1/g1-fork.mjs` unchanged; the records are kept
+outside the repository): 19 of 20 rows passed. R.5, "all other owners
+vote Against, G1 still passes", no longer holds: the real voting power
+grew from 278.25 B (2026-10-01) to 1,504.8 B, while the fork-only
+positions of the rehearsal total 560.07 B, so G1 now passes only if
+the rest of the electorate does not outvote them. This is the Governor
+working as specified, not a failure. Two more differences from the
+2026-10-01 run: propose gas 701,175 (was 696,183), and the poke rows
+needed the script's fork-only arming, because the live fee inventory
+was below `minimumTokensBeforeSwap` after the conversion of 2026-11-13
+(on 2026-10-01 it was above it and no arming was needed). The rows of
+the rehearsal table below are left as written on 2026-10-01.
+
 ## Status 2026-10-29 (block 130515281)
 
 Still **not proposed**: `proposalCount` is 0. The sections below this

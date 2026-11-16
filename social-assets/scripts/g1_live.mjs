@@ -49,7 +49,7 @@ const TEXT = {
     line: "Voting closes 22 Nov · earliest execution 29 Nov",
   },
   it: {
-    big: "G1 · sulla catena",
+    big: "G1 · on chain",
     caption: "Il voto apre il 17 nov · 13:00",
     line: "ora italiana · chiude il 22 nov · esecuzione dal 29 nov",
   },
