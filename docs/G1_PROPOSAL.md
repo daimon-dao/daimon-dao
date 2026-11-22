@@ -1,5 +1,34 @@
 # G1 -- the 60/40 split (the first mainnet proposal)
 
+## Status 2026-11-22: approved and queued
+
+G1 passed the vote and is queued in the Timelock. The values below
+were read from contract state (`proposals(0)`, `state(0)` = Queued,
+the Timelock operation) at block 135106396 (2026-11-22 15:53:09 UTC)
+and cross-checked on a second public endpoint at the same block. The
+sections below this one are kept as dated history.
+
+| | |
+|---|---|
+| proposal id | 0 |
+| For | 808,702,436,806.53 (97.5 % of For + Against) |
+| Against | 20,452,455,072.6 |
+| Abstain | 0 |
+| snapshot block | 133923856 (2026-11-16 12:00:17 UTC) |
+| total voting power at the snapshot | 1,505,499,395,438.73 |
+| quorum required | 150,549,939,543.87 (10 %), reached 5.37 times over |
+| turnout | 55.08 % of the snapshot voting power |
+| addresses that voted | 45 |
+| vote | from 2026-11-17 12:00:17 UTC to 2026-11-22 12:00:17 UTC |
+| queue transaction | [`0xa8cb8b9323afc6c1cb4f0f11be35d3fa16e65789515b61e5ed8f6fc3e364326d`](https://bscscan.com/tx/0xa8cb8b9323afc6c1cb4f0f11be35d3fa16e65789515b61e5ed8f6fc3e364326d) |
+| queue block | 135101474, 2026-11-22 15:16:14 UTC |
+| Timelock `CallScheduled` | target the DMN token `0x160864F9945C52063A7c9f5dcd57C0C89eacbE6a`, value 0, data `0x6cf839b9…0258` = `setStakingRewardShareBps(600)`, delay 604,800 s |
+| `execute(0)`, by anyone | possible from eta 1795965374 = 2026-11-29 15:16:14 UTC |
+
+The queue transaction was mined at 15:16:14 UTC, not at the earliest
+possible second, so the earliest execution is 2026-11-29 15:16:14 UTC
+and not the 12:00:18 UTC of the table below.
+
 ## Status 2026-11-16: proposed
 
 G1 is on chain. The values below were read from the transaction

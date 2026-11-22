@@ -32,6 +32,10 @@ SVG rebuild.
 | `g1_live_X_en.png` | 1600×900 | X post — "G1 · on chain": voting opens 17 Nov · 12:00 UTC, closes 22 Nov, earliest execution 29 Nov. Rendered by `scripts/g1_live.mjs`. |
 | `g1_live_TG_en.png` | 1200×1200 | Telegram — the same "G1 · on chain" card, English. Rendered by `scripts/g1_live.mjs`. |
 | `g1_live_TG_it.png` | 1200×1200 | Telegram — the same card, Italian: title "G1 · on chain", "Il voto apre il 17 nov · 13:00", "ora italiana · chiude il 22 nov · esecuzione dal 29 nov". Rendered by `scripts/g1_live.mjs`. |
+| `g1_result_X_en.png` | 1600×900 | X post — "G1 · approved": "97.5% For", "Queued · executable from 29 Nov, 15:16 UTC", beside a generative particle scene (seed 20261122, dots only): 45 gold particles of equal size, one per address that voted, flow into an hourglass of cream particles (the 7 days of the Timelock). Rendered by `scripts/g1_result.mjs`. |
+| `g1_result_TG_en.png` | 1200×1200 | Telegram — the same "G1 · approved" card, English, the scene above the text. Rendered by `scripts/g1_result.mjs`. |
+| `g1_result_TG_it.png` | 1200×1200 | Telegram — the same card, Italian: "G1 · approvata", "97,5% a favore", "In coda · eseguibile dal 29 nov, 16:16 ora italiana". Rendered by `scripts/g1_result.mjs`. |
+| `scripts/g1_result.mjs` | — | The script that renders the three `g1_result_*` cards: one scene built from the fixed seed 20261122, the same in the three images. |
 | `github-preview.png` | 1280×640 | Repository social preview (Settings → Social preview). |
 | `logo-512.png` | 512×512 | Square logo (disc + gold ring, transparent corners): root README header, the GitHub organization avatar and daimon.money. Same bytes as `brand/daimon-logo-ring-512.png`. Rendered by `scripts/brand.mjs`. |
 | `brand/` | — | The logo's source of truth (`Logo_DMN_Official.ai`), its SVG rebuild, the gold-ring version (`daimon-logo-ring.svg`) and their PNGs. Which file to use where: [brand/README.md](brand/README.md). |
